@@ -8,6 +8,7 @@ from yarl import URL
 from .config import (
     Config,
     CORSConfig,
+    DiskConfig,
     KubeClientAuthType,
     KubeConfig,
     PlatformAuthConfig,
@@ -30,6 +31,7 @@ class EnvironConfigFactory:
             kube=self._create_kube(),
             cluster_name=cluster_name,
             cors=self.create_cors(),
+            disk=self._create_disk(),
         )
 
     def _create_server(self) -> ServerConfig:
@@ -73,6 +75,11 @@ class EnvironConfigFactory:
                 self._environ.get("NP_DISK_API_K8S_CLIENT_CONN_POOL_SIZE")
                 or KubeConfig.client_conn_pool_size
             ),
+        )
+
+    def _create_disk(self) -> DiskConfig:
+        return DiskConfig(
+            k8s_storage_class=self._environ["NP_DISK_API_K8S_STORAGE_CLASS"]
         )
 
     def create_cors(self) -> CORSConfig:

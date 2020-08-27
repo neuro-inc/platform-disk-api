@@ -7,6 +7,7 @@ from yarl import URL
 from platform_disk_api.config import (
     Config,
     CORSConfig,
+    DiskConfig,
     KubeClientAuthType,
     KubeConfig,
     PlatformAuthConfig,
@@ -49,6 +50,7 @@ def test_create(cert_authority_path: str, token_path: str) -> None:
         "NP_DISK_API_K8S_CLIENT_CONN_TIMEOUT": "111",
         "NP_DISK_API_K8S_CLIENT_READ_TIMEOUT": "222",
         "NP_DISK_API_K8S_CLIENT_CONN_POOL_SIZE": "333",
+        "NP_DISK_API_K8S_STORAGE_CLASS": "some-class",
         "NP_CLUSTER_NAME": "default",
         "NP_CORS_ORIGINS": "https://domain1.com,http://do.main",
     }
@@ -70,6 +72,7 @@ def test_create(cert_authority_path: str, token_path: str) -> None:
             client_read_timeout_s=222,
             client_conn_pool_size=333,
         ),
+        disk=DiskConfig(k8s_storage_class="some-class",),
         cluster_name="default",
         cors=CORSConfig(["https://domain1.com", "http://do.main"]),
     )

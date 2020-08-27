@@ -44,9 +44,15 @@ class KubeConfig:
 
 
 @dataclass(frozen=True)
+class DiskConfig:
+    k8s_storage_class: str
+
+
+@dataclass(frozen=True)
 class Config:
     server: ServerConfig
     platform_auth: PlatformAuthConfig
     kube: KubeConfig
     cors: CORSConfig
+    disk: DiskConfig
     cluster_name: str
