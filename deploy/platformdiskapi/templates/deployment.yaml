@@ -1,0 +1,87 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: platformdiskapi
+spec:
+  replicas: {{ .Values.NP_DISK_API_REPLICAS}}
+  selector:
+    matchLabels:
+      service: platformdiskapi
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        service: platformdiskapi
+    spec:
+      containers:
+      - name: platformdiskapi
+        image: {{ .Values.IMAGE}}
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /api/v1/ping
+            port: tcp-web
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /api/v1/ping
+            port: tcp-web
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        ports:
+          - containerPort: 8080
+            name: tcp-web
+            protocol: TCP
+        resources:
+          requests:
+            cpu: {{ .Values.NP_DISK_API_REQUESTS_CPU}}
+            memory: {{ .Values.NP_DISK_API_REQUESTS_MEMORY}}
+          limits:
+            cpu: {{ .Values.NP_DISK_API_LIMITS_CPU}}
+            memory: {{ .Values.NP_DISK_API_LIMITS_MEMORY}}
+        env:
+        - name: NP_DISK_API_PLATFORM_AUTH_URL
+          value: {{ .Values.NP_DISK_API_PLATFORM_AUTH_URL}}
+        - name: NP_DISK_API_PLATFORM_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: platformservices-platform_disk_api
+              key: compute_token
+        - name: NP_DISK_API_K8S_API_URL
+          value: https://kubernetes.default:443
+        - name: NP_DISK_API_K8S_AUTH_TYPE
+          value: token
+        - name: NP_DISK_API_K8S_CA_PATH
+          value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        - name: NP_DISK_API_K8S_TOKEN_PATH
+          value: /var/run/secrets/kubernetes.io/serviceaccount/token
+        - name: NP_DISK_API_K8S_NS
+          value: {{ .Values.NP_SECRETS_K8S_NS}}
+        - name: NP_CLUSTER_NAME
+          value: {{ .Values.NP_CLUSTER_NAME}}
+        - name: NP_CORS_ORIGINS
+          value: {{ .Values.NP_CORS_ORIGINS}}
+      {{- if .Values.DOCKER_LOGIN_ARTIFACTORY_SECRET_NAME}}
+      imagePullSecrets:
+        - name: {{ .Values.DOCKER_LOGIN_ARTIFACTORY_SECRET_NAME}}
+      {{- end}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformdiskapi
+  annotations:
+    traefik.ingress.kubernetes.io/affinity: "true"
+    traefik.ingress.kubernetes.io/session-cookie-name: NEURO_DISK_API_SESSION
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: tcp-web
+  selector:
+    service: platformdiskapi

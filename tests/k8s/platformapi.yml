@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: platformredis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: platformredis
+  template:
+    metadata:
+      labels:
+        service: platformredis
+    spec:
+      containers:
+      - name: platformredis
+        image: redis:4
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformredis
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+  selector:
+    service: platformredis
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: platformauthapi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: platformauthapi
+  template:
+    metadata:
+      labels:
+        service: platformauthapi
+    spec:
+      containers:
+      - name: platformauthapi
+        image: platformauthapi:latest
+        imagePullPolicy: Never
+        env:
+        - name: NP_JWT_SECRET
+          value: secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformauthapi
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    service: platformauthapi
