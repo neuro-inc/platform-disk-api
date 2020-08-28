@@ -26,6 +26,10 @@ class ResourceInvalid(KubeClientException):
     pass
 
 
+class ResourceExists(KubeClientException):
+    pass
+
+
 class ResourceBadRequest(KubeClientException):
     pass
 
@@ -56,7 +60,7 @@ class PersistentVolumeClaimWrite(PersistentVolumeClaim):
 
 @dataclass(frozen=True)
 class PersistentVolumeClaimRead(PersistentVolumeClaim):
-    phase: str
+    phase: "PersistentVolumeClaimRead.Phase"
     storage_requested: int
     storage_real: Optional[int]
 
@@ -77,10 +81,13 @@ class PersistentVolumeClaimRead(PersistentVolumeClaim):
             storage_real: Optional[int] = int(payload["status"]["capacity"]["storage"])
         except KeyError:
             storage_real = None
+        phase = next(
+            phase for phase in cls.Phase if phase == payload["status"]["phase"]
+        )
         return cls(
             name=payload["metadata"]["name"],
             storage_class_name=payload["spec"]["storageClassName"],
-            phase=payload["status"]["phase"],
+            phase=phase,
             storage_requested=int(payload["spec"]["resources"]["requests"]["storage"]),
             storage_real=storage_real,
         )
@@ -209,6 +216,8 @@ class KubeClient:
                 raise ResourceBadRequest(payload)
             if code == 404:
                 raise ResourceNotFound(payload)
+            if code == 409:
+                raise ResourceExists(payload)
             if code == 422:
                 raise ResourceInvalid(payload["message"])
             raise KubeClientException(payload["message"])

@@ -41,13 +41,13 @@ class TestPVCSerialization:
                     "resources": {"requests": {"storage": storage}},
                     "storageClassName": storage_class,
                 },
-                "status": {"phase": PersistentVolumeClaimRead.Phase.PENDING},
+                "status": {"phase": "Pending"},
             }
         )
         assert pvc == PersistentVolumeClaimRead(
             name=name,
             storage_class_name=storage_class,
-            phase="Pending",
+            phase=PersistentVolumeClaimRead.Phase.PENDING,
             storage_requested=storage,
             storage_real=None,
         )
@@ -67,16 +67,13 @@ class TestPVCSerialization:
                     "resources": {"requests": {"storage": storage}},
                     "storageClassName": storage_class,
                 },
-                "status": {
-                    "phase": PersistentVolumeClaimRead.Phase.BOUND,
-                    "capacity": {"storage": 2 * storage},
-                },
+                "status": {"phase": "Bound", "capacity": {"storage": 2 * storage}},
             }
         )
         assert pvc == PersistentVolumeClaimRead(
             name=name,
             storage_class_name=storage_class,
-            phase="Bound",
+            phase=PersistentVolumeClaimRead.Phase.BOUND,
             storage_requested=storage,
             storage_real=2 * storage,
         )

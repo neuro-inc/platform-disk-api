@@ -80,3 +80,12 @@ async def kube_client(kube_config: KubeConfig) -> AsyncIterator[KubeClient]:
     )
     async with client:
         yield client
+
+
+@pytest.fixture
+async def cleanup_pvcs(kube_client: KubeClient) -> AsyncIterator[None]:
+    for pvc in await kube_client.list_pvc():
+        await kube_client.remove_pvc(pvc.name)
+    yield
+    for pvc in await kube_client.list_pvc():
+        await kube_client.remove_pvc(pvc.name)
