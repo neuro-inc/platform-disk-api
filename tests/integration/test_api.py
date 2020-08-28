@@ -1,15 +1,17 @@
 from dataclasses import dataclass
-from typing import AsyncIterator, Callable
+from typing import AsyncIterator, Awaitable, Callable
 
 import aiohttp
 import pytest
 from aiohttp.web import HTTPOk
-from aiohttp.web_exceptions import HTTPForbidden, HTTPUnauthorized
+from aiohttp.web_exceptions import HTTPCreated, HTTPForbidden, HTTPUnauthorized
 
 from platform_disk_api.api import create_app
 from platform_disk_api.config import Config
+from platform_disk_api.schema import DiskSchema
 
 from .conftest import ApiAddress, create_local_app_server
+from .conftest_auth import _User
 
 
 pytestmark = pytest.mark.asyncio
@@ -30,6 +32,10 @@ class DiskApiEndpoints:
     @property
     def secured_ping_url(self) -> str:
         return f"{self.api_v1_endpoint}/secured-ping"
+
+    @property
+    def disk_url(self) -> str:
+        return f"{self.api_v1_endpoint}/disk"
 
 
 @pytest.fixture
@@ -139,3 +145,21 @@ class TestApi:
             assert resp.headers["Access-Control-Allow-Origin"] == "https://neu.ro"
             assert resp.headers["Access-Control-Allow-Credentials"] == "true"
             assert resp.headers["Access-Control-Allow-Methods"] == "GET"
+
+    async def test_disk_create(
+        self,
+        cleanup_pvcs: None,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[[], Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory()
+        async with client.post(
+            disk_api.disk_url,
+            json={"name": "test-disk", "storage": 500},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code, await resp.text()
+            disk = DiskSchema().load(await resp.json())
+            assert disk.name == "test-disk"
+            assert disk.storage >= 500
