@@ -82,7 +82,7 @@ async def regular_user_factory(
             # Grant permissions to the user home directory
             headers = auth_client._generate_headers(admin_token)
             payload = [
-                {"uri": f"secret://{cluster_name}/{name}", "action": "write"},
+                {"uri": f"disk://{cluster_name}/{name}", "action": "write"},
             ]
             async with auth_client._request(
                 "POST",

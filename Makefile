@@ -4,7 +4,7 @@ ARTIFACTORY_TAG ?= $(shell echo "$(GITHUB_REF)" | awk -F/ '{print $$NF}')
 IMAGE ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)/$(IMAGE_NAME)
 IMAGE_AWS ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(IMAGE_NAME)
 
-PLATFORMAUTHAPI_TAG=1deed1143a3cdf00a7522ad7d40d7794dcfe7ef1
+PLATFORMAUTHAPI_TAG=disk-support
 
 export PIP_EXTRA_INDEX_URL ?= $(shell python pip_extra_index_url.py)
 
