@@ -6,7 +6,7 @@ from typing import Any, AsyncIterator, Dict, Optional
 import pytest
 
 from platform_disk_api.config import KubeConfig
-from platform_disk_api.kube_client import KubeClient
+from platform_disk_api.kube_client import KubeClient, ResourceNotFound
 
 
 @pytest.fixture(scope="session")
@@ -80,3 +80,18 @@ async def kube_client(kube_config: KubeConfig) -> AsyncIterator[KubeClient]:
     )
     async with client:
         yield client
+
+
+@pytest.fixture
+async def cleanup_pvcs(kube_client: KubeClient) -> AsyncIterator[None]:
+    for pvc in await kube_client.list_pvc():
+        try:
+            await kube_client.remove_pvc(pvc.name)
+        except ResourceNotFound:
+            pass
+    yield
+    for pvc in await kube_client.list_pvc():
+        try:
+            await kube_client.remove_pvc(pvc.name)
+        except ResourceNotFound:
+            pass

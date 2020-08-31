@@ -1,7 +1,9 @@
 import logging
 import ssl
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
 
 import aiohttp
@@ -24,8 +26,75 @@ class ResourceInvalid(KubeClientException):
     pass
 
 
+class ResourceExists(KubeClientException):
+    pass
+
+
 class ResourceBadRequest(KubeClientException):
     pass
+
+
+@dataclass(frozen=True)
+class PersistentVolumeClaimWrite:
+    name: str
+    storage_class_name: str
+    storage: int  # In bytes
+    labels: Dict[str, str] = field(default_factory=dict)
+
+    def to_primitive(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {
+            "kind": "PersistentVolumeClaim",
+            "apiVersion": "v1",
+            "metadata": {"name": self.name},
+            "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "volumeMode": "Filesystem",
+                "resources": {"requests": {"storage": self.storage}},
+                "storageClassName": self.storage_class_name,
+            },
+        }
+        if self.labels:
+            result["metadata"]["labels"] = self.labels
+        return result
+
+
+@dataclass(frozen=True)
+class PersistentVolumeClaimRead:
+    name: str
+    storage_class_name: str
+    phase: "PersistentVolumeClaimRead.Phase"
+    storage_requested: int
+    storage_real: Optional[int]
+    labels: Dict[str, str]
+
+    class Phase(str, Enum):
+        """Possible values for phase of PVC.
+
+        Check k8s source code:
+        https://github.com/kubernetes/kubernetes/blob/b7d44329f3514a65af9048224329a4897cf4d31d/pkg/apis/core/types.go#L540-L549
+        """
+
+        PENDING = "Pending"
+        BOUND = "Bound"
+        LOST = "Lost"
+
+    @classmethod
+    def from_primitive(cls, payload: Dict[str, Any]) -> "PersistentVolumeClaimRead":
+        try:
+            storage_real: Optional[int] = int(payload["status"]["capacity"]["storage"])
+        except KeyError:
+            storage_real = None
+        phase = next(
+            phase for phase in cls.Phase if phase == payload["status"]["phase"]
+        )
+        return cls(
+            name=payload["metadata"]["name"],
+            storage_class_name=payload["spec"]["storageClassName"],
+            phase=phase,
+            storage_requested=int(payload["spec"]["resources"]["requests"]["storage"]),
+            storage_real=storage_real,
+            labels=payload["metadata"].get("labels", dict()),
+        )
 
 
 class KubeClient:
@@ -125,6 +194,17 @@ class KubeClient:
         namespace_name = namespace_name or self._namespace
         return f"{self._api_v1_url}/namespaces/{namespace_name}"
 
+    @property
+    def _namespace_url(self) -> str:
+        return self._generate_namespace_url(self._namespace)
+
+    @property
+    def _pvc_url(self) -> str:
+        return f"{self._namespace_url}/persistentvolumeclaims"
+
+    def _generate_pvc_url(self, pvc_name: str) -> str:
+        return f"{self._pvc_url}/{pvc_name}"
+
     async def _request(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
         assert self._client, "client is not initialized"
         async with self._client.request(*args, **kwargs) as response:
@@ -140,8 +220,35 @@ class KubeClient:
                 raise ResourceBadRequest(payload)
             if code == 404:
                 raise ResourceNotFound(payload)
+            if code == 409:
+                raise ResourceExists(payload)
             if code == 422:
                 raise ResourceInvalid(payload["message"])
             raise KubeClientException(payload["message"])
 
-    # Add endpoint wrappers here
+    async def create_pvc(
+        self, pvc: PersistentVolumeClaimWrite
+    ) -> PersistentVolumeClaimRead:
+        url = self._pvc_url
+        payload = await self._request(method="POST", url=url, json=pvc.to_primitive())
+        self._raise_for_status(payload)
+        return PersistentVolumeClaimRead.from_primitive(payload)
+
+    async def list_pvc(self) -> List[PersistentVolumeClaimRead]:
+        url = self._pvc_url
+        payload = await self._request(method="GET", url=url)
+        return [
+            PersistentVolumeClaimRead.from_primitive(item)
+            for item in payload.get("items", [])
+        ]
+
+    async def get_pvc(self, pvc_name: str) -> PersistentVolumeClaimRead:
+        url = self._generate_pvc_url(pvc_name)
+        payload = await self._request(method="GET", url=url)
+        self._raise_for_status(payload)
+        return PersistentVolumeClaimRead.from_primitive(payload)
+
+    async def remove_pvc(self, pvc_name: str) -> None:
+        url = self._generate_pvc_url(pvc_name)
+        payload = await self._request(method="DELETE", url=url)
+        self._raise_for_status(payload)
