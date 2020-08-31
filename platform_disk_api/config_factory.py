@@ -25,6 +25,7 @@ class EnvironConfigFactory:
 
     def create(self) -> Config:
         cluster_name = self._environ.get("NP_CLUSTER_NAME", "")
+        enable_docs = self._environ.get("NP_DISK_API_ENABLE_DOCS", "false") == "true"
         return Config(
             server=self._create_server(),
             platform_auth=self._create_platform_auth(),
@@ -32,6 +33,7 @@ class EnvironConfigFactory:
             cluster_name=cluster_name,
             cors=self.create_cors(),
             disk=self._create_disk(),
+            enable_docs=enable_docs,
         )
 
     def _create_server(self) -> ServerConfig:
