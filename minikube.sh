@@ -22,6 +22,7 @@ function minikube::apply_all_configurations {
     kubectl config use-context minikube
     kubectl apply -f tests/k8s/rb.default.gke.yml
     kubectl apply -f tests/k8s/platformapi.yml
+    kubectl apply -f tests/k8s/storageclass.yml
 }
 
 function minikube::clean {

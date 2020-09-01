@@ -13,6 +13,7 @@ import pytest
 from platform_disk_api.config import (
     Config,
     CORSConfig,
+    DiskConfig,
     KubeConfig,
     PlatformAuthConfig,
     ServerConfig,
@@ -33,6 +34,11 @@ def random_name(length: int = 8) -> str:
 
 
 @pytest.fixture
+async def k8s_storage_class() -> str:
+    return "test-storage-class"  # Same as in storageclass.yml
+
+
+@pytest.fixture
 async def client() -> AsyncIterator[aiohttp.ClientSession]:
     async with aiohttp.ClientSession() as session:
         yield session
@@ -40,7 +46,10 @@ async def client() -> AsyncIterator[aiohttp.ClientSession]:
 
 @pytest.fixture
 def config_factory(
-    auth_config: PlatformAuthConfig, kube_config: KubeConfig, cluster_name: str,
+    auth_config: PlatformAuthConfig,
+    kube_config: KubeConfig,
+    cluster_name: str,
+    k8s_storage_class: str,
 ) -> Callable[..., Config]:
     def _f(**kwargs: Any) -> Config:
         defaults = dict(
@@ -48,6 +57,7 @@ def config_factory(
             platform_auth=auth_config,
             kube=kube_config,
             cluster_name=cluster_name,
+            disk=DiskConfig(k8s_storage_class=k8s_storage_class),
             cors=CORSConfig(allowed_origins=["https://neu.ro"]),
         )
         kwargs = {**defaults, **kwargs}
