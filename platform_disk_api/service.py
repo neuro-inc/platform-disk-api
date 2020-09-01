@@ -20,6 +20,7 @@ logger = logging.getLogger()
 
 
 USER_LABEL = "platform.neuromation.io/user"
+DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,9 @@ class Service:
         )
 
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:
-        pvc_write = self._request_to_pvc(request, labels={USER_LABEL: username})
+        pvc_write = self._request_to_pvc(
+            request, labels={USER_LABEL: username, DISK_API_MARK_LABEL: "true"}
+        )
         pvc_read = await self._kube_client.create_pvc(pvc_write)
         return self._pvc_to_disk(pvc_read)
 
@@ -83,7 +86,11 @@ class Service:
         return self._pvc_to_disk(pvc)
 
     async def get_all_disks(self) -> List[Disk]:
-        return [self._pvc_to_disk(pvc) for pvc in await self._kube_client.list_pvc()]
+        return [
+            self._pvc_to_disk(pvc)
+            for pvc in await self._kube_client.list_pvc()
+            if pvc.labels.get(DISK_API_MARK_LABEL, False)
+        ]
 
     async def remove_disk(self, disk_id: str) -> None:
         try:

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from platform_disk_api.kube_client import KubeClient
+from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
 from platform_disk_api.service import DiskNotFound, DiskRequest, Service
 
 
@@ -54,3 +54,17 @@ class TestService:
     ) -> None:
         with pytest.raises(DiskNotFound):
             await service.remove_disk("no-disk-for-this-name")
+
+    async def test_get_all_disk_ignores_outer_pvcs(
+        self, cleanup_pvcs: None, kube_client: KubeClient, service: Service
+    ) -> None:
+        await kube_client.create_pvc(
+            PersistentVolumeClaimWrite(
+                name="outer-pvc", storage_class_name="no-way", storage=200
+            )
+        )
+        request = DiskRequest(storage=1024 * 1024)
+        disk_created = await service.create_disk(request, "testuser")
+        all_disks = await service.get_all_disks()
+        assert len(all_disks) == 1
+        assert all_disks[0].id == disk_created.id

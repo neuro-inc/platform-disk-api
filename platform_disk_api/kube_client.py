@@ -34,6 +34,30 @@ class ResourceBadRequest(KubeClientException):
     pass
 
 
+def _storage_str_to_int(storage: str) -> int:
+    suffix_to_factor = {
+        "E": 10 ** 18,
+        "P": 10 ** 15,
+        "T": 10 ** 12,
+        "G": 10 ** 9,
+        "M": 10 ** 6,
+        "K": 10 ** 3,
+        "Ei": 1024 ** 6,
+        "Pi": 1024 ** 5,
+        "Ti": 1024 ** 4,
+        "Gi": 1024 ** 3,
+        "Mi": 1024 ** 2,
+        "Ki": 1024,
+    }
+    try:
+        return int(float(storage))
+    except ValueError:
+        for suffix, factor in suffix_to_factor.items():
+            if storage.endswith(suffix):
+                return factor * int(storage[: -len(suffix)])
+        raise
+
+
 @dataclass(frozen=True)
 class PersistentVolumeClaimWrite:
     name: str
@@ -81,7 +105,9 @@ class PersistentVolumeClaimRead:
     @classmethod
     def from_primitive(cls, payload: Dict[str, Any]) -> "PersistentVolumeClaimRead":
         try:
-            storage_real: Optional[int] = int(payload["status"]["capacity"]["storage"])
+            storage_real: Optional[int] = _storage_str_to_int(
+                payload["status"]["capacity"]["storage"]
+            )
         except KeyError:
             storage_real = None
         phase = next(
@@ -91,7 +117,9 @@ class PersistentVolumeClaimRead:
             name=payload["metadata"]["name"],
             storage_class_name=payload["spec"]["storageClassName"],
             phase=phase,
-            storage_requested=int(payload["spec"]["resources"]["requests"]["storage"]),
+            storage_requested=_storage_str_to_int(
+                payload["spec"]["resources"]["requests"]["storage"]
+            ),
             storage_real=storage_real,
             labels=payload["metadata"].get("labels", dict()),
         )
