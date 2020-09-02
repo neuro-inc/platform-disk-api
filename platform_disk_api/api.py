@@ -157,7 +157,9 @@ async def create_app(config: Config) -> aiohttp.web.Application:
             )
 
             logger.info("Initializing Service")
-            app["disk_app"]["service"] = Service(kube_client)
+            app["disk_app"]["service"] = Service(
+                kube_client, config.disk.k8s_storage_class
+            )
 
             yield
 
