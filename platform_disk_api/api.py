@@ -14,15 +14,24 @@ from aiohttp.web import (
     json_response,
     middleware,
 )
+from aiohttp.web_exceptions import HTTPCreated, HTTPNoContent, HTTPNotFound, HTTPOk
 from aiohttp_security import check_authorized
-from neuro_auth_client import AuthClient
+from neuro_auth_client import (
+    AuthClient,
+    ClientSubTreeViewRoot,
+    Permission,
+    User,
+    check_permissions,
+)
 from neuro_auth_client.security import AuthScheme, setup_security
 from platform_logging import init_logging
 
 from .config import Config, CORSConfig, KubeConfig, PlatformAuthConfig
 from .config_factory import EnvironConfigFactory
+from .identity import untrusted_user
 from .kube_client import KubeClient
-from .service import Service
+from .schema import DiskRequestSchema, DiskSchema
+from .service import Disk, DiskNotFound, Service
 
 
 logger = logging.getLogger(__name__)
@@ -52,11 +61,93 @@ class DiskApiHandler:
 
     def register(self, app: aiohttp.web.Application) -> None:
         # TODO: add routes to handler
-        app.add_routes(
-            [
-                # aiohttp.web.post("", self.handle_post),
-            ]
+        app.add_routes([aiohttp.web.post("", self.handle_create_disk)])
+        app.add_routes([aiohttp.web.get("", self.handle_list_disks)])
+        app.add_routes([aiohttp.web.get("/{disk_id}", self.handle_get_disk)])
+        app.add_routes([aiohttp.web.delete("/{disk_id}", self.handle_delete_disk)])
+
+    @property
+    def _service(self) -> Service:
+        return self._app["service"]
+
+    @property
+    def _auth_client(self) -> AuthClient:
+        return self._app["auth_client"]
+
+    async def _get_untrusted_user(self, request: Request) -> User:
+        identity = await untrusted_user(request)
+        return User(name=identity.name)
+
+    @property
+    def _disk_cluster_uri(self) -> str:
+        return f"disk://{self._config.cluster_name}"
+
+    def _get_user_disk_uri(self, user: User) -> str:
+        return f"{self._disk_cluster_uri}/{user.name}"
+
+    def _get_user_disks_write_perm(self, user: User) -> Permission:
+        return Permission(self._get_user_disk_uri(user), "write")
+
+    def _get_disk_read_perm(self, disk: Disk) -> Permission:
+        return Permission(f"{self._disk_cluster_uri}/{disk.owner}/{disk.id}", "read")
+
+    def _get_disk_write_perm(self, disk: Disk) -> Permission:
+        return Permission(f"{self._disk_cluster_uri}/{disk.owner}/{disk.id}", "write")
+
+    async def handle_create_disk(self, request: Request) -> Response:
+        user = await self._get_untrusted_user(request)
+        await check_permissions(request, [self._get_user_disks_write_perm(user)])
+        payload = await request.json()
+        disk_request = DiskRequestSchema().load(payload)
+        disk = await self._service.create_disk(disk_request, user.name)
+        resp_payload = DiskSchema().dump(disk)
+        return json_response(resp_payload, status=HTTPCreated.status_code)
+
+    def _check_disk_read_perm(self, disk: Disk, tree: ClientSubTreeViewRoot) -> bool:
+        node = tree.sub_tree
+        if node.can_read():
+            return True
+        try:
+            user_node = node.children[disk.owner]
+            if user_node.can_read():
+                return True
+            disk_node = user_node.children[disk.id]
+            return disk_node.can_read()
+        except KeyError:
+            return False
+
+    async def handle_get_disk(self, request: Request) -> Response:
+        disk_id = request.match_info["disk_id"]
+        try:
+            disk = await self._service.get_disk(disk_id)
+        except DiskNotFound:
+            raise HTTPNotFound
+        await check_permissions(request, [self._get_disk_read_perm(disk)])
+        resp_payload = DiskSchema().dump(disk)
+        return json_response(resp_payload, status=HTTPOk.status_code)
+
+    async def handle_list_disks(self, request: Request) -> Response:
+        user = await self._get_untrusted_user(request)
+        tree = await self._auth_client.get_permissions_tree(
+            user.name, self._disk_cluster_uri
         )
+        disks = [
+            disk
+            for disk in await self._service.get_all_disks()
+            if self._check_disk_read_perm(disk, tree)
+        ]
+        resp_payload = DiskSchema(many=True).dump(disks)
+        return json_response(resp_payload, status=HTTPOk.status_code)
+
+    async def handle_delete_disk(self, request: Request) -> Response:
+        disk_id = request.match_info["disk_id"]
+        try:
+            disk = await self._service.get_disk(disk_id)
+        except DiskNotFound:
+            raise HTTPNotFound
+        await check_permissions(request, [self._get_disk_write_perm(disk)])
+        await self._service.remove_disk(disk_id)
+        raise HTTPNoContent
 
 
 @middleware
@@ -150,6 +241,7 @@ async def create_app(config: Config) -> aiohttp.web.Application:
             await setup_security(
                 app=app, auth_client=auth_client, auth_scheme=AuthScheme.BEARER
             )
+            app["disk_app"]["auth_client"] = auth_client
 
             logger.info("Initializing Kubernetes client")
             kube_client = await exit_stack.enter_async_context(
