@@ -267,6 +267,17 @@ async def create_app(config: Config) -> aiohttp.web.Application:
     app.add_subapp("/api/v1", api_v1_app)
 
     _setup_cors(app, config.cors)
+    if config.enable_docs:
+        setup_aiohttp_apispec(
+            app=app,
+            title="Disks documentation",
+            version="v1",
+            swagger_path="/api/docs/v1/disk",
+            security=[{"jwt": []}],
+            securityDefinitions={
+                "jwt": {"type": "apiKey", "name": "Authorization", "in": "header"},
+            },
+        )
     return app
 
 

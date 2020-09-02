@@ -6,6 +6,7 @@ install_requires = (
     "yarl==1.5.1",
     "neuro_auth_client==19.10.5",
     "marshmallow==3.7.1",
+    "aiohttp-apispec==2.2.1",
     "platform-logging==0.3",
     "aiohttp-cors==0.7.0",
 )

@@ -64,6 +64,8 @@ spec:
           value: {{ .Values.NP_SECRETS_K8S_NS}}
         - name: NP_DISK_API_K8S_STORAGE_CLASS
           value: {{ .Values.NP_DISK_API_K8S_STORAGE_CLASS_NAME}}
+        - name: NP_DISK_API_ENABLE_DOCS
+          value: {{ .Values.NP_DISK_API_ENABLE_DOCS}}
         - name: NP_CLUSTER_NAME
           value: {{ .Values.NP_CLUSTER_NAME}}
         - name: NP_CORS_ORIGINS
