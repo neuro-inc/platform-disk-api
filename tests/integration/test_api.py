@@ -1,4 +1,3 @@
-import asyncio
 from dataclasses import dataclass
 from typing import AsyncIterator, Awaitable, Callable, List
 
@@ -266,17 +265,8 @@ class TestApi:
             disk_api.single_disk_url(disk.id), headers=user.headers,
         ) as resp:
             assert resp.status == HTTPNoContent.status_code
-
-        async def wait_for_empty_list() -> None:
-            while True:
-                async with await client.get(
-                    disk_api.disk_url, headers=user.headers,
-                ) as resp:
-                    if await resp.json() == []:
-                        break
-                await asyncio.sleep(0.1)
-
-        await asyncio.wait_for(wait_for_empty_list(), timeout=5)
+        async with await client.get(disk_api.disk_url, headers=user.headers,) as resp:
+            assert await resp.json() == []
 
     async def test_cannot_delete_another_disk(
         self,

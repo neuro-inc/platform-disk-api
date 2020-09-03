@@ -5,6 +5,7 @@ import pytest
 
 from platform_disk_api.kube_client import (
     KubeClient,
+    MergeDiff,
     PersistentVolumeClaimWrite,
     ResourceExists,
     ResourceNotFound,
@@ -28,6 +29,21 @@ class TestKubeClient:
         pvcs = await kube_client.list_pvc()
         assert len(pvcs) == 1
         assert pvcs[0].name == pvc.name
+
+    async def test_add_label_to_pvc(
+        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+    ) -> None:
+        pvc = await kube_client.create_pvc(
+            PersistentVolumeClaimWrite(
+                name=str(uuid4()),
+                storage_class_name=k8s_storage_class,
+                storage=10 * 1024 * 1024,  # 10 mb
+            )
+        )
+        diff = MergeDiff.make_add_label_diff("hello/world", "value")
+        await kube_client.update_pvc(pvc.name, diff)
+        pvc = await kube_client.get_pvc(pvc.name)
+        assert pvc.labels == {"hello/world": "value"}
 
     async def test_no_real_storage_after_created(
         self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
