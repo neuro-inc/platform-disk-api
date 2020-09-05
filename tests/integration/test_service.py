@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
@@ -23,17 +21,16 @@ class TestService:
         assert len(disks) == 1
         assert disks[0].id == disk.id
 
-    async def test_remove_disk(self, cleanup_pvcs: None, service: Service) -> None:
+    # As pvc deletion is async, we should check that user will never
+    # see deleted disk, so next test is executed multiple times
+    @pytest.mark.parametrize("execution_number", range(10))
+    async def test_remove_disk(
+        self, execution_number: int, cleanup_pvcs: None, service: Service
+    ) -> None:
         request = DiskRequest(storage=1024 * 1024)
         disk = await service.create_disk(request, "testuser")
         await service.remove_disk(disk.id)
-        # Deletion is async in k8s, lets wait for it:
-
-        async def wait_no_disk() -> None:
-            while await service.get_all_disks():
-                await asyncio.sleep(0.1)
-
-        await asyncio.wait_for(wait_no_disk(), timeout=2)
+        assert await service.get_all_disks() == []
 
     async def test_get_disk(self, cleanup_pvcs: None, service: Service) -> None:
         request = DiskRequest(storage=1024 * 1024)

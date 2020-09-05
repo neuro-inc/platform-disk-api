@@ -1,3 +1,4 @@
+import json
 import logging
 import ssl
 from dataclasses import dataclass, field
@@ -80,6 +81,20 @@ class PersistentVolumeClaimWrite:
         if self.labels:
             result["metadata"]["labels"] = self.labels
         return result
+
+
+class MergeDiff:
+    _diff: Dict[str, Any]
+
+    def __init__(self, diff: Dict[str, Any]) -> None:
+        self._diff = diff
+
+    def serialize(self) -> str:
+        return json.dumps(self._diff)
+
+    @classmethod
+    def make_add_label_diff(cls, label_key: str, label_value: str) -> "MergeDiff":
+        return cls({"metadata": {"labels": {label_key: label_value}}})
 
 
 @dataclass(frozen=True)
@@ -273,6 +288,19 @@ class KubeClient:
     async def get_pvc(self, pvc_name: str) -> PersistentVolumeClaimRead:
         url = self._generate_pvc_url(pvc_name)
         payload = await self._request(method="GET", url=url)
+        self._raise_for_status(payload)
+        return PersistentVolumeClaimRead.from_primitive(payload)
+
+    async def update_pvc(
+        self, pvc_name: str, json_diff: MergeDiff
+    ) -> PersistentVolumeClaimRead:
+        url = self._generate_pvc_url(pvc_name)
+        payload = await self._request(
+            method="PATCH",
+            url=url,
+            data=json_diff.serialize(),
+            headers={"Content-Type": "application/merge-patch+json"},
+        )
         self._raise_for_status(payload)
         return PersistentVolumeClaimRead.from_primitive(payload)
 

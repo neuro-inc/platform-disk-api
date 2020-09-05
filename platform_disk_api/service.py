@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from .kube_client import (
     KubeClient,
+    MergeDiff,
     PersistentVolumeClaimRead,
     PersistentVolumeClaimWrite,
     ResourceNotFound,
@@ -21,6 +22,7 @@ logger = logging.getLogger()
 
 USER_LABEL = "platform.neuromation.io/user"
 DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
+DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
 
 
 @dataclass(frozen=True)
@@ -90,10 +92,13 @@ class Service:
             self._pvc_to_disk(pvc)
             for pvc in await self._kube_client.list_pvc()
             if pvc.labels.get(DISK_API_MARK_LABEL, False)
+            and not pvc.labels.get(DISK_API_DELETED_LABEL, False)
         ]
 
     async def remove_disk(self, disk_id: str) -> None:
         try:
+            diff = MergeDiff.make_add_label_diff(DISK_API_DELETED_LABEL, "true")
+            await self._kube_client.update_pvc(disk_id, diff)
             await self._kube_client.remove_pvc(disk_id)
         except ResourceNotFound:
             raise DiskNotFound
