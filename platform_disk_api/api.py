@@ -37,7 +37,7 @@ from .config import Config, CORSConfig, KubeConfig, PlatformAuthConfig
 from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .kube_client import KubeClient
-from .schema import DiskRequestSchema, DiskSchema
+from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
 from .service import Disk, DiskNotFound, Service
 
 
@@ -118,9 +118,21 @@ class DiskApiHandler:
                 storage_used += disk.storage
         return storage_used
 
-    @docs(tags=["disks"], summary="Create new Disk object")
+    @docs(
+        tags=["disks"],
+        summary="Create new Disk object",
+        responses={
+            HTTPCreated.status_code: {
+                "description": "Disk created",
+                "schema": DiskSchema(),
+            },
+            HTTPForbidden.status_code: {
+                "description": "Disk creation was forbidden",
+                "schema": ClientErrorSchema(),
+            },
+        },
+    )
     @request_schema(DiskRequestSchema())
-    @response_schema(DiskSchema(), HTTPCreated.status_code)
     async def handle_create_disk(self, request: Request) -> Response:
         user = await self._get_untrusted_user(request)
         await check_permissions(request, [self._get_user_disks_write_perm(user)])
@@ -131,7 +143,10 @@ class DiskApiHandler:
             < await self._get_user_used_storage(user) + disk_request.storage
         ):
             return json_response(
-                {"code": "over_limit", "description": "User exited storage size limit"},
+                {
+                    "code": "over_limit",
+                    "description": "User exceeded storage size limit",
+                },
                 status=HTTPForbidden.status_code,
             )
         disk = await self._service.create_disk(disk_request, user.name)

@@ -24,3 +24,8 @@ class DiskSchema(Schema):
     @post_load
     def make_disk(self, data: Any, **kwargs: Any) -> Disk:
         return Disk(**data)
+
+
+class ClientErrorSchema(Schema):
+    code = fields.String(required=True)
+    description = fields.String(required=True)
