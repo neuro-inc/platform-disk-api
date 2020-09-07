@@ -2,12 +2,12 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: {{ .Values.NP_DISK_API_K8S_STORAGE_CLASS_NAME }}
-{{- if .Values.NP_DISK_PROVIDER == aws }}
+{{- if eq .Values.NP_DISK_PROVIDER "aws" }}
 provisioner: kubernetes.io/aws-ebs
 {{- end}}
-{{- if .Values.NP_DISK_PROVIDER == gcp }}
+{{- if eq .Values.NP_DISK_PROVIDER "gcp" }}
 provisioner: kubernetes.io/gce-pd
 {{- end}}
-{{- if .Values.NP_DISK_PROVIDER == azure }}
+{{- if eq .Values.NP_DISK_PROVIDER "azure" }}
 provisioner: kubernetes.io/azure-disk
-{{- end}
+{{- end}}
