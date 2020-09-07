@@ -15,6 +15,7 @@ from aiohttp.web import (
     middleware,
 )
 from aiohttp.web_exceptions import HTTPCreated, HTTPNoContent, HTTPNotFound, HTTPOk
+from aiohttp_apispec import docs, request_schema, response_schema, setup_aiohttp_apispec
 from aiohttp_security import check_authorized
 from neuro_auth_client import (
     AuthClient,
@@ -46,9 +47,19 @@ class ApiHandler:
             ]
         )
 
+    @docs(
+        tags=["ping"],
+        summary="Health ping endpoint",
+        responses={200: {"description": "Pong"}},
+    )
     async def handle_ping(self, request: Request) -> Response:
         return Response(text="Pong")
 
+    @docs(
+        tags=["ping"],
+        summary="Health ping endpoint with auth check",
+        responses={200: {"description": "Secured Pong"}},
+    )
     async def handle_secured_ping(self, request: Request) -> Response:
         await check_authorized(request)
         return Response(text="Secured Pong")
@@ -94,6 +105,9 @@ class DiskApiHandler:
     def _get_disk_write_perm(self, disk: Disk) -> Permission:
         return Permission(f"{self._disk_cluster_uri}/{disk.owner}/{disk.id}", "write")
 
+    @docs(tags=["disks"], summary="Create new Disk object")
+    @request_schema(DiskRequestSchema())
+    @response_schema(DiskSchema(), HTTPCreated.status_code)
     async def handle_create_disk(self, request: Request) -> Response:
         user = await self._get_untrusted_user(request)
         await check_permissions(request, [self._get_user_disks_write_perm(user)])
@@ -116,6 +130,17 @@ class DiskApiHandler:
         except KeyError:
             return False
 
+    @docs(
+        tags=["disks"],
+        summary="Get Disk objects by id",
+        responses={
+            HTTPOk.status_code: {"description": "Disk found", "schema": DiskSchema()},
+            HTTPNotFound.status_code: {
+                "description": "Was unable to found disk with such id"
+            },
+        },
+    )
+    @response_schema(DiskSchema(), 200)
     async def handle_get_disk(self, request: Request) -> Response:
         disk_id = request.match_info["disk_id"]
         try:
@@ -126,6 +151,8 @@ class DiskApiHandler:
         resp_payload = DiskSchema().dump(disk)
         return json_response(resp_payload, status=HTTPOk.status_code)
 
+    @docs(tags=["disks"], summary="List all users Disk objects")
+    @response_schema(DiskSchema(many=True), 200)
     async def handle_list_disks(self, request: Request) -> Response:
         user = await self._get_untrusted_user(request)
         tree = await self._auth_client.get_permissions_tree(
@@ -139,6 +166,16 @@ class DiskApiHandler:
         resp_payload = DiskSchema(many=True).dump(disks)
         return json_response(resp_payload, status=HTTPOk.status_code)
 
+    @docs(
+        tags=["disks"],
+        summary="Delete Disk object by id",
+        responses={
+            HTTPNoContent.status_code: {"description": "Disk was deleted"},
+            HTTPNotFound.status_code: {
+                "description": "Was unable to found disk with such id"
+            },
+        },
+    )
     async def handle_delete_disk(self, request: Request) -> Response:
         disk_id = request.match_info["disk_id"]
         try:
@@ -267,6 +304,20 @@ async def create_app(config: Config) -> aiohttp.web.Application:
     app.add_subapp("/api/v1", api_v1_app)
 
     _setup_cors(app, config.cors)
+    if config.enable_docs:
+        prefix = "/api/docs/v1/disk"
+        setup_aiohttp_apispec(
+            app=app,
+            title="Disks documentation",
+            version="v1",
+            url=f"{prefix}/swagger.json",
+            static_path=f"{prefix}/static",
+            swagger_path=f"{prefix}/ui",
+            security=[{"jwt": []}],
+            securityDefinitions={
+                "jwt": {"type": "apiKey", "name": "Authorization", "in": "header"},
+            },
+        )
     return app
 
 

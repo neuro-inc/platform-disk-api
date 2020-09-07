@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import AsyncIterator, Awaitable, Callable, List
 
 import aiohttp
@@ -30,8 +30,16 @@ class DiskApiEndpoints:
     address: ApiAddress
 
     @property
+    def server_base_url(self) -> str:
+        return f"http://{self.address.host}:{self.address.port}"
+
+    @property
     def api_v1_endpoint(self) -> str:
-        return f"http://{self.address.host}:{self.address.port}/api/v1"
+        return f"{self.server_base_url}/api/v1"
+
+    @property
+    def openapi_json_url(self) -> str:
+        return f"{self.server_base_url}/api/docs/v1/disk/swagger.json"
 
     @property
     def ping_url(self) -> str:
@@ -73,6 +81,27 @@ async def grant_disk_permission(
 
 
 class TestApi:
+    async def test_doc_available_when_enabled(
+        self, config: Config, client: aiohttp.ClientSession
+    ) -> None:
+        config = replace(config, enable_docs=True)
+        app = await create_app(config)
+        async with create_local_app_server(app, port=8080) as address:
+            endpoints = DiskApiEndpoints(address=address)
+            async with client.get(endpoints.openapi_json_url) as resp:
+                assert resp.status == HTTPOk.status_code
+                assert await resp.json()
+
+    async def test_no_docs_when_disabled(
+        self, config: Config, client: aiohttp.ClientSession
+    ) -> None:
+        config = replace(config, enable_docs=False)
+        app = await create_app(config)
+        async with create_local_app_server(app, port=8080) as address:
+            endpoints = DiskApiEndpoints(address=address)
+            async with client.get(endpoints.openapi_json_url) as resp:
+                assert resp.status == HTTPNotFound.status_code
+
     async def test_ping(
         self, disk_api: DiskApiEndpoints, client: aiohttp.ClientSession
     ) -> None:

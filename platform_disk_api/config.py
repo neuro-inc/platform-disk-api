@@ -56,3 +56,4 @@ class Config:
     cors: CORSConfig
     disk: DiskConfig
     cluster_name: str
+    enable_docs: bool = False
