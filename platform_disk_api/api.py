@@ -14,7 +14,13 @@ from aiohttp.web import (
     json_response,
     middleware,
 )
-from aiohttp.web_exceptions import HTTPCreated, HTTPNoContent, HTTPNotFound, HTTPOk
+from aiohttp.web_exceptions import (
+    HTTPCreated,
+    HTTPForbidden,
+    HTTPNoContent,
+    HTTPNotFound,
+    HTTPOk,
+)
 from aiohttp_apispec import docs, request_schema, response_schema, setup_aiohttp_apispec
 from aiohttp_security import check_authorized
 from neuro_auth_client import (
@@ -105,6 +111,13 @@ class DiskApiHandler:
     def _get_disk_write_perm(self, disk: Disk) -> Permission:
         return Permission(f"{self._disk_cluster_uri}/{disk.owner}/{disk.id}", "write")
 
+    async def _get_user_used_storage(self, user: User) -> int:
+        storage_used = 0
+        for disk in await self._service.get_all_disks():
+            if disk.owner == user.name:
+                storage_used += disk.storage
+        return storage_used
+
     @docs(tags=["disks"], summary="Create new Disk object")
     @request_schema(DiskRequestSchema())
     @response_schema(DiskSchema(), HTTPCreated.status_code)
@@ -113,6 +126,14 @@ class DiskApiHandler:
         await check_permissions(request, [self._get_user_disks_write_perm(user)])
         payload = await request.json()
         disk_request = DiskRequestSchema().load(payload)
+        if (
+            self._config.disk.storage_limit_per_user
+            < await self._get_user_used_storage(user) + disk_request.storage
+        ):
+            return json_response(
+                {"code": "over_limit", "description": "User exited storage size limit"},
+                status=HTTPForbidden.status_code,
+            )
         disk = await self._service.create_disk(disk_request, user.name)
         resp_payload = DiskSchema().dump(disk)
         return json_response(resp_payload, status=HTTPCreated.status_code)
