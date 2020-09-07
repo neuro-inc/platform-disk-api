@@ -46,6 +46,7 @@ class KubeConfig:
 @dataclass(frozen=True)
 class DiskConfig:
     k8s_storage_class: str
+    storage_limit_per_user: int
 
 
 @dataclass(frozen=True)

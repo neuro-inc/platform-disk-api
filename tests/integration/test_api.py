@@ -218,6 +218,43 @@ class TestApi:
             assert disk.owner == user.name
             assert disk.storage >= 500
 
+    async def test_storage_limit_single_disk(
+        self,
+        cleanup_pvcs: None,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[[], Awaitable[_User]],
+        config: Config,
+    ) -> None:
+        user = await regular_user_factory()
+        async with client.post(
+            disk_api.disk_url,
+            json={"storage": config.disk.storage_limit_per_user + 100},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPForbidden.status_code, await resp.text()
+            assert (await resp.json())["code"] == "over_limit"
+
+    async def test_storage_limit_multiple_disk(
+        self,
+        cleanup_pvcs: None,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[[], Awaitable[_User]],
+        config: Config,
+    ) -> None:
+        user = await regular_user_factory()
+        await client.post(
+            disk_api.disk_url,
+            json={"storage": config.disk.storage_limit_per_user - 100},
+            headers=user.headers,
+        )
+        async with client.post(
+            disk_api.disk_url, json={"storage": 200}, headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPForbidden.status_code, await resp.text()
+            assert (await resp.json())["code"] == "over_limit"
+
     async def test_list_disk_includes_only_own(
         self,
         cleanup_pvcs: None,

@@ -1,6 +1,6 @@
 *
 !setup.py
 !setup.cfg
-!platform-disk-api
+!platform_disk_api
 
 **/*.pyc

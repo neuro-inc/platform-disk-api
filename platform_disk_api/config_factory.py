@@ -81,7 +81,10 @@ class EnvironConfigFactory:
 
     def _create_disk(self) -> DiskConfig:
         return DiskConfig(
-            k8s_storage_class=self._environ["NP_DISK_API_K8S_STORAGE_CLASS"]
+            k8s_storage_class=self._environ["NP_DISK_API_K8S_STORAGE_CLASS"],
+            storage_limit_per_user=int(
+                self._environ["NP_DISK_API_STORAGE_LIMIT_PER_USER"]
+            ),
         )
 
     def create_cors(self) -> CORSConfig:

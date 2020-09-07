@@ -57,7 +57,10 @@ def config_factory(
             platform_auth=auth_config,
             kube=kube_config,
             cluster_name=cluster_name,
-            disk=DiskConfig(k8s_storage_class=k8s_storage_class),
+            disk=DiskConfig(
+                k8s_storage_class=k8s_storage_class,
+                storage_limit_per_user=1024 * 1024 * 20,  # 20mb
+            ),
             cors=CORSConfig(allowed_origins=["https://neu.ro"]),
         )
         kwargs = {**defaults, **kwargs}
