@@ -37,10 +37,13 @@ class Disk:
     owner: str
     status: "Disk.Status"
 
-    class Status(Enum):
+    class Status(str, Enum):
         PENDING = "Pending"
         READY = "Ready"
         BROKEN = "Broken"
+
+        def __str__(self) -> str:
+            return str(self.value)
 
 
 class Service:
