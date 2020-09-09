@@ -67,12 +67,19 @@ class Service:
             labels=labels,
         )
 
-    def _pvc_to_disk(self, pvc: PersistentVolumeClaimRead) -> Disk:
+    async def _pvc_to_disk(self, pvc: PersistentVolumeClaimRead) -> Disk:
         status_map = {
             PersistentVolumeClaimRead.Phase.PENDING: Disk.Status.PENDING,
             PersistentVolumeClaimRead.Phase.BOUND: Disk.Status.READY,
             PersistentVolumeClaimRead.Phase.LOST: Disk.Status.BROKEN,
         }
+        if DISK_API_CREATED_AT_LABEL not in pvc.labels:
+            # This is old pvc, created before we added created_at field.
+            diff = MergeDiff.make_add_label_diff(
+                DISK_API_CREATED_AT_LABEL, datetime_dump(utc_now())
+            )
+            pvc = await self._kube_client.update_pvc(pvc.name, diff)
+
         last_usage_raw = pvc.labels.get(DISK_API_LAST_USAGE_LABEL)
         if last_usage_raw is not None:
             last_usage: Optional[datetime] = datetime_load(last_usage_raw)
@@ -99,18 +106,18 @@ class Service:
             },
         )
         pvc_read = await self._kube_client.create_pvc(pvc_write)
-        return self._pvc_to_disk(pvc_read)
+        return await self._pvc_to_disk(pvc_read)
 
     async def get_disk(self, disk_id: str) -> Disk:
         try:
             pvc = await self._kube_client.get_pvc(disk_id)
         except ResourceNotFound:
             raise DiskNotFound
-        return self._pvc_to_disk(pvc)
+        return await self._pvc_to_disk(pvc)
 
     async def get_all_disks(self) -> List[Disk]:
         return [
-            self._pvc_to_disk(pvc)
+            await self._pvc_to_disk(pvc)
             for pvc in await self._kube_client.list_pvc()
             if pvc.labels.get(DISK_API_MARK_LABEL, False)
             and not pvc.labels.get(DISK_API_DELETED_LABEL, False)
