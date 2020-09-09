@@ -1,12 +1,14 @@
 import json
 import subprocess
+import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
 
 from platform_disk_api.config import KubeConfig
-from platform_disk_api.kube_client import KubeClient, ResourceNotFound
+from platform_disk_api.kube_client import KubeClient, PodRead, ResourceNotFound
 
 
 @pytest.fixture(scope="session")
@@ -63,10 +65,39 @@ async def kube_config(
     return kube_config
 
 
+class KubeClientForTest(KubeClient):
+    @asynccontextmanager
+    async def run_pod(self, pvc_names: List[str]) -> AsyncIterator[PodRead]:
+        json = {
+            "kind": "Pod",
+            "apiVersion": "v1",
+            "metadata": {"name": str(uuid.uuid4())},
+            "spec": {
+                "automountServiceAccountToken": False,
+                "containers": [
+                    {
+                        "name": "hello",
+                        "image": "busybox",
+                        "command": ["sh", "-c", "sleep 1"],
+                    }
+                ],
+                "volumes": [
+                    {"name": f"disk-{i}", "persistentVolumeClaim": {"claimName": name}}
+                    for (i, name) in enumerate(pvc_names)
+                ],
+            },
+        }
+        url = self._pod_url
+        payload = await self._request(method="POST", url=url, json=json)
+        self._raise_for_status(payload)
+        yield PodRead.from_primitive(payload)
+        await self._request(method="DELETE", url=f"{url}/{payload['metadata']['name']}")
+
+
 @pytest.fixture
-async def kube_client(kube_config: KubeConfig) -> AsyncIterator[KubeClient]:
+async def kube_client(kube_config: KubeConfig) -> AsyncIterator[KubeClientForTest]:
     # TODO (A Danshyn 06/06/18): create a factory method
-    client = KubeClient(
+    client = KubeClientForTest(
         base_url=kube_config.endpoint_url,
         auth_type=kube_config.auth_type,
         cert_authority_data_pem=kube_config.cert_authority_data_pem,
