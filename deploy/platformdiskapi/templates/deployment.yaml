@@ -77,6 +77,70 @@ spec:
         - name: {{ .Values.DOCKER_LOGIN_ARTIFACTORY_SECRET_NAME}}
       {{- end}}
 ---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: platformdiskapiwatcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: platformdiskapiwatcher
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        service: platformdiskapiwatcher
+    spec:
+      containers:
+      - name: platformdiskapi
+        image: {{ .Values.IMAGE}}
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: {{ .Values.NP_DISK_API_REQUESTS_CPU}}
+            memory: {{ .Values.NP_DISK_API_REQUESTS_MEMORY}}
+          limits:
+            cpu: {{ .Values.NP_DISK_API_LIMITS_CPU}}
+            memory: {{ .Values.NP_DISK_API_LIMITS_MEMORY}}
+        command: platform-disk-api-watcher
+        env:
+        - name: NP_DISK_API_PLATFORM_AUTH_URL
+          value: {{ .Values.NP_DISK_API_PLATFORM_AUTH_URL}}
+        - name: NP_DISK_API_PLATFORM_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: platformservices-secret
+              key: compute_token
+        - name: NP_DISK_API_K8S_API_URL
+          value: https://kubernetes.default:443
+        - name: NP_DISK_API_K8S_AUTH_TYPE
+          value: token
+        - name: NP_DISK_API_K8S_CA_PATH
+          value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        - name: NP_DISK_API_K8S_TOKEN_PATH
+          value: /var/run/secrets/kubernetes.io/serviceaccount/token
+        - name: NP_DISK_API_K8S_NS
+          value: {{ .Values.NP_DISK_API_K8S_NS}}
+        - name: NP_DISK_API_K8S_STORAGE_CLASS
+          value: {{ .Values.NP_DISK_API_K8S_STORAGE_CLASS_NAME}}
+        - name: NP_DISK_API_ENABLE_DOCS
+          value: "{{ .Values.NP_DISK_API_ENABLE_DOCS}}"
+        - name: NP_DISK_API_STORAGE_LIMIT_PER_USER
+          value: "{{ .Values.NP_DISK_API_STORAGE_LIMIT_PER_USER}}"
+        - name: NP_CLUSTER_NAME
+          value: {{ .Values.NP_CLUSTER_NAME}}
+        - name: NP_CORS_ORIGINS
+          value: {{ .Values.NP_CORS_ORIGINS}}
+      {{- if .Values.DOCKER_LOGIN_ARTIFACTORY_SECRET_NAME}}
+      imagePullSecrets:
+        - name: {{ .Values.DOCKER_LOGIN_ARTIFACTORY_SECRET_NAME}}
+      {{- end}}
+---
 apiVersion: v1
 kind: Service
 metadata:

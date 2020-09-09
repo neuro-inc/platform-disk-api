@@ -18,6 +18,11 @@ setup(
     packages=find_packages(),
     install_requires=install_requires,
     python_requires=">=3.7",
-    entry_points={"console_scripts": ["platform-disk-api=platform_disk_api.api:main"]},
+    entry_points={
+        "console_scripts": [
+            "platform-disk-api=platform_disk_api.api:main",
+            "platform-disk-api-watcher=platform_disk_api.usage_watcher:main",
+        ]
+    },
     zip_safe=False,
 )
