@@ -144,8 +144,8 @@ class Service:
             raise DiskNotFound
 
     async def mark_disk_usage(self, disk_id: str, time: datetime) -> None:
-        diff = MergeDiff.make_add_label_diff(
-            DISK_API_LAST_USAGE_LABEL, datetime_dump(time)
+        diff = MergeDiff.make_add_annotations_diff(
+            DISK_API_LAST_USAGE_ANNOTATION, datetime_dump(time)
         )
         try:
             await self._kube_client.update_pvc(disk_id, diff)
