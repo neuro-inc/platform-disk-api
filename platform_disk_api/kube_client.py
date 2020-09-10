@@ -67,6 +67,7 @@ class PersistentVolumeClaimWrite:
     storage_class_name: str
     storage: int  # In bytes
     labels: Dict[str, str] = field(default_factory=dict)
+    annotations: Dict[str, str] = field(default_factory=dict)
 
     def to_primitive(self) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -82,6 +83,8 @@ class PersistentVolumeClaimWrite:
         }
         if self.labels:
             result["metadata"]["labels"] = self.labels
+        if self.annotations:
+            result["metadata"]["annotations"] = self.annotations
         return result
 
 
@@ -95,8 +98,12 @@ class MergeDiff:
         return json.dumps(self._diff)
 
     @classmethod
-    def make_add_label_diff(cls, label_key: str, label_value: str) -> "MergeDiff":
-        return cls({"metadata": {"labels": {label_key: label_value}}})
+    def make_add_label_diff(cls, label_key: str, value: str) -> "MergeDiff":
+        return cls({"metadata": {"labels": {label_key: value}}})
+
+    @classmethod
+    def make_add_annotations_diff(cls, annotation_key: str, value: str) -> "MergeDiff":
+        return cls({"metadata": {"annotations": {annotation_key: value}}})
 
 
 @dataclass(frozen=True)
@@ -107,6 +114,7 @@ class PersistentVolumeClaimRead:
     storage_requested: int
     storage_real: Optional[int]
     labels: Dict[str, str]
+    annotations: Dict[str, str]
 
     class Phase(str, Enum):
         """Possible values for phase of PVC.
@@ -136,6 +144,7 @@ class PersistentVolumeClaimRead:
             ),
             storage_real=storage_real,
             labels=payload["metadata"].get("labels", dict()),
+            annotations=payload["metadata"].get("annotations", dict()),
         )
 
 

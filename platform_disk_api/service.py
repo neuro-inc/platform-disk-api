@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import List, Optional
 from uuid import uuid4
 
 from .kube_client import (
@@ -25,9 +25,9 @@ logger = logging.getLogger()
 USER_LABEL = "platform.neuromation.io/user"
 DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
 DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
-DISK_API_CREATED_AT_LABEL = "platform.neuromation.io/disk-api-pvc-created-at"
-DISK_API_LAST_USAGE_LABEL = "platform.neuromation.io/disk-api-pvc-last-usage"
-DISK_API_LIFESPAN_LABEL = "platform.neuromation.io/disk-api-pvc-lifespan"
+DISK_API_CREATED_AT_ANNOTATION = "platform.neuromation.io/disk-api-pvc-created-at"
+DISK_API_LAST_USAGE_ANNOTATION = "platform.neuromation.io/disk-api-pvc-last-usage"
+DISK_API_LIFESPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-lifespan"
 
 
 @dataclass(frozen=True)
@@ -67,13 +67,19 @@ class Service:
         self._default_lifespan = default_lifespan
 
     def _request_to_pvc(
-        self, request: DiskRequest, labels: Dict[str, str]
+        self, request: DiskRequest, username: str
     ) -> PersistentVolumeClaimWrite:
         return PersistentVolumeClaimWrite(
             name=f"disk-{uuid4()}",
             storage=request.storage,
             storage_class_name=self._storage_class_name,
-            labels=labels,
+            labels={USER_LABEL: username, DISK_API_MARK_LABEL: "true"},
+            annotations={
+                DISK_API_CREATED_AT_ANNOTATION: datetime_dump(utc_now()),
+                DISK_API_LIFESPAN_ANNOTATION: timedelta_dump(
+                    request.lifespan or self._default_lifespan
+                ),
+            },
         )
 
     async def _pvc_to_disk(self, pvc: PersistentVolumeClaimRead) -> Disk:
@@ -82,20 +88,20 @@ class Service:
             PersistentVolumeClaimRead.Phase.BOUND: Disk.Status.READY,
             PersistentVolumeClaimRead.Phase.LOST: Disk.Status.BROKEN,
         }
-        if DISK_API_CREATED_AT_LABEL not in pvc.labels:
+        if DISK_API_CREATED_AT_ANNOTATION not in pvc.annotations:
             # This is old pvc, created before we added created_at field.
-            diff = MergeDiff.make_add_label_diff(
-                DISK_API_CREATED_AT_LABEL, datetime_dump(utc_now())
+            diff = MergeDiff.make_add_annotations_diff(
+                DISK_API_CREATED_AT_ANNOTATION, datetime_dump(utc_now())
             )
             pvc = await self._kube_client.update_pvc(pvc.name, diff)
-        if DISK_API_LIFESPAN_LABEL not in pvc.labels:
+        if DISK_API_LIFESPAN_ANNOTATION not in pvc.annotations:
             # This is old pvc, created before we added timedelta field.
-            diff = MergeDiff.make_add_label_diff(
-                DISK_API_LIFESPAN_LABEL, timedelta_dump(self._default_lifespan)
+            diff = MergeDiff.make_add_annotations_diff(
+                DISK_API_LIFESPAN_ANNOTATION, timedelta_dump(self._default_lifespan)
             )
             pvc = await self._kube_client.update_pvc(pvc.name, diff)
 
-        last_usage_raw = pvc.labels.get(DISK_API_LAST_USAGE_LABEL)
+        last_usage_raw = pvc.annotations.get(DISK_API_LAST_USAGE_ANNOTATION)
         if last_usage_raw is not None:
             last_usage: Optional[datetime] = datetime_load(last_usage_raw)
         else:
@@ -107,23 +113,13 @@ class Service:
             else pvc.storage_requested,
             status=status_map[pvc.phase],
             owner=pvc.labels[USER_LABEL],
-            created_at=datetime_load(pvc.labels[DISK_API_CREATED_AT_LABEL]),
+            created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
             last_usage=last_usage,
-            lifespan=timedelta_load(pvc.labels[DISK_API_LIFESPAN_LABEL]),
+            lifespan=timedelta_load(pvc.annotations[DISK_API_LIFESPAN_ANNOTATION]),
         )
 
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:
-        pvc_write = self._request_to_pvc(
-            request,
-            labels={
-                USER_LABEL: username,
-                DISK_API_MARK_LABEL: "true",
-                DISK_API_CREATED_AT_LABEL: datetime_dump(utc_now()),
-                DISK_API_LIFESPAN_LABEL: timedelta_dump(
-                    request.lifespan or self._default_lifespan
-                ),
-            },
-        )
+        pvc_write = self._request_to_pvc(request, username)
         pvc_read = await self._kube_client.create_pvc(pvc_write)
         return await self._pvc_to_disk(pvc_read)
 
