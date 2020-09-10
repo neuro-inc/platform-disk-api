@@ -125,13 +125,10 @@ class PersistentVolumeClaimRead:
             )
         except KeyError:
             storage_real = None
-        phase = next(
-            phase for phase in cls.Phase if phase == payload["status"]["phase"]
-        )
         return cls(
             name=payload["metadata"]["name"],
             storage_class_name=payload["spec"]["storageClassName"],
-            phase=phase,
+            phase=cls.Phase(payload["status"]["phase"]),
             storage_requested=_storage_str_to_int(
                 payload["spec"]["resources"]["requests"]["storage"]
             ),
