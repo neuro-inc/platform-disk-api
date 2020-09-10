@@ -20,6 +20,8 @@ class DiskSchema(Schema):
         required=True, validate=validate.OneOf(list(map(str, Disk.Status)))
     )
     owner = fields.String(required=True)
+    created_at = fields.DateTime(required=True)
+    last_usage = fields.DateTime(required=True, allow_none=True)
 
     @post_load
     def make_disk(self, data: Any, **kwargs: Any) -> Disk:

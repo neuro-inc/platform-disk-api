@@ -1,8 +1,11 @@
+from datetime import timedelta
+
 import pytest
 from marshmallow import ValidationError
 
 from platform_disk_api.schema import DiskRequestSchema, DiskSchema
 from platform_disk_api.service import Disk
+from platform_disk_api.utils import utc_now
 
 
 def test_validate_storage_storage_ok() -> None:
@@ -21,10 +24,22 @@ def test_validate_storage_storage_is_string() -> None:
 
 
 def test_validate_disk_serialize() -> None:
-    disk = Disk(id="test-id", storage=4000, owner="user", status=Disk.Status.READY)
+    last_usage = utc_now()
+    created_at = last_usage - timedelta(days=2)
+
+    disk = Disk(
+        id="test-id",
+        storage=4000,
+        owner="user",
+        status=Disk.Status.READY,
+        last_usage=last_usage,
+        created_at=created_at,
+    )
     assert DiskSchema().dump(disk) == {
         "id": "test-id",
         "storage": 4000,
         "owner": "user",
         "status": "Ready",
+        "created_at": created_at.isoformat(),
+        "last_usage": last_usage.isoformat(),
     }
