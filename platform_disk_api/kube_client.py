@@ -36,13 +36,15 @@ class ResourceBadRequest(KubeClientException):
 
 
 def _storage_str_to_int(storage: str) -> int:
+    # More about this format:
+    # https://github.com/kubernetes/kubernetes/blob/6b963ed9c841619d511d2830719b6100d6ab1431/staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go#L30
     suffix_to_factor = {
         "E": 10 ** 18,
         "P": 10 ** 15,
         "T": 10 ** 12,
         "G": 10 ** 9,
         "M": 10 ** 6,
-        "K": 10 ** 3,
+        "k": 10 ** 3,
         "Ei": 1024 ** 6,
         "Pi": 1024 ** 5,
         "Ti": 1024 ** 4,
