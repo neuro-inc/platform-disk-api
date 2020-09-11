@@ -44,7 +44,7 @@ class Disk:
     status: "Disk.Status"
     created_at: datetime
     last_usage: Optional[datetime]
-    lifespan: timedelta
+    lifespan: Optional[timedelta]
 
     class Status(str, Enum):
         PENDING = "Pending"
@@ -56,30 +56,25 @@ class Disk:
 
 
 class Service:
-    def __init__(
-        self,
-        kube_client: KubeClient,
-        storage_class_name: str,
-        default_lifespan: timedelta,
-    ) -> None:
+    def __init__(self, kube_client: KubeClient, storage_class_name: str,) -> None:
         self._kube_client = kube_client
         self._storage_class_name = storage_class_name
-        self._default_lifespan = default_lifespan
 
     def _request_to_pvc(
         self, request: DiskRequest, username: str
     ) -> PersistentVolumeClaimWrite:
+        annotations = {
+            DISK_API_CREATED_AT_ANNOTATION: datetime_dump(utc_now()),
+        }
+        if request.lifespan:
+            annotations[DISK_API_LIFESPAN_ANNOTATION] = timedelta_dump(request.lifespan)
+
         return PersistentVolumeClaimWrite(
             name=f"disk-{uuid4()}",
             storage=request.storage,
             storage_class_name=self._storage_class_name,
             labels={USER_LABEL: username, DISK_API_MARK_LABEL: "true"},
-            annotations={
-                DISK_API_CREATED_AT_ANNOTATION: datetime_dump(utc_now()),
-                DISK_API_LIFESPAN_ANNOTATION: timedelta_dump(
-                    request.lifespan or self._default_lifespan
-                ),
-            },
+            annotations=annotations,
         )
 
     async def _pvc_to_disk(self, pvc: PersistentVolumeClaimRead) -> Disk:
@@ -94,18 +89,18 @@ class Service:
                 DISK_API_CREATED_AT_ANNOTATION, datetime_dump(utc_now())
             )
             pvc = await self._kube_client.update_pvc(pvc.name, diff)
-        if DISK_API_LIFESPAN_ANNOTATION not in pvc.annotations:
-            # This is old pvc, created before we added timedelta field.
-            diff = MergeDiff.make_add_annotations_diff(
-                DISK_API_LIFESPAN_ANNOTATION, timedelta_dump(self._default_lifespan)
-            )
-            pvc = await self._kube_client.update_pvc(pvc.name, diff)
 
         last_usage_raw = pvc.annotations.get(DISK_API_LAST_USAGE_ANNOTATION)
         if last_usage_raw is not None:
             last_usage: Optional[datetime] = datetime_load(last_usage_raw)
         else:
             last_usage = None
+
+        life_span_raw = pvc.annotations.get(DISK_API_LIFESPAN_ANNOTATION)
+        if life_span_raw is not None:
+            life_span: Optional[timedelta] = timedelta_load(life_span_raw)
+        else:
+            life_span = None
         return Disk(
             id=pvc.name,
             storage=pvc.storage_real
@@ -115,7 +110,7 @@ class Service:
             owner=pvc.labels[USER_LABEL],
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
             last_usage=last_usage,
-            lifespan=timedelta_load(pvc.annotations[DISK_API_LIFESPAN_ANNOTATION]),
+            lifespan=life_span,
         )
 
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:

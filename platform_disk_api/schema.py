@@ -23,7 +23,7 @@ class DiskSchema(Schema):
     owner = fields.String(required=True)
     created_at = fields.DateTime(required=True)
     last_usage = fields.DateTime(required=True, allow_none=True)
-    lifespan = fields.TimeDelta(required=True)
+    lifespan = fields.TimeDelta(required=True, allow_none=True)
 
     @post_load
     def make_disk(self, data: Any, **kwargs: Any) -> Disk:

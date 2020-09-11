@@ -4,7 +4,6 @@ import subprocess
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any, AsyncIterator, Callable
 
 import aiohttp
@@ -61,7 +60,6 @@ def config_factory(
             disk=DiskConfig(
                 k8s_storage_class=k8s_storage_class,
                 storage_limit_per_user=1024 * 1024 * 20,  # 20mb
-                default_lifespan=timedelta(days=1),
             ),
             cors=CORSConfig(allowed_origins=["https://neu.ro"]),
         )
