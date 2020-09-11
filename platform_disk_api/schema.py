@@ -7,6 +7,7 @@ from platform_disk_api.service import Disk, DiskRequest
 
 class DiskRequestSchema(Schema):
     storage = fields.Integer(required=True, validate=validate.Range(min=0))
+    lifespan = fields.TimeDelta(required=False, allow_none=True)
 
     @post_load
     def make_request(self, data: Any, **kwargs: Any) -> DiskRequest:
@@ -22,6 +23,7 @@ class DiskSchema(Schema):
     owner = fields.String(required=True)
     created_at = fields.DateTime(required=True)
     last_usage = fields.DateTime(required=True, allow_none=True)
+    lifespan = fields.TimeDelta(required=True)
 
     @post_load
     def make_disk(self, data: Any, **kwargs: Any) -> Disk:

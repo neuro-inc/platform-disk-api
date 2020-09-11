@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -12,7 +12,7 @@ from .kube_client import (
     PersistentVolumeClaimWrite,
     ResourceNotFound,
 )
-from .utils import datetime_dump, datetime_load, utc_now
+from .utils import datetime_dump, datetime_load, timedelta_dump, timedelta_load, utc_now
 
 
 class DiskNotFound(Exception):
@@ -27,11 +27,13 @@ DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
 DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
 DISK_API_CREATED_AT_LABEL = "platform.neuromation.io/disk-api-pvc-created-at"
 DISK_API_LAST_USAGE_LABEL = "platform.neuromation.io/disk-api-pvc-last-usage"
+DISK_API_LIFESPAN_LABEL = "platform.neuromation.io/disk-api-pvc-lifespan"
 
 
 @dataclass(frozen=True)
 class DiskRequest:
     storage: int  # In bytes
+    lifespan: Optional[timedelta] = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,7 @@ class Disk:
     status: "Disk.Status"
     created_at: datetime
     last_usage: Optional[datetime]
+    lifespan: timedelta
 
     class Status(str, Enum):
         PENDING = "Pending"
@@ -53,9 +56,15 @@ class Disk:
 
 
 class Service:
-    def __init__(self, kube_client: KubeClient, storage_class_name: str) -> None:
+    def __init__(
+        self,
+        kube_client: KubeClient,
+        storage_class_name: str,
+        default_lifespan: timedelta,
+    ) -> None:
         self._kube_client = kube_client
         self._storage_class_name = storage_class_name
+        self._default_lifespan = default_lifespan
 
     def _request_to_pvc(
         self, request: DiskRequest, labels: Dict[str, str]
@@ -79,6 +88,12 @@ class Service:
                 DISK_API_CREATED_AT_LABEL, datetime_dump(utc_now())
             )
             pvc = await self._kube_client.update_pvc(pvc.name, diff)
+        if DISK_API_LIFESPAN_LABEL not in pvc.labels:
+            # This is old pvc, created before we added timedelta field.
+            diff = MergeDiff.make_add_label_diff(
+                DISK_API_LIFESPAN_LABEL, timedelta_dump(self._default_lifespan)
+            )
+            pvc = await self._kube_client.update_pvc(pvc.name, diff)
 
         last_usage_raw = pvc.labels.get(DISK_API_LAST_USAGE_LABEL)
         if last_usage_raw is not None:
@@ -94,6 +109,7 @@ class Service:
             owner=pvc.labels[USER_LABEL],
             created_at=datetime_load(pvc.labels[DISK_API_CREATED_AT_LABEL]),
             last_usage=last_usage,
+            lifespan=timedelta_load(pvc.labels[DISK_API_LIFESPAN_LABEL]),
         )
 
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:
@@ -103,6 +119,9 @@ class Service:
                 USER_LABEL: username,
                 DISK_API_MARK_LABEL: "true",
                 DISK_API_CREATED_AT_LABEL: datetime_dump(utc_now()),
+                DISK_API_LIFESPAN_LABEL: timedelta_dump(
+                    request.lifespan or self._default_lifespan
+                ),
             },
         )
         pvc_read = await self._kube_client.create_pvc(pvc_write)

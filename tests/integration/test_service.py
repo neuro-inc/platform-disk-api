@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 
 from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
@@ -9,8 +11,21 @@ pytestmark = pytest.mark.asyncio
 
 class TestService:
     @pytest.fixture
-    def service(self, kube_client: KubeClient, k8s_storage_class: str) -> Service:
-        return Service(kube_client=kube_client, storage_class_name=k8s_storage_class)
+    def default_lifespan(self) -> timedelta:
+        return timedelta(seconds=86400)
+
+    @pytest.fixture
+    def service(
+        self,
+        kube_client: KubeClient,
+        k8s_storage_class: str,
+        default_lifespan: timedelta,
+    ) -> Service:
+        return Service(
+            kube_client=kube_client,
+            storage_class_name=k8s_storage_class,
+            default_lifespan=default_lifespan,
+        )
 
     async def test_create_disk(self, cleanup_pvcs: None, service: Service) -> None:
         request = DiskRequest(storage=1024 * 1024)
@@ -65,3 +80,20 @@ class TestService:
         all_disks = await service.get_all_disks()
         assert len(all_disks) == 1
         assert all_disks[0].id == disk_created.id
+
+    async def test_default_lifespan_stored(
+        self, cleanup_pvcs: None, default_lifespan: timedelta, service: Service
+    ) -> None:
+        request = DiskRequest(storage=1024 * 1024)
+        disk = await service.create_disk(request, "testuser")
+        disk = await service.get_disk(disk.id)
+        assert disk.lifespan == default_lifespan
+
+    async def test_non_default_lifespan_stored(
+        self, cleanup_pvcs: None, service: Service
+    ) -> None:
+        lifespan = timedelta(days=7)
+        request = DiskRequest(storage=1024 * 1024, lifespan=lifespan)
+        disk = await service.create_disk(request, "testuser")
+        disk = await service.get_disk(disk.id)
+        assert disk.lifespan == lifespan
