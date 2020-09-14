@@ -27,13 +27,13 @@ DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
 DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
 DISK_API_CREATED_AT_ANNOTATION = "platform.neuromation.io/disk-api-pvc-created-at"
 DISK_API_LAST_USAGE_ANNOTATION = "platform.neuromation.io/disk-api-pvc-last-usage"
-DISK_API_LIFESPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-lifespan"
+DISK_API_LIFE_SPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-life-span"
 
 
 @dataclass(frozen=True)
 class DiskRequest:
     storage: int  # In bytes
-    lifespan: Optional[timedelta] = None
+    life_span: Optional[timedelta] = None
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,7 @@ class Disk:
     status: "Disk.Status"
     created_at: datetime
     last_usage: Optional[datetime]
-    lifespan: Optional[timedelta]
+    life_span: Optional[timedelta]
 
     class Status(str, Enum):
         PENDING = "Pending"
@@ -66,8 +66,10 @@ class Service:
         annotations = {
             DISK_API_CREATED_AT_ANNOTATION: datetime_dump(utc_now()),
         }
-        if request.lifespan:
-            annotations[DISK_API_LIFESPAN_ANNOTATION] = timedelta_dump(request.lifespan)
+        if request.life_span:
+            annotations[DISK_API_LIFE_SPAN_ANNOTATION] = timedelta_dump(
+                request.life_span
+            )
 
         return PersistentVolumeClaimWrite(
             name=f"disk-{uuid4()}",
@@ -96,7 +98,7 @@ class Service:
         else:
             last_usage = None
 
-        life_span_raw = pvc.annotations.get(DISK_API_LIFESPAN_ANNOTATION)
+        life_span_raw = pvc.annotations.get(DISK_API_LIFE_SPAN_ANNOTATION)
         if life_span_raw is not None:
             life_span: Optional[timedelta] = timedelta_load(life_span_raw)
         else:
@@ -110,7 +112,7 @@ class Service:
             owner=pvc.labels[USER_LABEL],
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
             last_usage=last_usage,
-            lifespan=life_span,
+            life_span=life_span,
         )
 
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:

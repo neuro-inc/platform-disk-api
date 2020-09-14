@@ -68,17 +68,17 @@ class TestService:
         assert len(all_disks) == 1
         assert all_disks[0].id == disk_created.id
 
-    async def test_lifespan_stored(self, cleanup_pvcs: None, service: Service) -> None:
-        lifespan = timedelta(days=7)
-        request = DiskRequest(storage=1024 * 1024, lifespan=lifespan)
+    async def test_life_span_stored(self, cleanup_pvcs: None, service: Service) -> None:
+        life_span = timedelta(days=7)
+        request = DiskRequest(storage=1024 * 1024, life_span=life_span)
         disk = await service.create_disk(request, "testuser")
         disk = await service.get_disk(disk.id)
-        assert disk.lifespan == lifespan
+        assert disk.life_span == life_span
 
-    async def test_no_lifespan_stored(
+    async def test_no_life_span_stored(
         self, cleanup_pvcs: None, service: Service
     ) -> None:
         request = DiskRequest(storage=1024 * 1024)
         disk = await service.create_disk(request, "testuser")
         disk = await service.get_disk(disk.id)
-        assert disk.lifespan is None
+        assert disk.life_span is None

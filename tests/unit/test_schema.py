@@ -13,10 +13,10 @@ def test_validate_disk_request_ok() -> None:
     assert request.storage == 2000
 
 
-def test_validate_disk_request_with_lifespan_ok() -> None:
-    request = DiskRequestSchema().load({"storage": 2000, "lifespan": 3600})
+def test_validate_disk_request_with_life_span_ok() -> None:
+    request = DiskRequestSchema().load({"storage": 2000, "life_span": 3600})
     assert request.storage == 2000
-    assert request.lifespan == timedelta(hours=1)
+    assert request.life_span == timedelta(hours=1)
 
 
 def test_validate_disk_request_no_storage() -> None:
@@ -40,7 +40,7 @@ def test_validate_disk_serialize() -> None:
         status=Disk.Status.READY,
         last_usage=last_usage,
         created_at=created_at,
-        lifespan=timedelta(days=1),
+        life_span=timedelta(days=1),
     )
     assert DiskSchema().dump(disk) == {
         "id": "test-id",
@@ -49,5 +49,5 @@ def test_validate_disk_serialize() -> None:
         "status": "Ready",
         "created_at": created_at.isoformat(),
         "last_usage": last_usage.isoformat(),
-        "lifespan": 86400,
+        "life_span": 86400,
     }
