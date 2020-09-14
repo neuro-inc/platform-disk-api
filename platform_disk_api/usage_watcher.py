@@ -6,7 +6,7 @@ from typing import Iterable, Optional
 from platform_logging import init_logging
 
 from platform_disk_api.api import create_kube_client
-from platform_disk_api.config import Config
+from platform_disk_api.config import Config, DiskConfig, KubeConfig
 from platform_disk_api.config_factory import EnvironConfigFactory
 from platform_disk_api.kube_client import (
     KubeClient,
@@ -47,14 +47,17 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
             resource_version = None
 
 
-async def async_main(config: Config) -> None:
-    async with create_kube_client(config.kube) as kube_client:
-        service = Service(kube_client, config.disk.k8s_storage_class)
+async def async_main(kube_config: KubeConfig) -> None:
+    async with create_kube_client(kube_config) as kube_client:
+        # We are not going to create disks using this service
+        # instance, so its safe to provide invalid storage
+        # class name
+        service = Service(kube_client, "fake invalid value")
         await watch_disk_usage(kube_client, service)
 
 
 def main() -> None:  # pragma: no coverage
     init_logging()
-    config = EnvironConfigFactory().create()
-    logging.info("Loaded config: %r", config)
-    asyncio.run(async_main(config))
+    kube_config = EnvironConfigFactory().create_kube()
+    logging.info("Loaded k8s config: %r", kube_config)
+    asyncio.run(async_main(kube_config))

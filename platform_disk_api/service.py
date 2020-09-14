@@ -56,7 +56,7 @@ class Disk:
 
 
 class Service:
-    def __init__(self, kube_client: KubeClient, storage_class_name: str,) -> None:
+    def __init__(self, kube_client: KubeClient, storage_class_name: str) -> None:
         self._kube_client = kube_client
         self._storage_class_name = storage_class_name
 

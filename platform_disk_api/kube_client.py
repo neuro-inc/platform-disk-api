@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import ssl
@@ -8,6 +9,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 from urllib.parse import urlsplit
 
 import aiohttp
+from aiohttp import ClientTimeout
 
 from .config import KubeClientAuthType
 
@@ -401,11 +403,16 @@ class KubeClient:
             params["resourceVersion"] = resource_version
         url = self._pod_url
         assert self._client, "client is not initialized"
+        # k8s apiserver watch timeout is set using --min-request-timeout,
+        # and it has default of 1800 (half an hour)
         async with self._client.request(
-            method="GET", url=url, params=params
+            method="GET", url=url, params=params, timeout=ClientTimeout(total=1800)
         ) as response:
             if response.status == 410:
                 raise ResourceGone
-            async for line in response.content:
-                payload = json.loads(line)
-                yield PodWatchEvent.from_primitive(payload)
+            try:
+                async for line in response.content:
+                    payload = json.loads(line)
+                    yield PodWatchEvent.from_primitive(payload)
+            except asyncio.TimeoutError:
+                pass
