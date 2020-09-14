@@ -8,17 +8,23 @@ from platform_disk_api.service import Disk
 from platform_disk_api.utils import utc_now
 
 
-def test_validate_storage_storage_ok() -> None:
+def test_validate_disk_request_ok() -> None:
     request = DiskRequestSchema().load({"storage": 2000})
     assert request.storage == 2000
 
 
-def test_validate_storage_no_storage() -> None:
+def test_validate_disk_request_with_lifespan_ok() -> None:
+    request = DiskRequestSchema().load({"storage": 2000, "lifespan": 3600})
+    assert request.storage == 2000
+    assert request.lifespan == timedelta(hours=1)
+
+
+def test_validate_disk_request_no_storage() -> None:
     with pytest.raises(ValidationError):
         DiskRequestSchema().load({})
 
 
-def test_validate_storage_storage_is_string() -> None:
+def test_validate_disk_request_storage_is_string() -> None:
     with pytest.raises(ValidationError):
         DiskRequestSchema().load({"storage": "20Gi"})
 
@@ -34,6 +40,7 @@ def test_validate_disk_serialize() -> None:
         status=Disk.Status.READY,
         last_usage=last_usage,
         created_at=created_at,
+        lifespan=timedelta(days=1),
     )
     assert DiskSchema().dump(disk) == {
         "id": "test-id",
@@ -42,4 +49,5 @@ def test_validate_disk_serialize() -> None:
         "status": "Ready",
         "created_at": created_at.isoformat(),
         "last_usage": last_usage.isoformat(),
+        "lifespan": 86400,
     }
