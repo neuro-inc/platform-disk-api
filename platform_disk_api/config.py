@@ -40,6 +40,7 @@ class KubeConfig:
     namespace: str = "default"
     client_conn_timeout_s: int = 300
     client_read_timeout_s: int = 300
+    client_watch_timeout_s: int = 1800
     client_conn_pool_size: int = 100
 
 

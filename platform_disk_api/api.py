@@ -275,6 +275,7 @@ async def create_kube_client(config: KubeConfig) -> AsyncIterator[KubeClient]:
         token_path=None,  # TODO (A Yushkovskiy) add support for token_path or drop
         conn_timeout_s=config.client_conn_timeout_s,
         read_timeout_s=config.client_read_timeout_s,
+        watch_timeout_s=config.client_watch_timeout_s,
         conn_pool_size=config.client_conn_pool_size,
     )
     try:

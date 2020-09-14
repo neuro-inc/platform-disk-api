@@ -231,6 +231,7 @@ class KubeClient:
         token_path: Optional[str] = None,
         conn_timeout_s: int = 300,
         read_timeout_s: int = 100,
+        watch_timeout_s: int = 1800,
         conn_pool_size: int = 100,
     ) -> None:
         self._base_url = base_url
@@ -247,6 +248,7 @@ class KubeClient:
 
         self._conn_timeout_s = conn_timeout_s
         self._read_timeout_s = read_timeout_s
+        self._watch_timeout_s = watch_timeout_s
         self._conn_pool_size = conn_pool_size
         self._client: Optional[aiohttp.ClientSession] = None
 
@@ -403,10 +405,11 @@ class KubeClient:
             params["resourceVersion"] = resource_version
         url = self._pod_url
         assert self._client, "client is not initialized"
-        # k8s apiserver watch timeout is set using --min-request-timeout,
-        # and it has default of 1800 (half an hour)
+        timeout = ClientTimeout(
+            connect=self._conn_timeout_s, total=self._watch_timeout_s,
+        )
         async with self._client.request(
-            method="GET", url=url, params=params, timeout=ClientTimeout(total=1800)
+            method="GET", url=url, params=params, timeout=timeout
         ) as response:
             if response.status == 410:
                 raise ResourceGone

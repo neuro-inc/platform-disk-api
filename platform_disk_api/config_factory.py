@@ -73,6 +73,10 @@ class EnvironConfigFactory:
                 self._environ.get("NP_DISK_API_K8S_CLIENT_READ_TIMEOUT")
                 or KubeConfig.client_read_timeout_s
             ),
+            client_watch_timeout_s=int(
+                self._environ.get("NP_DISK_API_K8S_CLIENT_WATCH_TIMEOUT")
+                or KubeConfig.client_watch_timeout_s
+            ),
             client_conn_pool_size=int(
                 self._environ.get("NP_DISK_API_K8S_CLIENT_CONN_POOL_SIZE")
                 or KubeConfig.client_conn_pool_size

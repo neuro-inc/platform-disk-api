@@ -3,7 +3,7 @@ import subprocess
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 import pytest
 
@@ -95,20 +95,31 @@ class KubeClientForTest(KubeClient):
 
 
 @pytest.fixture
-async def kube_client(kube_config: KubeConfig) -> AsyncIterator[KubeClientForTest]:
-    # TODO (A Danshyn 06/06/18): create a factory method
-    client = KubeClientForTest(
-        base_url=kube_config.endpoint_url,
-        auth_type=kube_config.auth_type,
-        cert_authority_data_pem=kube_config.cert_authority_data_pem,
-        cert_authority_path=None,  # disabled, see `cert_authority_data_pem`
-        auth_cert_path=kube_config.auth_cert_path,
-        auth_cert_key_path=kube_config.auth_cert_key_path,
-        namespace=kube_config.namespace,
-        conn_timeout_s=kube_config.client_conn_timeout_s,
-        read_timeout_s=kube_config.client_read_timeout_s,
-        conn_pool_size=kube_config.client_conn_pool_size,
-    )
+def kube_client_factory() -> Callable[[KubeConfig], KubeClientForTest]:
+    def make_kube_client(kube_config: KubeConfig) -> KubeClientForTest:
+        return KubeClientForTest(
+            base_url=kube_config.endpoint_url,
+            auth_type=kube_config.auth_type,
+            cert_authority_data_pem=kube_config.cert_authority_data_pem,
+            cert_authority_path=None,  # disabled, see `cert_authority_data_pem`
+            auth_cert_path=kube_config.auth_cert_path,
+            auth_cert_key_path=kube_config.auth_cert_key_path,
+            namespace=kube_config.namespace,
+            conn_timeout_s=kube_config.client_conn_timeout_s,
+            read_timeout_s=kube_config.client_read_timeout_s,
+            watch_timeout_s=kube_config.client_watch_timeout_s,
+            conn_pool_size=kube_config.client_conn_pool_size,
+        )
+
+    return make_kube_client
+
+
+@pytest.fixture
+async def kube_client(
+    kube_config: KubeConfig,
+    kube_client_factory: Callable[[KubeConfig], KubeClientForTest],
+) -> AsyncIterator[KubeClientForTest]:
+    client = kube_client_factory(kube_config)
     async with client:
         yield client
 

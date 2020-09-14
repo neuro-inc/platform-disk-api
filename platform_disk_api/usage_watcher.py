@@ -6,7 +6,7 @@ from typing import Iterable, Optional
 from platform_logging import init_logging
 
 from platform_disk_api.api import create_kube_client
-from platform_disk_api.config import Config, DiskConfig, KubeConfig
+from platform_disk_api.config import KubeConfig
 from platform_disk_api.config_factory import EnvironConfigFactory
 from platform_disk_api.kube_client import (
     KubeClient,
