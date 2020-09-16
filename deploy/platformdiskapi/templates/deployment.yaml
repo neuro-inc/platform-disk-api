@@ -132,6 +132,8 @@ spec:
           value: "{{ .Values.NP_DISK_API_ENABLE_DOCS}}"
         - name: NP_DISK_API_STORAGE_LIMIT_PER_USER
           value: "{{ .Values.NP_DISK_API_STORAGE_LIMIT_PER_USER}}"
+        - name: NP_DISK_API_DEFAULT_DISK_LIFESPAN
+          value: "{{ .Values.NP_DISK_API_DEFAULT_DISK_LIFESPAN}}"
         - name: NP_CLUSTER_NAME
           value: {{ .Values.NP_CLUSTER_NAME}}
         - name: NP_CORS_ORIGINS
