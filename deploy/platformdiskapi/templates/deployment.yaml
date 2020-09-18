@@ -107,7 +107,7 @@ spec:
           limits:
             cpu: {{ .Values.NP_DISK_API_LIMITS_CPU}}
             memory: {{ .Values.NP_DISK_API_LIMITS_MEMORY}}
-        command: platform-disk-api-watcher
+        command: ["platform-disk-api-watcher"]
         env:
         - name: NP_DISK_API_K8S_API_URL
           value: https://kubernetes.default:443
