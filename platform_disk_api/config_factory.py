@@ -29,10 +29,10 @@ class EnvironConfigFactory:
         return Config(
             server=self._create_server(),
             platform_auth=self._create_platform_auth(),
-            kube=self._create_kube(),
+            kube=self.create_kube(),
             cluster_name=cluster_name,
             cors=self.create_cors(),
-            disk=self._create_disk(),
+            disk=self.create_disk(),
             enable_docs=enable_docs,
         )
 
@@ -46,7 +46,7 @@ class EnvironConfigFactory:
         token = self._environ["NP_DISK_API_PLATFORM_AUTH_TOKEN"]
         return PlatformAuthConfig(url=url, token=token)
 
-    def _create_kube(self) -> KubeConfig:
+    def create_kube(self) -> KubeConfig:
         endpoint_url = self._environ["NP_DISK_API_K8S_API_URL"]
         auth_type = KubeClientAuthType(
             self._environ.get("NP_DISK_API_K8S_AUTH_TYPE", KubeConfig.auth_type.value)
@@ -73,13 +73,17 @@ class EnvironConfigFactory:
                 self._environ.get("NP_DISK_API_K8S_CLIENT_READ_TIMEOUT")
                 or KubeConfig.client_read_timeout_s
             ),
+            client_watch_timeout_s=int(
+                self._environ.get("NP_DISK_API_K8S_CLIENT_WATCH_TIMEOUT")
+                or KubeConfig.client_watch_timeout_s
+            ),
             client_conn_pool_size=int(
                 self._environ.get("NP_DISK_API_K8S_CLIENT_CONN_POOL_SIZE")
                 or KubeConfig.client_conn_pool_size
             ),
         )
 
-    def _create_disk(self) -> DiskConfig:
+    def create_disk(self) -> DiskConfig:
         return DiskConfig(
             k8s_storage_class=self._environ["NP_DISK_API_K8S_STORAGE_CLASS"],
             storage_limit_per_user=int(

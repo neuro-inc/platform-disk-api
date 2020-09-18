@@ -4,6 +4,7 @@ import pytest
 
 from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
 from platform_disk_api.service import DiskNotFound, DiskRequest, Service
+from platform_disk_api.utils import utc_now
 
 
 pytestmark = pytest.mark.asyncio
@@ -82,3 +83,14 @@ class TestService:
         disk = await service.create_disk(request, "testuser")
         disk = await service.get_disk(disk.id)
         assert disk.life_span is None
+
+    async def test_update_last_usage(
+        self, cleanup_pvcs: None, service: Service
+    ) -> None:
+        request = DiskRequest(storage=1024 * 1024)
+        disk = await service.create_disk(request, "testuser")
+        assert disk.last_usage is None
+        last_usage_time = utc_now()
+        await service.mark_disk_usage(disk.id, last_usage_time)
+        disk = await service.get_disk(disk.id)
+        assert disk.last_usage == last_usage_time

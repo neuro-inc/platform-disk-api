@@ -56,7 +56,7 @@ class Disk:
 
 
 class Service:
-    def __init__(self, kube_client: KubeClient, storage_class_name: str,) -> None:
+    def __init__(self, kube_client: KubeClient, storage_class_name: str) -> None:
         self._kube_client = kube_client
         self._storage_class_name = storage_class_name
 
@@ -140,5 +140,14 @@ class Service:
             diff = MergeDiff.make_add_label_diff(DISK_API_DELETED_LABEL, "true")
             await self._kube_client.update_pvc(disk_id, diff)
             await self._kube_client.remove_pvc(disk_id)
+        except ResourceNotFound:
+            raise DiskNotFound
+
+    async def mark_disk_usage(self, disk_id: str, time: datetime) -> None:
+        diff = MergeDiff.make_add_annotations_diff(
+            DISK_API_LAST_USAGE_ANNOTATION, datetime_dump(time)
+        )
+        try:
+            await self._kube_client.update_pvc(disk_id, diff)
         except ResourceNotFound:
             raise DiskNotFound

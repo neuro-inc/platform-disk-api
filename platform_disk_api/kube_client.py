@@ -1,13 +1,15 @@
+import asyncio
 import json
 import logging
 import ssl
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 from urllib.parse import urlsplit
 
 import aiohttp
+from aiohttp import ClientTimeout
 
 from .config import KubeClientAuthType
 
@@ -32,6 +34,10 @@ class ResourceExists(KubeClientException):
 
 
 class ResourceBadRequest(KubeClientException):
+    pass
+
+
+class ResourceGone(KubeClientException):
     pass
 
 
@@ -148,6 +154,68 @@ class PersistentVolumeClaimRead:
         )
 
 
+@dataclass(frozen=True)
+class PodRead:
+    pvc_in_use: List[str]
+
+    @classmethod
+    def from_primitive(cls, payload: Dict[str, Any]) -> "PodRead":
+        pvc_names = []
+        for volume in payload["spec"]["volumes"]:
+            pvc_data = volume.get("persistentVolumeClaim")
+            if pvc_data:
+                pvc_names.append(pvc_data["claimName"])
+        return PodRead(pvc_in_use=pvc_names)
+
+
+@dataclass(frozen=True)
+class PodListResult:
+    resource_version: str
+    pods: List[PodRead]
+
+    @classmethod
+    def from_primitive(cls, payload: Dict[str, Any]) -> "PodListResult":
+        return PodListResult(
+            resource_version=payload["metadata"]["resourceVersion"],
+            pods=[PodRead.from_primitive(item) for item in payload["items"]],
+        )
+
+
+@dataclass(frozen=True)
+class PodWatchEvent:
+    type: "PodWatchEvent.Type"
+    pod: PodRead
+    resource_version: Optional[str] = None
+
+    class Type(str, Enum):
+        """Possible values for phase of PVC.
+
+        Check k8s source code:
+        https://github.com/kubernetes/kubernetes/blob/b7d44329f3514a65af9048224329a4897cf4d31d/pkg/apis/core/types.go#L540-L549
+        """
+
+        ADDED = "ADDED"
+        MODIFIED = "MODIFIED"
+        DELETED = "DELETED"
+        ERROR = "ERROR"
+        BOOKMARK = "BOOKMARK"
+
+    @classmethod
+    def from_primitive(cls, payload: Dict[str, Any]) -> "PodWatchEvent":
+        event_type = next(
+            event_type for event_type in cls.Type if event_type == payload["type"]
+        )
+        if event_type == cls.Type.BOOKMARK:
+            return PodWatchEvent(
+                type=event_type,
+                resource_version=payload["object"]["metadata"]["resourceVersion"],
+                pod=PodRead([]),
+            )
+        return PodWatchEvent(
+            type=event_type, pod=PodRead.from_primitive(payload["object"])
+        )
+
+
 class KubeClient:
     def __init__(
         self,
@@ -163,6 +231,7 @@ class KubeClient:
         token_path: Optional[str] = None,
         conn_timeout_s: int = 300,
         read_timeout_s: int = 100,
+        watch_timeout_s: int = 1800,
         conn_pool_size: int = 100,
     ) -> None:
         self._base_url = base_url
@@ -179,6 +248,7 @@ class KubeClient:
 
         self._conn_timeout_s = conn_timeout_s
         self._read_timeout_s = read_timeout_s
+        self._watch_timeout_s = watch_timeout_s
         self._conn_pool_size = conn_pool_size
         self._client: Optional[aiohttp.ClientSession] = None
 
@@ -256,6 +326,10 @@ class KubeClient:
     def _generate_pvc_url(self, pvc_name: str) -> str:
         return f"{self._pvc_url}/{pvc_name}"
 
+    @property
+    def _pod_url(self) -> str:
+        return f"{self._namespace_url}/pods"
+
     async def _request(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
         assert self._client, "client is not initialized"
         async with self._client.request(*args, **kwargs) as response:
@@ -316,3 +390,32 @@ class KubeClient:
         url = self._generate_pvc_url(pvc_name)
         payload = await self._request(method="DELETE", url=url)
         self._raise_for_status(payload)
+
+    async def list_pods(self) -> PodListResult:
+        url = self._pod_url
+        payload = await self._request(method="GET", url=url)
+        self._raise_for_status(payload)
+        return PodListResult.from_primitive(payload)
+
+    async def watch_pods(
+        self, resource_version: Optional[str] = None
+    ) -> AsyncIterator[PodWatchEvent]:
+        params = dict(watch="true", allowWatchBookmarks="true")
+        if resource_version:
+            params["resourceVersion"] = resource_version
+        url = self._pod_url
+        assert self._client, "client is not initialized"
+        timeout = ClientTimeout(
+            connect=self._conn_timeout_s, total=self._watch_timeout_s,
+        )
+        async with self._client.request(
+            method="GET", url=url, params=params, timeout=timeout
+        ) as response:
+            if response.status == 410:
+                raise ResourceGone
+            try:
+                async for line in response.content:
+                    payload = json.loads(line)
+                    yield PodWatchEvent.from_primitive(payload)
+            except asyncio.TimeoutError:
+                pass

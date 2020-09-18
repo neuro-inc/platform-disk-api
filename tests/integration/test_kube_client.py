@@ -10,6 +10,7 @@ from platform_disk_api.kube_client import (
     ResourceExists,
     ResourceNotFound,
 )
+from tests.integration.conftest_kube import KubeClientForTest
 
 
 pytestmark = pytest.mark.asyncio
@@ -176,3 +177,60 @@ class TestKubeClient:
     ) -> None:
         with pytest.raises(ResourceNotFound):
             await kube_client.remove_pvc("not-exists")
+
+    async def test_list_pods(
+        self, cleanup_pvcs: None, kube_client: KubeClientForTest, k8s_storage_class: str
+    ) -> None:
+        storage_to_request = 10 * 1024 * 1024  # 10 mb
+        pvc = await kube_client.create_pvc(
+            PersistentVolumeClaimWrite(
+                name=str(uuid4()),
+                storage_class_name=k8s_storage_class,
+                storage=storage_to_request,
+            )
+        )
+        async with kube_client.run_pod([pvc.name]) as created_pod:
+            list_res = await kube_client.list_pods()
+            assert pvc.name in created_pod.pvc_in_use
+            assert created_pod in list_res.pods
+
+    async def test_watch_pods(
+        self, cleanup_pvcs: None, kube_client: KubeClientForTest, k8s_storage_class: str
+    ) -> None:
+        storage_to_request = 10 * 1024 * 1024  # 10 mb
+        pvc1 = await kube_client.create_pvc(
+            PersistentVolumeClaimWrite(
+                name=str(uuid4()),
+                storage_class_name=k8s_storage_class,
+                storage=storage_to_request,
+            )
+        )
+        pvc2 = await kube_client.create_pvc(
+            PersistentVolumeClaimWrite(
+                name=str(uuid4()),
+                storage_class_name=k8s_storage_class,
+                storage=storage_to_request,
+            )
+        )
+
+        seen_pvc = set()
+
+        async def watcher() -> None:
+            async for event in kube_client.watch_pods():
+                seen_pvc.update(event.pod.pvc_in_use)
+
+        task = asyncio.create_task(watcher())
+
+        async with kube_client.run_pod([pvc1.name]):
+            pass
+
+        assert pvc1.name in seen_pvc
+        assert pvc2.name not in seen_pvc
+
+        async with kube_client.run_pod([pvc2.name]):
+            pass
+
+        assert pvc1.name in seen_pvc
+        assert pvc2.name in seen_pvc
+
+        task.cancel()

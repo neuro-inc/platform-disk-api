@@ -1,12 +1,14 @@
 import json
 import subprocess
+import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 import pytest
 
 from platform_disk_api.config import KubeConfig
-from platform_disk_api.kube_client import KubeClient, ResourceNotFound
+from platform_disk_api.kube_client import KubeClient, PodRead, ResourceNotFound
 
 
 @pytest.fixture(scope="session")
@@ -63,21 +65,61 @@ async def kube_config(
     return kube_config
 
 
+class KubeClientForTest(KubeClient):
+    @asynccontextmanager
+    async def run_pod(self, pvc_names: List[str]) -> AsyncIterator[PodRead]:
+        json = {
+            "kind": "Pod",
+            "apiVersion": "v1",
+            "metadata": {"name": str(uuid.uuid4())},
+            "spec": {
+                "automountServiceAccountToken": False,
+                "containers": [
+                    {
+                        "name": "hello",
+                        "image": "busybox",
+                        "command": ["sh", "-c", "sleep 1"],
+                    }
+                ],
+                "volumes": [
+                    {"name": f"disk-{i}", "persistentVolumeClaim": {"claimName": name}}
+                    for (i, name) in enumerate(pvc_names)
+                ],
+            },
+        }
+        url = self._pod_url
+        payload = await self._request(method="POST", url=url, json=json)
+        self._raise_for_status(payload)
+        yield PodRead.from_primitive(payload)
+        await self._request(method="DELETE", url=f"{url}/{payload['metadata']['name']}")
+
+
 @pytest.fixture
-async def kube_client(kube_config: KubeConfig) -> AsyncIterator[KubeClient]:
-    # TODO (A Danshyn 06/06/18): create a factory method
-    client = KubeClient(
-        base_url=kube_config.endpoint_url,
-        auth_type=kube_config.auth_type,
-        cert_authority_data_pem=kube_config.cert_authority_data_pem,
-        cert_authority_path=None,  # disabled, see `cert_authority_data_pem`
-        auth_cert_path=kube_config.auth_cert_path,
-        auth_cert_key_path=kube_config.auth_cert_key_path,
-        namespace=kube_config.namespace,
-        conn_timeout_s=kube_config.client_conn_timeout_s,
-        read_timeout_s=kube_config.client_read_timeout_s,
-        conn_pool_size=kube_config.client_conn_pool_size,
-    )
+def kube_client_factory() -> Callable[[KubeConfig], KubeClientForTest]:
+    def make_kube_client(kube_config: KubeConfig) -> KubeClientForTest:
+        return KubeClientForTest(
+            base_url=kube_config.endpoint_url,
+            auth_type=kube_config.auth_type,
+            cert_authority_data_pem=kube_config.cert_authority_data_pem,
+            cert_authority_path=None,  # disabled, see `cert_authority_data_pem`
+            auth_cert_path=kube_config.auth_cert_path,
+            auth_cert_key_path=kube_config.auth_cert_key_path,
+            namespace=kube_config.namespace,
+            conn_timeout_s=kube_config.client_conn_timeout_s,
+            read_timeout_s=kube_config.client_read_timeout_s,
+            watch_timeout_s=kube_config.client_watch_timeout_s,
+            conn_pool_size=kube_config.client_conn_pool_size,
+        )
+
+    return make_kube_client
+
+
+@pytest.fixture
+async def kube_client(
+    kube_config: KubeConfig,
+    kube_client_factory: Callable[[KubeConfig], KubeClientForTest],
+) -> AsyncIterator[KubeClientForTest]:
+    client = kube_client_factory(kube_config)
     async with client:
         yield client
 
