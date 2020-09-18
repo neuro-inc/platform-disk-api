@@ -1,13 +1,18 @@
 import asyncio
 from dataclasses import replace
+from datetime import timedelta
 from typing import AsyncIterator, Callable
 
 import pytest
 
 from platform_disk_api.config import KubeConfig
 from platform_disk_api.kube_client import KubeClient
-from platform_disk_api.service import DiskRequest, Service
-from platform_disk_api.usage_watcher import utc_now, watch_disk_usage
+from platform_disk_api.service import DiskNotFound, DiskRequest, Service
+from platform_disk_api.usage_watcher import (
+    utc_now,
+    watch_disk_usage,
+    watch_lifespan_ended,
+)
 from tests.integration.conftest_kube import KubeClientForTest
 
 
@@ -37,8 +42,23 @@ class TestUsageWatcher:
             except asyncio.CancelledError:
                 pass
 
+    @pytest.fixture
+    async def cleanup_task(self, service: Service) -> AsyncIterator[None]:
+        task = asyncio.create_task(watch_lifespan_ended(service, check_interval=0.1))
+        await asyncio.sleep(0)  # Allow task to start
+        yield
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
     async def test_usage_watcher_updates_label(
-        self, watcher_task: None, kube_client: KubeClientForTest, service: Service,
+        self,
+        cleanup_pvcs: None,
+        watcher_task: None,
+        kube_client: KubeClientForTest,
+        service: Service,
     ) -> None:
         async def wait_for_last_usage(disk_id: str) -> None:
             while True:
@@ -57,3 +77,27 @@ class TestUsageWatcher:
             disk = await service.get_disk(disk.id)
             assert disk.last_usage
             assert before_start < disk.last_usage
+
+    async def test_task_cleanuped_no_usage(
+        self, cleanup_pvcs: None, cleanup_task: None, service: Service,
+    ) -> None:
+        disk = await service.create_disk(
+            DiskRequest(storage=1000, life_span=timedelta(seconds=1)), "user"
+        )
+        await asyncio.sleep(1.5)
+        with pytest.raises(DiskNotFound):
+            await service.get_disk(disk.id)
+
+    async def test_task_cleanuped_with_usage(
+        self, cleanup_pvcs: None, cleanup_task: None, service: Service,
+    ) -> None:
+        disk = await service.create_disk(
+            DiskRequest(storage=1000, life_span=timedelta(seconds=2)), "user"
+        )
+        await asyncio.sleep(1.33)
+        await service.mark_disk_usage(disk.id, utc_now())
+        await asyncio.sleep(1.33)
+        assert await service.get_disk(disk.id)
+        await asyncio.sleep(1.33)
+        with pytest.raises(DiskNotFound):
+            await service.get_disk(disk.id)

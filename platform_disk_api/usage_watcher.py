@@ -47,12 +47,26 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
             resource_version = None
 
 
+async def watch_lifespan_ended(service: Service, check_interval: float = 600) -> None:
+    while True:
+        for disk in await service.get_all_disks():
+            if disk.life_span is None:
+                continue
+            lifespan_start = disk.last_usage or disk.created_at
+            if lifespan_start + disk.life_span < utc_now():
+                await service.remove_disk(disk.id)
+        await asyncio.sleep(check_interval)
+
+
 async def async_main(kube_config: KubeConfig) -> None:
     async with create_kube_client(kube_config) as kube_client:
         # We are not going to create disks using this service
         # instance, so its safe to provide invalid storage
         # class name
         service = Service(kube_client, "fake invalid value")
+        await asyncio.gather(
+            watch_disk_usage(kube_client, service), watch_lifespan_ended(service),
+        )
         await watch_disk_usage(kube_client, service)
 
 
