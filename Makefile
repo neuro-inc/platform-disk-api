@@ -2,7 +2,13 @@ IMAGE_NAME ?= platformdiskapi
 IMAGE_TAG ?= latest
 ARTIFACTORY_TAG ?= $(shell echo "$(GITHUB_REF)" | awk -F/ '{print $$NF}')
 IMAGE ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)/$(IMAGE_NAME)
-IMAGE_AWS ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(IMAGE_NAME)
+#IMAGE_AWS ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(IMAGE_NAME)
+
+CLOUD_IMAGE_gke   ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)/$(IMAGE_NAME)
+CLOUD_IMAGE_aws   ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(IMAGE_NAME)
+CLOUD_IMAGE_azure ?= $(AZURE_DEV_ACR_NAME).azurecr.io/$(IMAGE_NAME)
+
+CLOUD_IMAGE  = ${CLOUD_IMAGE_${CLOUD_PROVIDER}}
 
 PLATFORMAUTHAPI_TAG=disk-support
 
@@ -39,22 +45,26 @@ docker_pull_test_images:
 	    docker tag $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/platformauthapi:$(PLATFORMAUTHAPI_TAG) platformauthapi:latest
 
 eks_login:
-	aws eks --region $(AWS_REGION) update-kubeconfig --name $(AWS_CLUSTER_NAME)
+	aws eks --region $(AWS_REGION) update-kubeconfig --name $(CLUSTER_NAME)
+
+aks_login:
+	az aks get-credentials --resource-group $(AZURE_DEV_RG_NAME) --name $(CLUSTER_NAME)
 
 ecr_login:
 	$$(aws ecr get-login --no-include-email --region $(AWS_REGION))
 
-aws_docker_push: build ecr_login
-	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(IMAGE_AWS):latest
-	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(IMAGE_AWS):$(GITHUB_SHA)
-	docker push $(IMAGE_AWS):latest
-	docker push $(IMAGE_AWS):$(GITHUB_SHA)
+docker_push: build
+	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(CLOUD_IMAGE):latest
+	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(CLOUD_IMAGE):$(GITHUB_SHA)
+	docker push $(CLOUD_IMAGE):latest
+	docker push $(CLOUD_IMAGE):$(GITHUB_SHA)
 
 _helm:
-	curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash -s -- -v v2.11.0
+	curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash -s -- -v $(HELM_VERSION)
+	helm init --client-only
 
-aws_k8s_deploy: _helm
-	helm -f deploy/platformdiskapi/values-$(HELM_ENV).yaml --set "IMAGE=$(IMAGE_AWS):$(GITHUB_SHA)" upgrade --install platformdiskapi deploy/platformdiskapi/ --namespace platform --wait --timeout 600
+helm_deploy: _helm
+	helm -f deploy/platformdiskapi/values-$(HELM_ENV)-$(CLOUD_PROVIDER).yaml --set "IMAGE=$(CLOUD_IMAGE):$(GITHUB_SHA)" upgrade --install platformdiskapi deploy/platformdiskapi/ --namespace platform --wait --timeout 600
 
 artifactory_docker_push: build
 	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(ARTIFACTORY_DOCKER_REPO)/$(IMAGE_NAME):$(ARTIFACTORY_TAG)
