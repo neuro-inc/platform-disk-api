@@ -12,7 +12,7 @@ from typing import (
 import pytest
 from aiohttp.hdrs import AUTHORIZATION
 from jose import jwt
-from neuro_auth_client import AuthClient, User as AuthClientUser
+from neuro_auth_client import AuthClient, Cluster, User as AuthClientUser
 from yarl import URL
 
 from platform_disk_api.api import create_auth_client
@@ -76,7 +76,7 @@ async def regular_user_factory(
     async def _factory(name: Optional[str] = None, skip_grant: bool = False) -> _User:
         if not name:
             name = f"user-{random_name()}"
-        user = AuthClientUser(name=name, cluster_name=cluster_name)
+        user = AuthClientUser(name=name, clusters=[Cluster(name=cluster_name)])
         await auth_client.add_user(user, token=admin_token)
         if not skip_grant:
             # Grant permissions to the user home directory
