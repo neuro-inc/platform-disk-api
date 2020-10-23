@@ -8,13 +8,8 @@ from platform_logging import init_logging
 from platform_disk_api.api import create_kube_client
 from platform_disk_api.config import KubeConfig
 from platform_disk_api.config_factory import EnvironConfigFactory
-from platform_disk_api.kube_client import (
-    KubeClient,
-    PodWatchEvent,
-    ResourceGone,
-    ResourceNotFound,
-)
-from platform_disk_api.service import Service
+from platform_disk_api.kube_client import KubeClient, PodWatchEvent, ResourceGone
+from platform_disk_api.service import DiskNotFound, Service
 from platform_disk_api.utils import utc_now
 
 
@@ -24,7 +19,7 @@ async def update_last_used(
     for pvc_name in pvc_names:
         try:
             await service.mark_disk_usage(pvc_name, time)
-        except ResourceNotFound:
+        except DiskNotFound:
             pass
 
 
