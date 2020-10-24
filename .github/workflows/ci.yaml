@@ -8,7 +8,6 @@ on:
     tags:
       - artifactory/*
 
-
 env:
   PIP_EXTRA_INDEX_URL: ${{ format('https://{0}:{1}@{2}/{0}/{3}', secrets.DEVPI_USER, secrets.DEVPI_PASS, secrets.DEVPI_HOST, secrets.DEVPI_INDEX) }}
 
@@ -18,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CLOUD_PROVIDER: ${{ secrets.CLOUD_PROVIDER_DEV }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AZURE_ACR_NAME: ${{ secrets.AZURE_DEV_ACR_NAME }}
     steps:
       - name: Checkout commit
         uses: actions/checkout@v2

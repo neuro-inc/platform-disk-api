@@ -6,7 +6,7 @@ CLOUD_REPO_gke   ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)
 CLOUD_REPO_aws   ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 CLOUD_REPO_azure ?= $(AZURE_ACR_NAME).azurecr.io
 
-CLOUD_REPO  = ${CLOUD_REPO_${CLOUD_PROVIDER}}
+CLOUD_REPO  = $(CLOUD_REPO_$(CLOUD_PROVIDER))
 CLOUD_IMAGE = $(CLOUD_REPO)/$(IMAGE_NAME)
 
 export PIP_EXTRA_INDEX_URL ?= $(shell python pip_extra_index_url.py)
