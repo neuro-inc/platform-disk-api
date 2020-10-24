@@ -1,16 +1,13 @@
 IMAGE_NAME ?= platformdiskapi
 IMAGE_TAG ?= latest
 ARTIFACTORY_TAG ?= $(shell echo "$(GITHUB_REF)" | awk -F/ '{print $$NF}')
-IMAGE ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)/$(IMAGE_NAME)
-#IMAGE_AWS ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(IMAGE_NAME)
 
-CLOUD_IMAGE_gke   ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)/$(IMAGE_NAME)
-CLOUD_IMAGE_aws   ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(IMAGE_NAME)
-CLOUD_IMAGE_azure ?= $(AZURE_DEV_ACR_NAME).azurecr.io/$(IMAGE_NAME)
+CLOUD_REPO_gke   ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)
+CLOUD_REPO_aws   ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
+CLOUD_REPO_azure ?= $(AZURE_ACR_NAME).azurecr.io
 
-CLOUD_IMAGE  = ${CLOUD_IMAGE_${CLOUD_PROVIDER}}
-
-PLATFORMAUTHAPI_TAG=disk-support
+CLOUD_REPO  = ${CLOUD_REPO_${CLOUD_PROVIDER}}
+CLOUD_IMAGE = $(CLOUD_REPO)/$(IMAGE_NAME)
 
 export PIP_EXTRA_INDEX_URL ?= $(shell python pip_extra_index_url.py)
 
@@ -41,17 +38,14 @@ build:
 
 docker_pull_test_images:
 	@eval $$(minikube docker-env); \
-	    docker pull $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/platformauthapi:$(PLATFORMAUTHAPI_TAG); \
-	    docker tag $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/platformauthapi:$(PLATFORMAUTHAPI_TAG) platformauthapi:latest
+	    docker pull $(CLOUD_REPO)/platformauthapi:latest; \
+	    docker tag $(CLOUD_REPO)/platformauthapi:latest platformauthapi:latest
 
-eks_login:
+aws_k8s_login:
 	aws eks --region $(AWS_REGION) update-kubeconfig --name $(CLUSTER_NAME)
 
-aks_login:
-	az aks get-credentials --resource-group $(AZURE_DEV_RG_NAME) --name $(CLUSTER_NAME)
-
-ecr_login:
-	$$(aws ecr get-login --no-include-email --region $(AWS_REGION))
+azure_k8s_login:
+	az aks get-credentials --resource-group $(AZURE_RG_NAME) --name $(CLUSTER_NAME)
 
 docker_push: build
 	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(CLOUD_IMAGE):latest
