@@ -1,10 +1,13 @@
 IMAGE_NAME ?= platformdiskapi
 IMAGE_TAG ?= latest
 ARTIFACTORY_TAG ?= $(shell echo "$(GITHUB_REF)" | awk -F/ '{print $$NF}')
-IMAGE ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)/$(IMAGE_NAME)
-IMAGE_AWS ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(IMAGE_NAME)
 
-PLATFORMAUTHAPI_TAG=disk-support
+CLOUD_REPO_gke   ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)
+CLOUD_REPO_aws   ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
+CLOUD_REPO_azure ?= $(AZURE_ACR_NAME).azurecr.io
+
+CLOUD_REPO  = $(CLOUD_REPO_$(CLOUD_PROVIDER))
+CLOUD_IMAGE = $(CLOUD_REPO)/$(IMAGE_NAME)
 
 export PIP_EXTRA_INDEX_URL ?= $(shell python pip_extra_index_url.py)
 
@@ -35,26 +38,27 @@ build:
 
 docker_pull_test_images:
 	@eval $$(minikube docker-env); \
-	    docker pull $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/platformauthapi:$(PLATFORMAUTHAPI_TAG); \
-	    docker tag $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/platformauthapi:$(PLATFORMAUTHAPI_TAG) platformauthapi:latest
+	    docker pull $(CLOUD_REPO)/platformauthapi:latest; \
+	    docker tag $(CLOUD_REPO)/platformauthapi:latest platformauthapi:latest
 
-eks_login:
-	aws eks --region $(AWS_REGION) update-kubeconfig --name $(AWS_CLUSTER_NAME)
+aws_k8s_login:
+	aws eks --region $(AWS_REGION) update-kubeconfig --name $(CLUSTER_NAME)
 
-ecr_login:
-	$$(aws ecr get-login --no-include-email --region $(AWS_REGION))
+azure_k8s_login:
+	az aks get-credentials --resource-group $(AZURE_RG_NAME) --name $(CLUSTER_NAME)
 
-aws_docker_push: build ecr_login
-	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(IMAGE_AWS):latest
-	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(IMAGE_AWS):$(GITHUB_SHA)
-	docker push $(IMAGE_AWS):latest
-	docker push $(IMAGE_AWS):$(GITHUB_SHA)
+docker_push: build
+	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(CLOUD_IMAGE):latest
+	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(CLOUD_IMAGE):$(GITHUB_SHA)
+	docker push $(CLOUD_IMAGE):latest
+	docker push $(CLOUD_IMAGE):$(GITHUB_SHA)
 
 _helm:
-	curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash -s -- -v v2.11.0
+	curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash -s -- -v $(HELM_VERSION)
+	helm init --client-only
 
-aws_k8s_deploy: _helm
-	helm -f deploy/platformdiskapi/values-$(HELM_ENV).yaml --set "IMAGE=$(IMAGE_AWS):$(GITHUB_SHA)" upgrade --install platformdiskapi deploy/platformdiskapi/ --namespace platform --wait --timeout 600
+helm_deploy: _helm
+	helm -f deploy/platformdiskapi/values-$(HELM_ENV)-$(CLOUD_PROVIDER).yaml --set "IMAGE=$(CLOUD_IMAGE):$(GITHUB_SHA)" upgrade --install platformdiskapi deploy/platformdiskapi/ --namespace platform --wait --timeout 600
 
 artifactory_docker_push: build
 	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(ARTIFACTORY_DOCKER_REPO)/$(IMAGE_NAME):$(ARTIFACTORY_TAG)
