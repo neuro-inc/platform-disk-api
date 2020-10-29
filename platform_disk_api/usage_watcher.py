@@ -60,7 +60,8 @@ async def async_main(kube_config: KubeConfig) -> None:
         # class name
         service = Service(kube_client, "fake invalid value")
         await asyncio.gather(
-            watch_disk_usage(kube_client, service), watch_lifespan_ended(service),
+            watch_disk_usage(kube_client, service),
+            watch_lifespan_ended(service),
         )
         await watch_disk_usage(kube_client, service)
 

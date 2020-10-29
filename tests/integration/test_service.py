@@ -12,8 +12,15 @@ pytestmark = pytest.mark.asyncio
 
 class TestService:
     @pytest.fixture
-    def service(self, kube_client: KubeClient, k8s_storage_class: str,) -> Service:
-        return Service(kube_client=kube_client, storage_class_name=k8s_storage_class,)
+    def service(
+        self,
+        kube_client: KubeClient,
+        k8s_storage_class: str,
+    ) -> Service:
+        return Service(
+            kube_client=kube_client,
+            storage_class_name=k8s_storage_class,
+        )
 
     async def test_create_disk(self, cleanup_pvcs: None, service: Service) -> None:
         request = DiskRequest(storage=1024 * 1024)

@@ -22,7 +22,10 @@ pytestmark = pytest.mark.asyncio
 class TestUsageWatcher:
     @pytest.fixture
     def service(self, kube_client: KubeClient, k8s_storage_class: str) -> Service:
-        return Service(kube_client=kube_client, storage_class_name=k8s_storage_class,)
+        return Service(
+            kube_client=kube_client,
+            storage_class_name=k8s_storage_class,
+        )
 
     @pytest.fixture
     async def watcher_task(
@@ -79,7 +82,10 @@ class TestUsageWatcher:
             assert before_start < disk.last_usage
 
     async def test_task_cleanuped_no_usage(
-        self, cleanup_pvcs: None, cleanup_task: None, service: Service,
+        self,
+        cleanup_pvcs: None,
+        cleanup_task: None,
+        service: Service,
     ) -> None:
         disk = await service.create_disk(
             DiskRequest(storage=1000, life_span=timedelta(seconds=1)), "user"
@@ -89,7 +95,10 @@ class TestUsageWatcher:
             await service.get_disk(disk.id)
 
     async def test_task_cleanuped_with_usage(
-        self, cleanup_pvcs: None, cleanup_task: None, service: Service,
+        self,
+        cleanup_pvcs: None,
+        cleanup_task: None,
+        service: Service,
     ) -> None:
         disk = await service.create_disk(
             DiskRequest(storage=1000, life_span=timedelta(seconds=2)), "user"

@@ -28,7 +28,10 @@ class TestPodSerialization:
         }
 
     @pytest.mark.parametrize("pvc_names", [("pvc1", "pvc2", "pvc3")])
-    def test_pod_from_primitive(self, pvc_names: List[str],) -> None:
+    def test_pod_from_primitive(
+        self,
+        pvc_names: List[str],
+    ) -> None:
         pod = PodRead.from_primitive(self._make_pod_payload(pvc_names))
 
         assert set(pod.pvc_in_use) == set(pvc_names)
@@ -37,7 +40,9 @@ class TestPodSerialization:
         "resource_version,pvc_names", [("ver1", ("pvc1", "pvc2", "pvc3"))]
     )
     def test_pod_list_from_primitive(
-        self, resource_version: str, pvc_names: List[str],
+        self,
+        resource_version: str,
+        pvc_names: List[str],
     ) -> None:
         result = PodListResult.from_primitive(
             {
@@ -50,7 +55,10 @@ class TestPodSerialization:
         assert result.resource_version == resource_version
 
     @pytest.mark.parametrize("pvc_names", [("pvc1", "pvc2", "pvc3")])
-    def test_pod_watch_event_from_primitive(self, pvc_names: List[str],) -> None:
+    def test_pod_watch_event_from_primitive(
+        self,
+        pvc_names: List[str],
+    ) -> None:
         event = PodWatchEvent.from_primitive(
             {"type": "ADDED", "object": self._make_pod_payload(pvc_names)}
         )
@@ -60,7 +68,8 @@ class TestPodSerialization:
 
     @pytest.mark.parametrize("resource_version", ["ver2"])
     def test_pod_watch_bookmark_event_from_primitive(
-        self, resource_version: str,
+        self,
+        resource_version: str,
     ) -> None:
         event = PodWatchEvent.from_primitive(
             {

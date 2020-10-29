@@ -12,7 +12,9 @@ class TestPVCSerialization:
         self, name: str, storage_class: str, storage: int
     ) -> None:
         pvc = PersistentVolumeClaimWrite(
-            name=name, storage_class_name=storage_class, storage=storage,
+            name=name,
+            storage_class_name=storage_class,
+            storage=storage,
         )
         assert pvc.to_primitive() == {
             "apiVersion": "v1",
