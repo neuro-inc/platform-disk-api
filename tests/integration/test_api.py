@@ -211,7 +211,9 @@ class TestApi:
     ) -> None:
         user = await regular_user_factory()
         async with client.post(
-            disk_api.disk_url, json={"storage": 500}, headers=user.headers,
+            disk_api.disk_url,
+            json={"storage": 500},
+            headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code, await resp.text()
             disk: Disk = DiskSchema().load(await resp.json())
@@ -250,7 +252,9 @@ class TestApi:
             headers=user.headers,
         )
         async with client.post(
-            disk_api.disk_url, json={"storage": 200}, headers=user.headers,
+            disk_api.disk_url,
+            json={"storage": 200},
+            headers=user.headers,
         ) as resp:
             assert resp.status == HTTPForbidden.status_code, await resp.text()
             assert (await resp.json())["code"] == "over_limit"
@@ -268,22 +272,32 @@ class TestApi:
         user_2_disks = []
         for _ in range(3):
             async with client.post(
-                disk_api.disk_url, json={"storage": 500}, headers=user1.headers,
+                disk_api.disk_url,
+                json={"storage": 500},
+                headers=user1.headers,
             ) as resp:
                 disk = DiskSchema().load(await resp.json())
                 user_1_disks.append(disk.id)
         for _ in range(4):
             async with client.post(
-                disk_api.disk_url, json={"storage": 500}, headers=user2.headers,
+                disk_api.disk_url,
+                json={"storage": 500},
+                headers=user2.headers,
             ) as resp:
                 disk = DiskSchema().load(await resp.json())
                 user_2_disks.append(disk.id)
-        async with client.get(disk_api.disk_url, headers=user1.headers,) as resp:
+        async with client.get(
+            disk_api.disk_url,
+            headers=user1.headers,
+        ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == len(user_1_disks)
             assert set(disk.id for disk in disks) == set(user_1_disks)
-        async with client.get(disk_api.disk_url, headers=user2.headers,) as resp:
+        async with client.get(
+            disk_api.disk_url,
+            headers=user2.headers,
+        ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == len(user_2_disks)
@@ -300,15 +314,23 @@ class TestApi:
         user1 = await regular_user_factory()
         user2 = await regular_user_factory()
         async with await client.post(
-            disk_api.disk_url, json={"storage": 500}, headers=user1.headers,
+            disk_api.disk_url,
+            json={"storage": 500},
+            headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
             disk = DiskSchema().load(await resp.json())
-        async with client.get(disk_api.disk_url, headers=user2.headers,) as resp:
+        async with client.get(
+            disk_api.disk_url,
+            headers=user2.headers,
+        ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             assert await resp.json() == []
         await grant_disk_permission(user2, disk)
-        async with client.get(disk_api.disk_url, headers=user2.headers,) as resp:
+        async with client.get(
+            disk_api.disk_url,
+            headers=user2.headers,
+        ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == 1
@@ -323,15 +345,21 @@ class TestApi:
     ) -> None:
         user = await regular_user_factory()
         async with await client.post(
-            disk_api.disk_url, json={"storage": 500}, headers=user.headers,
+            disk_api.disk_url,
+            json={"storage": 500},
+            headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
             disk = DiskSchema().load(await resp.json())
         async with await client.delete(
-            disk_api.single_disk_url(disk.id), headers=user.headers,
+            disk_api.single_disk_url(disk.id),
+            headers=user.headers,
         ) as resp:
             assert resp.status == HTTPNoContent.status_code
-        async with await client.get(disk_api.disk_url, headers=user.headers,) as resp:
+        async with await client.get(
+            disk_api.disk_url,
+            headers=user.headers,
+        ) as resp:
             assert await resp.json() == []
 
     async def test_cannot_delete_another_disk(
@@ -344,15 +372,21 @@ class TestApi:
         user1 = await regular_user_factory()
         user2 = await regular_user_factory()
         async with await client.post(
-            disk_api.disk_url, json={"storage": 500}, headers=user1.headers,
+            disk_api.disk_url,
+            json={"storage": 500},
+            headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
             disk = DiskSchema().load(await resp.json())
         async with await client.delete(
-            disk_api.single_disk_url(disk.id), headers=user2.headers,
+            disk_api.single_disk_url(disk.id),
+            headers=user2.headers,
         ) as resp:
             assert resp.status == HTTPForbidden.status_code
-        async with await client.get(disk_api.disk_url, headers=user1.headers,) as resp:
+        async with await client.get(
+            disk_api.disk_url,
+            headers=user1.headers,
+        ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == 1
@@ -367,12 +401,15 @@ class TestApi:
     ) -> None:
         user = await regular_user_factory()
         async with await client.post(
-            disk_api.disk_url, json={"storage": 500}, headers=user.headers,
+            disk_api.disk_url,
+            json={"storage": 500},
+            headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
             disk = DiskSchema().load(await resp.json())
         async with await client.get(
-            disk_api.single_disk_url(disk.id), headers=user.headers,
+            disk_api.single_disk_url(disk.id),
+            headers=user.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code
             disk_got = DiskSchema().load(await resp.json())
@@ -387,7 +424,8 @@ class TestApi:
     ) -> None:
         user = await regular_user_factory()
         async with await client.get(
-            disk_api.single_disk_url("wrong-id"), headers=user.headers,
+            disk_api.single_disk_url("wrong-id"),
+            headers=user.headers,
         ) as resp:
             assert resp.status == HTTPNotFound.status_code
 
@@ -400,6 +438,7 @@ class TestApi:
     ) -> None:
         user = await regular_user_factory()
         async with await client.delete(
-            disk_api.single_disk_url("wrong-id"), headers=user.headers,
+            disk_api.single_disk_url("wrong-id"),
+            headers=user.headers,
         ) as resp:
             assert resp.status == HTTPNotFound.status_code

@@ -70,7 +70,9 @@ def config_factory(
 
 
 @pytest.fixture
-def config(config_factory: Callable[..., Config],) -> Config:
+def config(
+    config_factory: Callable[..., Config],
+) -> Config:
     return config_factory()
 
 

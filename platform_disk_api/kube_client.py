@@ -406,7 +406,8 @@ class KubeClient:
         url = self._pod_url
         assert self._client, "client is not initialized"
         timeout = ClientTimeout(
-            connect=self._conn_timeout_s, total=self._watch_timeout_s,
+            connect=self._conn_timeout_s,
+            total=self._watch_timeout_s,
         )
         async with self._client.request(
             method="GET", url=url, params=params, timeout=timeout
