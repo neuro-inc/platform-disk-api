@@ -112,7 +112,7 @@ class TestKubeClient:
             )
         pvcs = await kube_client.list_pvc()
         assert len(pvcs) == pvc_count
-        assert set(names) == set(pvc.name for pvc in pvcs)
+        assert set(names) == {pvc.name for pvc in pvcs}
 
     async def test_create_same_name(
         self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str

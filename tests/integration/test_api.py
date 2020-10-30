@@ -293,7 +293,7 @@ class TestApi:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == len(user_1_disks)
-            assert set(disk.id for disk in disks) == set(user_1_disks)
+            assert {disk.id for disk in disks} == set(user_1_disks)
         async with client.get(
             disk_api.disk_url,
             headers=user2.headers,
@@ -301,7 +301,7 @@ class TestApi:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == len(user_2_disks)
-            assert set(disk.id for disk in disks) == set(user_2_disks)
+            assert {disk.id for disk in disks} == set(user_2_disks)
 
     async def test_list_disk_includes_shared_disk(
         self,
