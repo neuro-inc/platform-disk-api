@@ -29,7 +29,7 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
         if resource_version is None:
             list_result = await kube_client.list_pods()
             now = utc_now()
-            pvc_names = set(pvc for pod in list_result.pods for pvc in pod.pvc_in_use)
+            pvc_names = {pvc for pod in list_result.pods for pvc in pod.pvc_in_use}
             await update_last_used(service, pvc_names, now)
             resource_version = list_result.resource_version
         try:
