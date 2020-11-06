@@ -1,4 +1,3 @@
-
 name: Continuous Integration
 
 on:
@@ -6,10 +5,11 @@ on:
   release:
     types: [published]
     tags:
-      - artifactory/*
+    - artifactory/*
 
 env:
-  PIP_EXTRA_INDEX_URL: ${{ format('https://{0}:{1}@{2}/{0}/{3}', secrets.DEVPI_USER, secrets.DEVPI_PASS, secrets.DEVPI_HOST, secrets.DEVPI_INDEX) }}
+  PIP_EXTRA_INDEX_URL: ${{ format('https://{0}:{1}@{2}/{0}/{3}', secrets.DEVPI_USER,
+    secrets.DEVPI_PASS, secrets.DEVPI_HOST, secrets.DEVPI_INDEX) }}
 
 jobs:
   test:
@@ -21,58 +21,61 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AZURE_ACR_NAME: ${{ secrets.AZURE_DEV_ACR_NAME }}
     steps:
-      - name: Checkout commit
-        uses: actions/checkout@v2
-      - name: Install python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.7.7"
-      - name: Cache packages
-        uses: actions/cache@v1
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-py-3.7.7-${{ hashFiles('requirements/*.txt') }}-${{ hashFiles('setup.py') }}
-      - name: Install dependencies
-        run: make setup
-      - name: Lint
-        run: make lint
-      - name: Run unit tests
-        run: make test_unit
-      - name: Configure AWS credentials
-        if: env.CLOUD_PROVIDER == 'aws'
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      - name: Login to AWS ECR
-        if: env.CLOUD_PROVIDER == 'aws'
-        uses: aws-actions/amazon-ecr-login@v1
-      - name: Configure Azure credentials
-        if: env.CLOUD_PROVIDER == 'azure'
-        uses: azure/login@v1.1
-        with:
-          creds: ${{secrets.AZURE_CREDENTIALS}}
-      - name: Login to Azure ACR
-        if: env.CLOUD_PROVIDER == 'azure'
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ secrets.AZURE_DEV_ACR_SERVER }}
-          username: ${{ secrets.AZURE_DEV_ACR_USERNAME }}
-          password: ${{ secrets.AZURE_DEV_ACR_PASSWORD }}
-      - name: Start minikube
-        run: |
-          make install_k8s
-          make start_k8s
-      - name: Pull test images
-        run: make docker_pull_test_images
-      - name: Setup services in minikube
-        run: |
-          make apply_configuration_k8s
-          make test_k8s
-      - name: Run integration tests
-        run: |
-          make test_integration
+    - name: Checkout commit
+      uses: actions/checkout@v2
+    - name: Install python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.7.7
+    - name: Cache packages
+      uses: actions/cache@v1
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-py-3.7.7-${{ hashFiles('requirements/*.txt') }}-${{
+          hashFiles('setup.py') }}
+    - name: Install dependencies
+      run: make setup
+    - name: Lint
+      run: make lint
+      env:
+        CI_LINT_RUN: 1
+    - name: Run unit tests
+      run: make test_unit
+    - name: Configure AWS credentials
+      if: env.CLOUD_PROVIDER == 'aws'
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+    - name: Login to AWS ECR
+      if: env.CLOUD_PROVIDER == 'aws'
+      uses: aws-actions/amazon-ecr-login@v1
+    - name: Configure Azure credentials
+      if: env.CLOUD_PROVIDER == 'azure'
+      uses: azure/login@v1.1
+      with:
+        creds: ${{secrets.AZURE_CREDENTIALS}}
+    - name: Login to Azure ACR
+      if: env.CLOUD_PROVIDER == 'azure'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.AZURE_DEV_ACR_SERVER }}
+        username: ${{ secrets.AZURE_DEV_ACR_USERNAME }}
+        password: ${{ secrets.AZURE_DEV_ACR_PASSWORD }}
+    - name: Start minikube
+      run: |
+        make install_k8s
+        make start_k8s
+    - name: Pull test images
+      run: make docker_pull_test_images
+    - name: Setup services in minikube
+      run: |
+        make apply_configuration_k8s
+        make test_k8s
+    - name: Run integration tests
+      run: |
+        make test_integration
 
   deploy_dev:
     name: Deploy on dev
@@ -90,36 +93,36 @@ jobs:
       HELM_VERSION: ${{ secrets.HELM_VERSION }}
       CLOUD_PROVIDER: ${{ secrets.CLOUD_PROVIDER_DEV }}
     steps:
-      - name: Checkout commit
-        uses: actions/checkout@v2
-      - name: Configure AWS credentials
-        if: env.CLOUD_PROVIDER == 'aws'
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      - name: Login to AWS ECR
-        if: env.CLOUD_PROVIDER == 'aws'
-        uses: aws-actions/amazon-ecr-login@v1
-      - name: Configure Azure credentials
-        if: env.CLOUD_PROVIDER == 'azure'
-        uses: azure/login@v1.1
-        with:
-          creds: ${{secrets.AZURE_CREDENTIALS}}
-      - name: Login to Azure ACR
-        if: env.CLOUD_PROVIDER == 'azure'
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ secrets.AZURE_DEV_ACR_SERVER }}
-          username: ${{ secrets.AZURE_DEV_ACR_USERNAME }}
-          password: ${{ secrets.AZURE_DEV_ACR_PASSWORD }}
-      - name: Push image to ECR
-        run: make docker_push
-      - name: Update kube config
-        run: make ${{ env.CLOUD_PROVIDER }}_k8s_login
-      - name: Deploy to kubernetes
-        run: make helm_deploy
+    - name: Checkout commit
+      uses: actions/checkout@v2
+    - name: Configure AWS credentials
+      if: env.CLOUD_PROVIDER == 'aws'
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+    - name: Login to AWS ECR
+      if: env.CLOUD_PROVIDER == 'aws'
+      uses: aws-actions/amazon-ecr-login@v1
+    - name: Configure Azure credentials
+      if: env.CLOUD_PROVIDER == 'azure'
+      uses: azure/login@v1.1
+      with:
+        creds: ${{secrets.AZURE_CREDENTIALS}}
+    - name: Login to Azure ACR
+      if: env.CLOUD_PROVIDER == 'azure'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.AZURE_DEV_ACR_SERVER }}
+        username: ${{ secrets.AZURE_DEV_ACR_USERNAME }}
+        password: ${{ secrets.AZURE_DEV_ACR_PASSWORD }}
+    - name: Push image to ECR
+      run: make docker_push
+    - name: Update kube config
+      run: make ${{ env.CLOUD_PROVIDER }}_k8s_login
+    - name: Deploy to kubernetes
+      run: make helm_deploy
 
   release:
     name: Release package
@@ -131,10 +134,11 @@ jobs:
       ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
       ARTIFACTORY_DOCKER_REPO: ${{ secrets.ARTIFACTORY_DOCKER_REPO }}
       ARTIFACTORY_HELM_REPO: ${{ secrets.ARTIFACTORY_HELM_REPO }}
+      HELM_VERSION: ${{ secrets.HELM_VERSION }}
     steps:
-      - name: Checkout commit
-        uses: actions/checkout@v2
-      - name: Push image to Artifactory
-        run: make artifactory_docker_push
-      - name: Push helm package to Artifactory
-        run: make artifactory_helm_push
+    - name: Checkout commit
+      uses: actions/checkout@v2
+    - name: Push image to Artifactory
+      run: make artifactory_docker_push
+    - name: Push helm package to Artifactory
+      run: make artifactory_helm_push
