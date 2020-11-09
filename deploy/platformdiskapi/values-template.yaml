@@ -1,5 +1,5 @@
 IMAGE: neuro-docker-local-public.jfrog.io/platformdiskapi:IMAGE_TAG
-NP_DISK_PROVIDER: "aws"  # "aws", "gcp" or "azure"
+NP_DISK_PROVIDER: "aws"  # "aws", "gcp", "azure" or "openebs"
 NP_DISK_API_REQUESTS_CPU: "0.1"
 NP_DISK_API_LIMITS_CPU: "0.3"
 NP_DISK_API_REQUESTS_MEMORY: "150Mi"

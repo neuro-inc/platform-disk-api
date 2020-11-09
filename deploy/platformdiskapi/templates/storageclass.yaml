@@ -11,3 +11,13 @@ provisioner: kubernetes.io/gce-pd
 {{- if eq .Values.NP_DISK_PROVIDER "azure" }}
 provisioner: kubernetes.io/azure-disk
 {{- end}}
+{{- if eq .Values.NP_DISK_PROVIDER "openebs" }}
+  annotations:
+    openebs.io/cas-type: jiva
+    cas.openebs.io/config: |
+      - name: StoragePoolClaim
+        value: default
+      - name: ReplicaCount
+        value: "1"
+provisioner: openebs.io/provisioner-iscsi
+{{- end}}
