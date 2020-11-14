@@ -11,3 +11,4 @@ provisioner: kubernetes.io/gce-pd
 {{- if eq .Values.NP_DISK_PROVIDER "azure" }}
 provisioner: kubernetes.io/azure-disk
 {{- end}}
+volumeBindingMode: WaitForFirstConsumer
