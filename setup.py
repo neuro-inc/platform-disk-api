@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 install_requires = (
     "aiohttp==3.7.2",
-    "yarl==1.6.2",
+    "yarl==1.6.3",
     "neuro_auth_client==19.11.26",
     "marshmallow==3.9.1",
     "aiohttp-apispec==2.2.1",
