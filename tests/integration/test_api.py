@@ -110,6 +110,13 @@ class TestApi:
             text = await resp.text()
             assert text == "Pong"
 
+    async def test_ping_includes_version(
+        self, disk_api: DiskApiEndpoints, client: aiohttp.ClientSession
+    ) -> None:
+        async with client.get(disk_api.ping_url) as resp:
+            assert resp.status == HTTPOk.status_code
+            assert "platform-disk-api" in resp.headers["Server"]
+
     async def test_secured_ping(
         self,
         disk_api: DiskApiEndpoints,
