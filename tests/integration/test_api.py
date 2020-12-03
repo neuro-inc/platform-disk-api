@@ -116,7 +116,6 @@ class TestApi:
         async with client.get(disk_api.ping_url) as resp:
             assert resp.status == HTTPOk.status_code
             assert "platform-disk-api" in resp.headers["Server"]
-            assert "" == resp.headers["Server"]
 
     async def test_secured_ping(
         self,
