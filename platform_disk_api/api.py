@@ -245,7 +245,7 @@ async def handle_exceptions(
 package_version = pkg_resources.get_distribution("platform-disk-api").version
 
 
-async def add_version_to_header(request, response):
+async def add_version_to_header(request: Request, response: StreamResponse) -> None:
     response.headers["Server"] += f" platform-disk-api/{package_version}"
 
 

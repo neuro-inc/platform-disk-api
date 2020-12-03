@@ -18,7 +18,7 @@ setup(
     use_scm_version={
         "tag_regex": r"(artifactory/)?(?P<version>.*)",
         "git_describe_command": (
-            "git describe --dirty --tags --long --match artifactory/*"
+            "git describe --dirty --tags --long --match artifactory/*.*.*"
         ),
     },
     setup_requires=["setuptools_scm"],
