@@ -246,7 +246,7 @@ package_version = pkg_resources.get_distribution("platform-disk-api").version
 
 
 async def add_version_to_header(request: Request, response: StreamResponse) -> None:
-    response.headers["Server"] += f" platform-disk-api/{package_version}"
+    response.headers["X-Service-Version"] = f"platform-disk-api/{package_version}"
 
 
 async def create_api_v1_app() -> aiohttp.web.Application:
