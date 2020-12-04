@@ -5,6 +5,7 @@ from typing import AsyncIterator, Awaitable, Callable
 import aiohttp
 import aiohttp.web
 import aiohttp_cors
+import pkg_resources
 from aiohttp.web import (
     HTTPBadRequest,
     HTTPInternalServerError,
@@ -241,6 +242,13 @@ async def handle_exceptions(
         return json_response(payload, status=HTTPInternalServerError.status_code)
 
 
+package_version = pkg_resources.get_distribution("platform-disk-api").version
+
+
+async def add_version_to_header(request: Request, response: StreamResponse) -> None:
+    response.headers["X-Service-Version"] = f"platform-disk-api/{package_version}"
+
+
 async def create_api_v1_app() -> aiohttp.web.Application:
     api_v1_app = aiohttp.web.Application()
     api_v1_handler = ApiHandler()
@@ -357,6 +365,9 @@ async def create_app(config: Config) -> aiohttp.web.Application:
                 "jwt": {"type": "apiKey", "name": "Authorization", "in": "header"},
             },
         )
+
+    app.on_response_prepare.append(add_version_to_header)
+
     return app
 
 

@@ -13,9 +13,15 @@ install_requires = (
 
 setup(
     name="platform-disk-api",
-    version="0.0.1b1",
     url="https://github.com/neuromation/platform-disk-api",
     packages=find_packages(),
+    use_scm_version={
+        "tag_regex": r"(artifactory/)?(?P<version>.*)",
+        "git_describe_command": (
+            "git describe --dirty --tags --long --match artifactory/*.*.*"
+        ),
+    },
+    setup_requires=["setuptools_scm"],
     install_requires=install_requires,
     python_requires=">=3.7",
     entry_points={
