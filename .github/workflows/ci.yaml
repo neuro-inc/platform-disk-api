@@ -12,77 +12,77 @@ env:
     secrets.DEVPI_PASS, secrets.DEVPI_HOST, secrets.DEVPI_INDEX) }}
 
 jobs:
-#  test:
-#    name: Run tests
-#    runs-on: ubuntu-latest
-#    env:
-#      CLOUD_PROVIDER: ${{ secrets.CLOUD_PROVIDER_DEV }}
-#      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-#      AWS_REGION: ${{ secrets.AWS_REGION }}
-#      AZURE_ACR_NAME: ${{ secrets.AZURE_DEV_ACR_NAME }}
-#    steps:
-#    - name: Checkout commit
-#      uses: actions/checkout@v2
-#      with:
-#        fetch-depth: 0
-#    - name: Install python
-#      uses: actions/setup-python@v2
-#      with:
-#        python-version: 3.7.7
-#    - name: Cache packages
-#      uses: actions/cache@v1
-#      with:
-#        path: ~/.cache/pip
-#        key: ${{ runner.os }}-py-3.7.7-${{ hashFiles('requirements/*.txt') }}-${{
-#          hashFiles('setup.py') }}
-#    - name: Install dependencies
-#      run: make setup
-#    - name: Lint
-#      run: make lint
-#      env:
-#        CI_LINT_RUN: 1
-#    - name: Run unit tests
-#      run: make test_unit
-#    - name: Configure AWS credentials
-#      if: env.CLOUD_PROVIDER == 'aws'
-#      uses: aws-actions/configure-aws-credentials@v1
-#      with:
-#        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#        aws-region: ${{ secrets.AWS_REGION }}
-#    - name: Login to AWS ECR
-#      if: env.CLOUD_PROVIDER == 'aws'
-#      uses: aws-actions/amazon-ecr-login@v1
-#    - name: Configure Azure credentials
-#      if: env.CLOUD_PROVIDER == 'azure'
-#      uses: azure/login@v1.1
-#      with:
-#        creds: ${{secrets.AZURE_CREDENTIALS}}
-#    - name: Login to Azure ACR
-#      if: env.CLOUD_PROVIDER == 'azure'
-#      uses: azure/docker-login@v1
-#      with:
-#        login-server: ${{ secrets.AZURE_DEV_ACR_SERVER }}
-#        username: ${{ secrets.AZURE_DEV_ACR_USERNAME }}
-#        password: ${{ secrets.AZURE_DEV_ACR_PASSWORD }}
-#    - name: Start minikube
-#      run: |
-#        make install_k8s
-#        make start_k8s
-#    - name: Pull test images
-#      run: make docker_pull_test_images
-#    - name: Setup services in minikube
-#      run: |
-#        make apply_configuration_k8s
-#        make test_k8s
-#    - name: Run integration tests
-#      run: |
-#        make test_integration
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    env:
+      CLOUD_PROVIDER: ${{ secrets.CLOUD_PROVIDER_DEV }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AZURE_ACR_NAME: ${{ secrets.AZURE_DEV_ACR_NAME }}
+    steps:
+    - name: Checkout commit
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Install python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.7.7
+    - name: Cache packages
+      uses: actions/cache@v1
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-py-3.7.7-${{ hashFiles('requirements/*.txt') }}-${{
+          hashFiles('setup.py') }}
+    - name: Install dependencies
+      run: make setup
+    - name: Lint
+      run: make lint
+      env:
+        CI_LINT_RUN: 1
+    - name: Run unit tests
+      run: make test_unit
+    - name: Configure AWS credentials
+      if: env.CLOUD_PROVIDER == 'aws'
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+    - name: Login to AWS ECR
+      if: env.CLOUD_PROVIDER == 'aws'
+      uses: aws-actions/amazon-ecr-login@v1
+    - name: Configure Azure credentials
+      if: env.CLOUD_PROVIDER == 'azure'
+      uses: azure/login@v1.1
+      with:
+        creds: ${{secrets.AZURE_CREDENTIALS}}
+    - name: Login to Azure ACR
+      if: env.CLOUD_PROVIDER == 'azure'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.AZURE_DEV_ACR_SERVER }}
+        username: ${{ secrets.AZURE_DEV_ACR_USERNAME }}
+        password: ${{ secrets.AZURE_DEV_ACR_PASSWORD }}
+    - name: Start minikube
+      run: |
+        make install_k8s
+        make start_k8s
+    - name: Pull test images
+      run: make docker_pull_test_images
+    - name: Setup services in minikube
+      run: |
+        make apply_configuration_k8s
+        make test_k8s
+    - name: Run integration tests
+      run: |
+        make test_integration
 
   deploy_dev:
     name: Deploy on dev
     runs-on: ubuntu-latest
-#    needs: test
+    needs: test
     if: github.ref == 'refs/heads/master'
     env:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
