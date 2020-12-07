@@ -4,6 +4,8 @@ from typing import Any, Mapping
 from setuptools import find_packages, setup
 
 
+setup_requires = ("setuptools_scm",)
+
 install_requires = (
     "aiohttp==3.7.2",
     "yarl==1.6.3",
@@ -33,7 +35,7 @@ setup(
     name="platform-disk-api",
     url="https://github.com/neuromation/platform-disk-api",
     packages=find_packages(),
-    setup_requires=["setuptools_scm"],
+    setup_requires=setup_requires,
     install_requires=install_requires,
     python_requires=">=3.7",
     entry_points={

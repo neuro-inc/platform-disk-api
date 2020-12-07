@@ -1,7 +1,5 @@
 *
 !setup.py
-!setup.cfg
-!platform_disk_api
-!.git
+!dist
 
 **/*.pyc

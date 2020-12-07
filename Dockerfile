@@ -1,26 +1,24 @@
-FROM python:3.7.5-stretch as requirements
+FROM python:3.7.5-stretch as installer
 
 ARG PIP_EXTRA_INDEX_URL
 
-# installing dependencies ONLY
+# Install dependencies separately to cache layer
 COPY setup.py ./
 RUN \
     pip install --user -e . && \
     pip uninstall -y platform-disk-api
 
+ARG DIST_FILENAME
+
+# Install package itself
+COPY dist/${DIST_FILENAME} ${DIST_FILENAME}
+RUN pip install --user $DIST_FILENAME
 
 FROM python:3.7.5-stretch AS service
 
 WORKDIR /neuromation
 
-COPY setup.py ./
-COPY --from=requirements /root/.local /root/.local
-
-# installing platform-disk-api
-COPY platform_disk_api platform_disk_api
-COPY .git .git
-RUN pip install --user -e .
-RUN rm -rf .git
+COPY --from=installer /root/.local /root/.local
 
 ENV PATH=/root/.local/bin:$PATH
 
