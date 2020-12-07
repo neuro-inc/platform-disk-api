@@ -1,13 +1,6 @@
 FROM python:3.7.5-stretch as installer
 
 ARG PIP_EXTRA_INDEX_URL
-
-# Install dependencies separately to cache layer
-COPY setup.py ./
-RUN \
-    pip install --user -e . && \
-    pip uninstall -y platform-disk-api
-
 ARG DIST_FILENAME
 
 # Install package itself
