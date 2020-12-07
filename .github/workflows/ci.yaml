@@ -97,6 +97,8 @@ jobs:
     steps:
     - name: Checkout commit
       uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
     - name: Configure AWS credentials
       if: env.CLOUD_PROVIDER == 'aws'
       uses: aws-actions/configure-aws-credentials@v1
@@ -140,6 +142,8 @@ jobs:
     steps:
     - name: Checkout commit
       uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
     - name: Push image to Artifactory
       run: make artifactory_docker_push
     - name: Push helm package to Artifactory

@@ -18,7 +18,9 @@ COPY --from=requirements /root/.local /root/.local
 
 # installing platform-disk-api
 COPY platform_disk_api platform_disk_api
+COPY .git .git
 RUN pip install --user -e .
+RUN rm -rf .git
 
 ENV PATH=/root/.local/bin:$PATH
 
