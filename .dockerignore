@@ -1,4 +1,5 @@
 *
 !dist
+!platform_disk_api.egg-info
 
 **/*.pyc
