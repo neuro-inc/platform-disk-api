@@ -1,6 +1,6 @@
 IMAGE_NAME ?= platformdiskapi
 IMAGE_TAG ?= latest
-ARTIFACTORY_TAG ?= $(python3 setup.py --version)
+ARTIFACTORY_TAG ?= $(shell python3 setup.py --version)
 
 CLOUD_REPO_gke   ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)
 CLOUD_REPO_aws   ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
