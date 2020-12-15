@@ -1,6 +1,15 @@
 FROM python:3.7.5-stretch as installer
 
 ARG PIP_EXTRA_INDEX_URL
+
+# Separate step for requirements to speed up docker builds
+COPY platform_monitoring.egg-info/requires.txt requires.txt
+RUN python -c 'from pkg_resources import Distribution, PathMetadata;\
+dist = Distribution(metadata=PathMetadata(".", "."));\
+print("\n".join(str(r) for r in dist.requires()));\
+' > requirements.txt
+RUN pip install --user -r requirements.txt
+
 ARG DIST_FILENAME
 
 # Install package itself

@@ -1,6 +1,6 @@
 IMAGE_NAME ?= platformdiskapi
 IMAGE_TAG ?= latest
-ARTIFACTORY_TAG ?= $(shell echo "$(GITHUB_REF)" | awk -F/ '{print $$NF}')
+ARTIFACTORY_TAG ?= $(python3 setup.py --version)
 
 CLOUD_REPO_gke   ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)
 CLOUD_REPO_aws   ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
@@ -37,7 +37,9 @@ test_integration:
 
 build:
 	python setup.py sdist
-	docker build -f Dockerfile -t $(IMAGE_NAME):$(IMAGE_TAG) --build-arg PIP_EXTRA_INDEX_URL --build-arg DIST_FILENAME=`python setup.py --fullname`.tar.gz .
+	docker build -f Dockerfile -t $(IMAGE_NAME):$(IMAGE_TAG) \
+	--build-arg PIP_EXTRA_INDEX_URL \
+	--build-arg DIST_FILENAME=`python setup.py --fullname`.tar.gz .
 
 docker_pull_test_images:
 	@eval $$(minikube docker-env); \
