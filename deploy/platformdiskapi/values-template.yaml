@@ -12,3 +12,11 @@ NP_DISK_API_ENABLE_DOCS: "false" # "true" or "false"
 NP_DISK_API_STORAGE_LIMIT_PER_USER: "536870912000"  # In bytes, 500 gb
 DOCKER_LOGIN_ARTIFACTORY_SECRET_NAME: "artifactory-regcred"
 NP_CLUSTER_NAME: ""
+
+platform:
+  token: {}
+
+ingress:
+  hosts: []
+
+secrets: []

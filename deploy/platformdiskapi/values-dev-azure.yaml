@@ -12,3 +12,15 @@ NP_DISK_API_ENABLE_DOCS: "true" # "true" or "false"
 NP_DISK_API_STORAGE_LIMIT_PER_USER: "536870912000"  # In bytes, 500 gb
 NP_CLUSTER_NAME: default
 NP_CORS_ORIGINS: http://localhost:8000,https://master--neuro-web.netlify.com,https://master--neuro-web.netlify.app
+
+platform:
+  token:
+    valueFrom:
+      secretKeyRef:
+        name: platformservices-secret
+        key: compute_token
+
+ingress:
+  hosts: [dev.neu.ro]
+
+secrets: []

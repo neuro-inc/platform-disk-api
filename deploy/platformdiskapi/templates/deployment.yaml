@@ -16,6 +16,10 @@ spec:
     metadata:
       labels:
         service: platformdiskapi
+      {{- if .Values.secrets }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+      {{- end }}
     spec:
       containers:
       - name: platformdiskapi
@@ -48,10 +52,9 @@ spec:
         - name: NP_DISK_API_PLATFORM_AUTH_URL
           value: {{ .Values.NP_DISK_API_PLATFORM_AUTH_URL}}
         - name: NP_DISK_API_PLATFORM_AUTH_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: platformservices-secret
-              key: compute_token
+{{- if .Values.platform.token }}
+{{ toYaml .Values.platform.token | indent 10 }}
+{{- end }}
         - name: NP_DISK_API_K8S_API_URL
           value: https://kubernetes.default:443
         - name: NP_DISK_API_K8S_AUTH_TYPE
@@ -134,7 +137,30 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 8080
+  - name: http
+    port: 8080
     targetPort: tcp-web
   selector:
     service: platformdiskapi
+{{- if .Values.ingress }}
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: platformdiskapi
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.frontend.rule.type: PathPrefix
+    external-dns.platform.neuromation.io: "true"
+spec:
+  rules:
+  {{- range .Values.ingress.hosts }}
+  - host: {{ . | quote }}
+    http:
+      paths:
+      - path: /api/v1/disk
+        backend:
+          serviceName: platformdiskapi
+          servicePort: http
+  {{- end }}
+{{- end }}
