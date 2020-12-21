@@ -191,9 +191,9 @@ class DiskApiHandler:
     @docs(tags=["disks"], summary="List all users Disk objects")
     @response_schema(DiskSchema(many=True), 200)
     async def handle_list_disks(self, request: Request) -> Response:
-        user = await self._get_untrusted_user(request)
+        username = await check_authorized(request)
         tree = await self._auth_client.get_permissions_tree(
-            user.name, self._disk_cluster_uri
+            username, self._disk_cluster_uri
         )
         disks = [
             disk
