@@ -20,8 +20,6 @@ resources:
     cpu: "0.3"
     memory: "300Mi"
 
-ingress:
-  extraAnnotations: {}
-  hosts: []
+ingress: {}
 
 secrets: []
