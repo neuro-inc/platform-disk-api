@@ -9,6 +9,8 @@ NP_DISK_API_STORAGE_LIMIT_PER_USER: "536870912000"  # In bytes, 500 gb
 NP_CLUSTER_NAME: default
 NP_CORS_ORIGINS: http://localhost:8000,https://master--neuro-web.netlify.com,https://master--neuro-web.netlify.app
 
+env: dev
+
 platform:
   token:
     valueFrom:
