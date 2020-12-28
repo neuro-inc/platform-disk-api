@@ -156,5 +156,9 @@ spec:
         backend:
           serviceName: platformdiskapi
           servicePort: http
+      - path: /api/docs/v1/disk
+        backend:
+          serviceName: platformdiskapi
+          servicePort: http
   {{- end }}
 {{- end }}
