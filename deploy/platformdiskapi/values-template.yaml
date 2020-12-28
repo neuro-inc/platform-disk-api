@@ -21,6 +21,7 @@ resources:
     memory: "300Mi"
 
 ingress:
+  extraAnnotations: {}
   hosts: []
 
 secrets: []
