@@ -1,9 +1,5 @@
 IMAGE: ''
 NP_DISK_PROVIDER: "aws"  # "aws", "gcp" or "azure"
-NP_DISK_API_REQUESTS_CPU: "0.1"
-NP_DISK_API_LIMITS_CPU: "0.2"
-NP_DISK_API_REQUESTS_MEMORY: "50Mi"
-NP_DISK_API_LIMITS_MEMORY: "100Mi"
 NP_DISK_API_REPLICAS: "2"
 NP_DISK_API_PLATFORM_AUTH_URL: http://platformauthapi:8080
 NP_DISK_API_K8S_NS: platform-jobs
@@ -12,3 +8,25 @@ NP_DISK_API_ENABLE_DOCS: "true" # "true" or "false"
 NP_DISK_API_STORAGE_LIMIT_PER_USER: "536870912000"  # In bytes, 500 gb
 NP_CLUSTER_NAME: default
 NP_CORS_ORIGINS: http://localhost:8000,https://master--neuro-web.netlify.com,https://master--neuro-web.netlify.app
+
+platform:
+  token:
+    valueFrom:
+      secretKeyRef:
+        name: platformservices-secret
+        key: compute_token
+
+resources:
+  requests:
+    cpu: "0.1"
+    memory: "50Mi"
+  limits:
+    cpu: "0.2"
+    memory: "100Mi"
+
+ingress:
+  extraAnnotations:
+    external-dns.platform.neuromation.io: "true"
+  hosts: [dev.neu.ro]
+
+secrets: []

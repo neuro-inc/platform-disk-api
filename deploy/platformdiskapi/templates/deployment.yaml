@@ -16,6 +16,10 @@ spec:
     metadata:
       labels:
         service: platformdiskapi
+      {{- if .Values.secrets }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+      {{- end }}
     spec:
       containers:
       - name: platformdiskapi
@@ -37,21 +41,16 @@ spec:
           - containerPort: 8080
             name: tcp-web
             protocol: TCP
-        resources:
-          requests:
-            cpu: {{ .Values.NP_DISK_API_REQUESTS_CPU}}
-            memory: {{ .Values.NP_DISK_API_REQUESTS_MEMORY}}
-          limits:
-            cpu: {{ .Values.NP_DISK_API_LIMITS_CPU}}
-            memory: {{ .Values.NP_DISK_API_LIMITS_MEMORY}}
+        {{- if .Values.resources }}
+        resources: {{ toYaml .Values.resources | nindent 10 }}
+        {{- end }}
         env:
         - name: NP_DISK_API_PLATFORM_AUTH_URL
           value: {{ .Values.NP_DISK_API_PLATFORM_AUTH_URL}}
         - name: NP_DISK_API_PLATFORM_AUTH_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: platformservices-secret
-              key: compute_token
+{{- if .Values.platform.token }}
+{{ toYaml .Values.platform.token | indent 10 }}
+{{- end }}
         - name: NP_DISK_API_K8S_API_URL
           value: https://kubernetes.default:443
         - name: NP_DISK_API_K8S_AUTH_TYPE
@@ -100,13 +99,9 @@ spec:
       - name: platformdiskapi
         image: {{ .Values.IMAGE}}
         imagePullPolicy: Always
-        resources:
-          requests:
-            cpu: {{ .Values.NP_DISK_API_REQUESTS_CPU}}
-            memory: {{ .Values.NP_DISK_API_REQUESTS_MEMORY}}
-          limits:
-            cpu: {{ .Values.NP_DISK_API_LIMITS_CPU}}
-            memory: {{ .Values.NP_DISK_API_LIMITS_MEMORY}}
+        {{- if .Values.resources }}
+        resources: {{ toYaml .Values.resources | nindent 10 }}
+        {{- end }}
         command: ["platform-disk-api-watcher"]
         env:
         - name: NP_DISK_API_K8S_API_URL
@@ -134,7 +129,36 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 8080
+  - name: http
+    port: 8080
     targetPort: tcp-web
   selector:
     service: platformdiskapi
+{{- if .Values.ingress }}
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: platformdiskapi
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.frontend.rule.type: PathPrefix
+{{- if .Values.ingress.extraAnnotations }}
+{{ toYaml .Values.ingress.extraAnnotations | indent 4 }}
+{{- end }}
+spec:
+  rules:
+  {{- range .Values.ingress.hosts }}
+  - host: {{ . | quote }}
+    http:
+      paths:
+      - path: /api/v1/disk
+        backend:
+          serviceName: platformdiskapi
+          servicePort: http
+      - path: /api/docs/v1/disk
+        backend:
+          serviceName: platformdiskapi
+          servicePort: http
+  {{- end }}
+{{- end }}
