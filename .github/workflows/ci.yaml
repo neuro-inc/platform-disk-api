@@ -8,8 +8,7 @@ on:
     branches: [master]
 
 env:
-  PIP_EXTRA_INDEX_URL: ${{ format('https://{0}:{1}@{2}/{0}/{3}', secrets.DEVPI_USER,
-    secrets.DEVPI_PASS, secrets.DEVPI_HOST, secrets.DEVPI_INDEX) }}
+  PIP_EXTRA_INDEX_URL: ${{ format('https://{0}:{1}@{2}/{0}/{3}', secrets.DEVPI_USER, secrets.DEVPI_PASS, secrets.DEVPI_HOST, secrets.DEVPI_INDEX) }}
 
 jobs:
   test:
@@ -125,10 +124,14 @@ jobs:
         login-server: ${{ secrets.AZURE_DEV_ACR_SERVER }}
         username: ${{ secrets.AZURE_DEV_ACR_USERNAME }}
         password: ${{ secrets.AZURE_DEV_ACR_PASSWORD }}
-    - name: Push image to ECR
+    - name: Set tag
+      run: echo "TAG=$GITHUB_SHA" >> $GITHUB_ENV
+    - name: Push image to registry
       run: make docker_push
     - name: Update kube config
       run: make ${{ env.CLOUD_PROVIDER }}_k8s_login
+    - name: Install helm
+      run: make helm_install
     - name: Deploy to kubernetes
       run: make helm_deploy
 
@@ -156,11 +159,18 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-py-3.7.7-${{ hashFiles('requirements/*.txt') }}-${{
-          hashFiles('setup.py') }}
-    - name: Install dependencies
-      run: make setup
+        key: ${{ runner.os }}-py-3.7.7-${{ hashFiles('requirements/*.txt') }}-${{ hashFiles('setup.py') }}
+    - name: Login to Artifactory docker registry
+      uses: docker/login-action@v1
+      with:
+        registry: ${{ secrets.ARTIFACTORY_DOCKER_REPO }}
+        username: ${{ secrets.ARTIFACTORY_USERNAME }}
+        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+    - name: Set tag
+      run: echo "TAG=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
     - name: Push image to Artifactory
       run: make artifactory_docker_push
+    - name: Install helm
+      run: make helm_install
     - name: Push helm package to Artifactory
       run: make artifactory_helm_push
