@@ -1,13 +1,18 @@
-IMAGE: neuro-docker-local-public.jfrog.io/platformdiskapi:IMAGE_TAG
 NP_DISK_PROVIDER: "aws"  # "aws", "gcp" or "azure"
-NP_DISK_API_REPLICAS: "2"
 NP_DISK_API_PLATFORM_AUTH_URL: http://platformauthapi:8080
 NP_DISK_API_K8S_NS: default
 NP_DISK_API_K8S_STORAGE_CLASS_NAME: storage-class-disks
 NP_DISK_API_ENABLE_DOCS: "false" # "true" or "false"
 NP_DISK_API_STORAGE_LIMIT_PER_USER: "536870912000"  # In bytes, 500 gb
-DOCKER_LOGIN_ARTIFACTORY_SECRET_NAME: "artifactory-regcred"
 NP_CLUSTER_NAME: ""
+
+image:
+  repository: "$IMAGE_REPO"
+  tag: "$IMAGE_TAG"
+
+imagePullSecrets: []
+
+replicas: 2
 
 platform:
   token: {}
@@ -20,6 +25,7 @@ resources:
     cpu: "0.3"
     memory: "300Mi"
 
-ingress: {}
+ingress:
+  enabled: false
 
 secrets: []
