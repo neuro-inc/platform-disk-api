@@ -82,6 +82,9 @@ class DiskApiHandler:
         app.add_routes([aiohttp.web.post("", self.handle_create_disk)])
         app.add_routes([aiohttp.web.get("", self.handle_list_disks)])
         app.add_routes([aiohttp.web.get("/{disk_id}", self.handle_get_disk)])
+        app.add_routes(
+            [aiohttp.web.get("/by-name/{disk_name}", self.handle_get_disk_by_name)]
+        )
         app.add_routes([aiohttp.web.delete("/{disk_id}", self.handle_delete_disk)])
 
     @property
@@ -182,6 +185,28 @@ class DiskApiHandler:
         disk_id = request.match_info["disk_id"]
         try:
             disk = await self._service.get_disk(disk_id)
+        except DiskNotFound:
+            raise HTTPNotFound
+        await check_permissions(request, [self._get_disk_read_perm(disk)])
+        resp_payload = DiskSchema().dump(disk)
+        return json_response(resp_payload, status=HTTPOk.status_code)
+
+    @docs(
+        tags=["disks"],
+        summary="Get Disk objects by name",
+        responses={
+            HTTPOk.status_code: {"description": "Disk found", "schema": DiskSchema()},
+            HTTPNotFound.status_code: {
+                "description": "Was unable to found disk with such name"
+            },
+        },
+    )
+    @response_schema(DiskSchema(), 200)
+    async def handle_get_disk_by_name(self, request: Request) -> Response:
+        user = await self._get_untrusted_user(request)
+        disk_name = request.match_info["disk_name"]
+        try:
+            disk = await self._service.get_disk_by_name(disk_name, user.name)
         except DiskNotFound:
             raise HTTPNotFound
         await check_permissions(request, [self._get_disk_read_perm(disk)])

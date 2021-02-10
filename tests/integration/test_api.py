@@ -56,6 +56,9 @@ class DiskApiEndpoints:
     def single_disk_url(self, disk_name: str) -> str:
         return f"{self.api_v1_endpoint}/disk/{disk_name}"
 
+    def single_disk_url_named(self, disk_name: str) -> str:
+        return f"{self.api_v1_endpoint}/disk/by-name/{disk_name}"
+
 
 @pytest.fixture
 async def disk_api(config: Config) -> AsyncIterator[DiskApiEndpoints]:
@@ -409,6 +412,28 @@ class TestApi:
             disk = DiskSchema().load(await resp.json())
         async with await client.get(
             disk_api.single_disk_url(disk.id),
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPOk.status_code
+            disk_got = DiskSchema().load(await resp.json())
+            assert disk.id == disk_got.id
+
+    async def test_get_disk_by_name(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[[], Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory()
+        async with await client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "name": "test-name"},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+            disk = DiskSchema().load(await resp.json())
+        async with await client.get(
+            disk_api.single_disk_url_named(disk.name),
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code
