@@ -11,7 +11,10 @@ class DiskRequestSchema(Schema):
     name = fields.String(
         required=False,
         allow_none=True,
-        validate=validate.Regexp(r"^[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?$"),
+        validate=[
+            validate.Regexp(r"^[a-z](?:-?[a-z0-9])*$"),
+            validate.Length(min=3, max=40),
+        ],
     )
 
     @post_load
