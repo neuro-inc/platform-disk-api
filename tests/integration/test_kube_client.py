@@ -234,3 +234,9 @@ class TestKubeClient:
         assert pvc2.name in seen_pvc
 
         task.cancel()
+
+    async def test_get_stats(
+        self, cleanup_pvcs: None, kube_client: KubeClientForTest, k8s_storage_class: str
+    ) -> None:
+        # This stats is not supported by minikube, so no way to test it
+        assert [metric async for metric in kube_client.get_pvc_volumes_metrics()] == []

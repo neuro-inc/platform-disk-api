@@ -216,6 +216,12 @@ class PodWatchEvent:
         )
 
 
+@dataclass(frozen=True)
+class PVCVolumeMetrics:
+    pvc_name: str
+    used_bytes: int
+
+
 class KubeClient:
     def __init__(
         self,
@@ -420,3 +426,24 @@ class KubeClient:
                     yield PodWatchEvent.from_primitive(payload)
             except asyncio.TimeoutError:
                 pass
+
+    async def get_pvc_volumes_metrics(self) -> AsyncIterator[PVCVolumeMetrics]:
+        # Get list of all nodes
+        nodes_url = f"{self._api_v1_url}/nodes"
+        payload = await self._request(method="GET", url=nodes_url)
+        self._raise_for_status(payload)
+        nodes_list = payload.get("items", [])
+        for node in nodes_list:
+            # Check stats for each node
+            node_name = node["metadata"]["name"]
+            node_summary_url = f"{nodes_url}/{node_name}/proxy/stats/summary"
+            payload = await self._request(method="GET", url=node_summary_url)
+            for pod in payload.get("pods", []):
+                for volume in pod.get("volume", []):
+                    try:
+                        yield PVCVolumeMetrics(
+                            pvc_name=volume["pvcRef"]["name"],
+                            used_bytes=volume["usedBytes"],
+                        )
+                    except KeyError:
+                        pass
