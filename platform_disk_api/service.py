@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Optional
+from typing import Callable, List, Optional, TypeVar
 from uuid import uuid4
 
 from .kube_client import (
@@ -28,6 +28,7 @@ DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
 DISK_API_CREATED_AT_ANNOTATION = "platform.neuromation.io/disk-api-pvc-created-at"
 DISK_API_LAST_USAGE_ANNOTATION = "platform.neuromation.io/disk-api-pvc-last-usage"
 DISK_API_LIFE_SPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-life-span"
+DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class Disk:
     created_at: datetime
     last_usage: Optional[datetime]
     life_span: Optional[timedelta]
+    used_bytes: Optional[int]
 
     class Status(str, Enum):
         PENDING = "Pending"
@@ -92,17 +94,19 @@ class Service:
             )
             pvc = await self._kube_client.update_pvc(pvc.name, diff)
 
-        last_usage_raw = pvc.annotations.get(DISK_API_LAST_USAGE_ANNOTATION)
-        if last_usage_raw is not None:
-            last_usage: Optional[datetime] = datetime_load(last_usage_raw)
-        else:
-            last_usage = None
+        _T = TypeVar("_T")
 
-        life_span_raw = pvc.annotations.get(DISK_API_LIFE_SPAN_ANNOTATION)
-        if life_span_raw is not None:
-            life_span: Optional[timedelta] = timedelta_load(life_span_raw)
-        else:
-            life_span = None
+        def _get_if_present(
+            annotation: str, mapper: Callable[[str], _T]
+        ) -> Optional[_T]:
+            if annotation in pvc.annotations:
+                return mapper(pvc.annotations[annotation])
+            return None
+
+        last_usage = _get_if_present(DISK_API_LAST_USAGE_ANNOTATION, datetime_load)
+        life_span = _get_if_present(DISK_API_LIFE_SPAN_ANNOTATION, timedelta_load)
+        used_bytes = _get_if_present(DISK_API_USED_BYTES_ANNOTATION, int)
+
         return Disk(
             id=pvc.name,
             storage=pvc.storage_real
@@ -113,6 +117,7 @@ class Service:
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
             last_usage=last_usage,
             life_span=life_span,
+            used_bytes=used_bytes,
         )
 
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:
@@ -146,6 +151,15 @@ class Service:
     async def mark_disk_usage(self, disk_id: str, time: datetime) -> None:
         diff = MergeDiff.make_add_annotations_diff(
             DISK_API_LAST_USAGE_ANNOTATION, datetime_dump(time)
+        )
+        try:
+            await self._kube_client.update_pvc(disk_id, diff)
+        except ResourceNotFound:
+            raise DiskNotFound
+
+    async def update_disk_used_bytes(self, disk_id: str, used_bytes: int) -> None:
+        diff = MergeDiff.make_add_annotations_diff(
+            DISK_API_USED_BYTES_ANNOTATION, str(used_bytes)
         )
         try:
             await self._kube_client.update_pvc(disk_id, diff)

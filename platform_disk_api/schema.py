@@ -24,6 +24,9 @@ class DiskSchema(Schema):
     created_at = fields.DateTime(required=True)
     last_usage = fields.DateTime(required=True, allow_none=True)
     life_span = fields.TimeDelta(required=True, allow_none=True)
+    used_bytes = fields.Integer(
+        required=True, allow_none=True, validate=validate.Range(min=0)
+    )
 
     @post_load
     def make_disk(self, data: Any, **kwargs: Any) -> Disk:
