@@ -8,6 +8,11 @@ from platform_disk_api.service import Disk, DiskRequest
 class DiskRequestSchema(Schema):
     storage = fields.Integer(required=True, validate=validate.Range(min=0))
     life_span = fields.TimeDelta(required=False, allow_none=True)
+    name = fields.String(
+        required=False,
+        allow_none=True,
+        validate=validate.Regexp(r"^[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?$"),
+    )
 
     @post_load
     def make_request(self, data: Any, **kwargs: Any) -> DiskRequest:
@@ -21,6 +26,7 @@ class DiskSchema(Schema):
         required=True, validate=validate.OneOf(list(map(str, Disk.Status)))
     )
     owner = fields.String(required=True)
+    name = fields.String(required=True, allow_none=True)
     created_at = fields.DateTime(required=True)
     last_usage = fields.DateTime(required=True, allow_none=True)
     life_span = fields.TimeDelta(required=True, allow_none=True)

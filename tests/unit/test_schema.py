@@ -19,6 +19,17 @@ def test_validate_disk_request_with_life_span_ok() -> None:
     assert request.life_span == timedelta(hours=1)
 
 
+def test_validate_disk_request_with_name_ok() -> None:
+    request = DiskRequestSchema().load({"storage": 2000, "name": "cool-disk"})
+    assert request.storage == 2000
+    assert request.name == "cool-disk"
+
+
+def test_validate_disk_request_with_invalid_name_fail() -> None:
+    with pytest.raises(ValidationError):
+        DiskRequestSchema().load({"storage": 2000, "name": "cool disk"})
+
+
 def test_validate_disk_request_no_storage() -> None:
     with pytest.raises(ValidationError):
         DiskRequestSchema().load({})
@@ -37,6 +48,7 @@ def test_validate_disk_serialize() -> None:
         id="test-id",
         storage=4000,
         owner="user",
+        name=None,
         status=Disk.Status.READY,
         last_usage=last_usage,
         created_at=created_at,
@@ -47,6 +59,7 @@ def test_validate_disk_serialize() -> None:
         "id": "test-id",
         "storage": 4000,
         "owner": "user",
+        "name": None,
         "status": "Ready",
         "created_at": created_at.isoformat(),
         "last_usage": last_usage.isoformat(),

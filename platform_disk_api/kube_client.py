@@ -223,20 +223,20 @@ class PVCVolumeMetrics:
 
 
 @dataclass(frozen=True)
-class DiskName:
+class DiskNaming:
     name: str
     disk_id: str
 
     @classmethod
-    def from_primitive(cls, payload: Dict[str, Any]) -> "DiskName":
-        return DiskName(
+    def from_primitive(cls, payload: Dict[str, Any]) -> "DiskNaming":
+        return DiskNaming(
             name=payload["metadata"]["name"],
             disk_id=payload["spec"]["disk_id"],
         )
 
     def to_primitive(self) -> Dict[str, Any]:
         return {
-            "kind": "DiskName",
+            "kind": "DiskNaming",
             "apiVersion": "neuromation.io/v1",
             "metadata": {
                 "name": self.name,
@@ -358,14 +358,14 @@ class KubeClient:
         return f"{self._pvc_url}/{pvc_name}"
 
     @property
-    def _disk_name_url(self) -> str:
+    def _disk_naming_url(self) -> str:
         return (
             f"{self._base_url}/apis/neuromation.io/v1/"
-            f"namespaces/{self._namespace}/disknames"
+            f"namespaces/{self._namespace}/disknamings"
         )
 
-    def _generate_disk_name_url(self, name: str) -> str:
-        return f"{self._disk_name_url}/{name}"
+    def _generate_disk_naming_url(self, name: str) -> str:
+        return f"{self._disk_naming_url}/{name}"
 
     @property
     def _pod_url(self) -> str:
@@ -485,25 +485,25 @@ class KubeClient:
                     except KeyError:
                         pass
 
-    async def create_disk_name(self, disk_name: DiskName) -> None:
-        url = self._disk_name_url
+    async def create_disk_naming(self, disk_naming: DiskNaming) -> None:
+        url = self._disk_naming_url
         payload = await self._request(
-            method="POST", url=url, json=disk_name.to_primitive()
+            method="POST", url=url, json=disk_naming.to_primitive()
         )
         self._raise_for_status(payload)
 
-    async def list_disk_names(self) -> List[DiskName]:
-        url = self._disk_name_url
+    async def list_disk_namings(self) -> List[DiskNaming]:
+        url = self._disk_naming_url
         payload = await self._request(method="GET", url=url)
-        return [DiskName.from_primitive(item) for item in payload.get("items", [])]
+        return [DiskNaming.from_primitive(item) for item in payload.get("items", [])]
 
-    async def get_disk_name(self, disk_name: str) -> DiskName:
-        url = self._generate_disk_name_url(disk_name)
+    async def get_disk_naming(self, name: str) -> DiskNaming:
+        url = self._generate_disk_naming_url(name)
         payload = await self._request(method="GET", url=url)
         self._raise_for_status(payload)
-        return DiskName.from_primitive(payload)
+        return DiskNaming.from_primitive(payload)
 
-    async def remove_disk_name(self, disk_name: str) -> None:
-        url = self._generate_disk_name_url(disk_name)
+    async def remove_disk_naming(self, name: str) -> None:
+        url = self._generate_disk_naming_url(name)
         payload = await self._request(method="DELETE", url=url)
         self._raise_for_status(payload)

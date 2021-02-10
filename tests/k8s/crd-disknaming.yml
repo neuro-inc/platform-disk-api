@@ -1,11 +1,11 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: disknames.neuromation.io
+  name: disknamings.neuromation.io
 spec:
   group: neuromation.io
   additionalPrinterColumns:
-  - name: DiskName
+  - name: DiskNaming
     type: string
     JSONPath: .spec.disk_id
   version: v1
@@ -26,8 +26,8 @@ spec:
               type: string
   scope: Namespaced
   names:
-    kind: DiskName
-    listKind: DiskNamesList
-    plural: disknames
-    singular: diskname
+    kind: DiskNaming
+    listKind: DiskNamingsList
+    plural: disknamings
+    singular: disknaming
     shortNames: []

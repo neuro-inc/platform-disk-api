@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from platform_disk_api.kube_client import (
-    DiskName,
+    DiskNaming,
     KubeClient,
     MergeDiff,
     PersistentVolumeClaimWrite,
@@ -19,7 +19,7 @@ pytestmark = pytest.mark.asyncio
 
 class TestKubeClient:
     async def test_create_single_pvc(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         pvc = await kube_client.create_pvc(
             PersistentVolumeClaimWrite(
@@ -33,7 +33,7 @@ class TestKubeClient:
         assert pvcs[0].name == pvc.name
 
     async def test_add_label_to_pvc(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         pvc = await kube_client.create_pvc(
             PersistentVolumeClaimWrite(
@@ -48,7 +48,7 @@ class TestKubeClient:
         assert pvc.labels == {"hello/world": "value"}
 
     async def test_add_annotations_to_pvc(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         pvc = await kube_client.create_pvc(
             PersistentVolumeClaimWrite(
@@ -63,7 +63,7 @@ class TestKubeClient:
         assert pvc.annotations.get("hello/world") == "value"
 
     async def test_no_real_storage_after_created(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         storage_to_request = 10 * 1024 * 1024  # 10 mb
 
@@ -77,7 +77,7 @@ class TestKubeClient:
         assert pvc.storage_requested == storage_to_request
 
     async def test_storage_is_auto_provided(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         storage_to_request = 10 * 1024 * 1024  # 10 mb
         pvc = await kube_client.create_pvc(
@@ -99,7 +99,7 @@ class TestKubeClient:
         await asyncio.wait_for(wait_for_storage(), timeout=30)
 
     async def test_multiple_pvc(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         pvc_count = 5
         names = [str(uuid4()) for _ in range(pvc_count)]
@@ -116,7 +116,7 @@ class TestKubeClient:
         assert set(names) == {pvc.name for pvc in pvcs}
 
     async def test_create_same_name(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         pvc = PersistentVolumeClaimWrite(
             name=str(uuid4()),
@@ -128,7 +128,7 @@ class TestKubeClient:
             await kube_client.create_pvc(pvc)
 
     async def test_retrieve(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         pvc_write = PersistentVolumeClaimWrite(
             name=str(uuid4()),
@@ -140,7 +140,7 @@ class TestKubeClient:
         assert pvc_read.name == pvc_write.name
 
     async def test_create_with_labels(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         pvc = PersistentVolumeClaimWrite(
             name=str(uuid4()),
@@ -154,7 +154,7 @@ class TestKubeClient:
         assert pvcs[0].labels == pvc.labels
 
     async def test_create_with_annotations(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         pvc = PersistentVolumeClaimWrite(
             name=str(uuid4()),
@@ -168,19 +168,19 @@ class TestKubeClient:
         assert pvcs[0].annotations.get("foo") == "bar"
 
     async def test_retrieve_does_not_exists(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         with pytest.raises(ResourceNotFound):
             await kube_client.get_pvc("not-exists")
 
     async def test_delete_does_not_exists(
-        self, cleanup_pvcs: None, kube_client: KubeClient, k8s_storage_class: str
+        self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:
         with pytest.raises(ResourceNotFound):
             await kube_client.remove_pvc("not-exists")
 
     async def test_list_pods(
-        self, cleanup_pvcs: None, kube_client: KubeClientForTest, k8s_storage_class: str
+        self, kube_client: KubeClientForTest, k8s_storage_class: str
     ) -> None:
         storage_to_request = 10 * 1024 * 1024  # 10 mb
         pvc = await kube_client.create_pvc(
@@ -196,7 +196,7 @@ class TestKubeClient:
             assert created_pod in list_res.pods
 
     async def test_watch_pods(
-        self, cleanup_pvcs: None, kube_client: KubeClientForTest, k8s_storage_class: str
+        self, kube_client: KubeClientForTest, k8s_storage_class: str
     ) -> None:
         storage_to_request = 10 * 1024 * 1024  # 10 mb
         pvc1 = await kube_client.create_pvc(
@@ -237,18 +237,18 @@ class TestKubeClient:
         task.cancel()
 
     async def test_get_stats(
-        self, cleanup_pvcs: None, kube_client: KubeClientForTest, k8s_storage_class: str
+        self, kube_client: KubeClientForTest, k8s_storage_class: str
     ) -> None:
         # This stats is not supported by minikube, so no way to test it
         assert [metric async for metric in kube_client.get_pvc_volumes_metrics()] == []
 
-    async def test_disk_name_crud(self, kube_client: KubeClient) -> None:
-        assert await kube_client.list_disk_names() == []
-        disk_name = DiskName(name="owner-user", disk_id="testing")
-        await kube_client.create_disk_name(disk_name)
-        assert await kube_client.get_disk_name(disk_name.name) == disk_name
-        assert await kube_client.list_disk_names() == [disk_name]
-        await kube_client.remove_disk_name(disk_name.name)
-        assert await kube_client.list_disk_names() == []
+    async def test_disk_naming_crud(self, kube_client: KubeClient) -> None:
+        assert await kube_client.list_disk_namings() == []
+        disk_name = DiskNaming(name="owner-user", disk_id="testing")
+        await kube_client.create_disk_naming(disk_name)
+        assert await kube_client.get_disk_naming(disk_name.name) == disk_name
+        assert await kube_client.list_disk_namings() == [disk_name]
+        await kube_client.remove_disk_naming(disk_name.name)
+        assert await kube_client.list_disk_namings() == []
         with pytest.raises(ResourceNotFound):
-            await kube_client.get_disk_name(disk_name.name)
+            await kube_client.get_disk_naming(disk_name.name)
