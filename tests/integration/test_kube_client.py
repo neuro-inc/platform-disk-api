@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from platform_disk_api.kube_client import (
+    DiskName,
     KubeClient,
     MergeDiff,
     PersistentVolumeClaimWrite,
@@ -240,3 +241,14 @@ class TestKubeClient:
     ) -> None:
         # This stats is not supported by minikube, so no way to test it
         assert [metric async for metric in kube_client.get_pvc_volumes_metrics()] == []
+
+    async def test_disk_name_crud(self, kube_client: KubeClient) -> None:
+        assert await kube_client.list_disk_names() == []
+        disk_name = DiskName(name="owner-user", disk_id="testing")
+        await kube_client.create_disk_name(disk_name)
+        assert await kube_client.get_disk_name(disk_name.name) == disk_name
+        assert await kube_client.list_disk_names() == [disk_name]
+        await kube_client.remove_disk_name(disk_name.name)
+        assert await kube_client.list_disk_names() == []
+        with pytest.raises(ResourceNotFound):
+            await kube_client.get_disk_name(disk_name.name)

@@ -222,6 +222,31 @@ class PVCVolumeMetrics:
     used_bytes: int
 
 
+@dataclass(frozen=True)
+class DiskName:
+    name: str
+    disk_id: str
+
+    @classmethod
+    def from_primitive(cls, payload: Dict[str, Any]) -> "DiskName":
+        return DiskName(
+            name=payload["metadata"]["name"],
+            disk_id=payload["spec"]["disk_id"],
+        )
+
+    def to_primitive(self) -> Dict[str, Any]:
+        return {
+            "kind": "DiskName",
+            "apiVersion": "neuromation.io/v1",
+            "metadata": {
+                "name": self.name,
+            },
+            "spec": {
+                "disk_id": self.disk_id,
+            },
+        }
+
+
 class KubeClient:
     def __init__(
         self,
@@ -333,6 +358,16 @@ class KubeClient:
         return f"{self._pvc_url}/{pvc_name}"
 
     @property
+    def _disk_name_url(self) -> str:
+        return (
+            f"{self._base_url}/apis/neuromation.io/v1/"
+            f"namespaces/{self._namespace}/disknames"
+        )
+
+    def _generate_disk_name_url(self, name: str) -> str:
+        return f"{self._disk_name_url}/{name}"
+
+    @property
     def _pod_url(self) -> str:
         return f"{self._namespace_url}/pods"
 
@@ -346,7 +381,9 @@ class KubeClient:
     def _raise_for_status(self, payload: Dict[str, Any]) -> None:
         kind = payload["kind"]
         if kind == "Status":
-            code = payload["code"]
+            if payload.get("status") == "Success":
+                return
+            code = payload.get("code")
             if code == 400:
                 raise ResourceBadRequest(payload)
             if code == 404:
@@ -447,3 +484,26 @@ class KubeClient:
                         )
                     except KeyError:
                         pass
+
+    async def create_disk_name(self, disk_name: DiskName) -> None:
+        url = self._disk_name_url
+        payload = await self._request(
+            method="POST", url=url, json=disk_name.to_primitive()
+        )
+        self._raise_for_status(payload)
+
+    async def list_disk_names(self) -> List[DiskName]:
+        url = self._disk_name_url
+        payload = await self._request(method="GET", url=url)
+        return [DiskName.from_primitive(item) for item in payload.get("items", [])]
+
+    async def get_disk_name(self, disk_name: str) -> DiskName:
+        url = self._generate_disk_name_url(disk_name)
+        payload = await self._request(method="GET", url=url)
+        self._raise_for_status(payload)
+        return DiskName.from_primitive(payload)
+
+    async def remove_disk_name(self, disk_name: str) -> None:
+        url = self._generate_disk_name_url(disk_name)
+        payload = await self._request(method="DELETE", url=url)
+        self._raise_for_status(payload)

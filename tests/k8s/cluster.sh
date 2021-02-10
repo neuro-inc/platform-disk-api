@@ -44,6 +44,7 @@ function k8s::apply_all_configurations {
     kubectl apply -f tests/k8s/rb.default.gke.yml
     kubectl apply -f tests/k8s/platformapi.yml
     kubectl apply -f tests/k8s/storageclass.yml
+    kubectl apply -f tests/k8s/crd-disk-names.yml
 }
 
 
