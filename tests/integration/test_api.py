@@ -56,9 +56,6 @@ class DiskApiEndpoints:
     def single_disk_url(self, disk_name: str) -> str:
         return f"{self.api_v1_endpoint}/disk/{disk_name}"
 
-    def single_disk_url_named(self, disk_name: str) -> str:
-        return f"{self.api_v1_endpoint}/disk/by-name/{disk_name}"
-
 
 @pytest.fixture
 async def disk_api(config: Config) -> AsyncIterator[DiskApiEndpoints]:
@@ -433,12 +430,17 @@ class TestApi:
             assert resp.status == HTTPCreated.status_code
             disk = DiskSchema().load(await resp.json())
         async with await client.get(
-            disk_api.single_disk_url_named(disk.name),
+            disk_api.single_disk_url(disk.name),
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code
             disk_got = DiskSchema().load(await resp.json())
             assert disk.id == disk_got.id
+        async with await client.delete(
+            disk_api.single_disk_url(disk.name),
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPNoContent.status_code
 
     async def test_get_wrong_id(
         self,
