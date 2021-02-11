@@ -149,7 +149,14 @@ class Service:
                     f"Disk with name {request.name} already"
                     f"exists for user {username}"
                 )
-        pvc_read = await self._kube_client.create_pvc(pvc_write)
+        try:
+            pvc_read = await self._kube_client.create_pvc(pvc_write)
+        except Exception:
+            if request.name:
+                await self._kube_client.remove_disk_naming(
+                    self._get_disk_naming_name(request.name, username)
+                )
+            raise
         return await self._pvc_to_disk(pvc_read)
 
     async def get_disk(self, disk_id: str) -> Disk:
