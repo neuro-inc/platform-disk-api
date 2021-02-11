@@ -41,6 +41,7 @@ def test_validate_disk_serialize() -> None:
         last_usage=last_usage,
         created_at=created_at,
         life_span=timedelta(days=1),
+        used_bytes=2000,
     )
     assert DiskSchema().dump(disk) == {
         "id": "test-id",
@@ -50,4 +51,5 @@ def test_validate_disk_serialize() -> None:
         "created_at": created_at.isoformat(),
         "last_usage": last_usage.isoformat(),
         "life_span": 86400,
+        "used_bytes": 2000,
     }

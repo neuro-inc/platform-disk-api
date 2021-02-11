@@ -42,6 +42,18 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
             resource_version = None
 
 
+async def watch_used_bytes(
+    kube_client: KubeClient, service: Service, check_interval: float = 60
+) -> None:
+    while True:
+        async for stat in kube_client.get_pvc_volumes_metrics():
+            try:
+                await service.update_disk_used_bytes(stat.pvc_name, stat.used_bytes)
+            except DiskNotFound:
+                pass
+        await asyncio.sleep(check_interval)
+
+
 async def watch_lifespan_ended(service: Service, check_interval: float = 600) -> None:
     while True:
         for disk in await service.get_all_disks():
@@ -62,8 +74,8 @@ async def async_main(kube_config: KubeConfig) -> None:
         await asyncio.gather(
             watch_disk_usage(kube_client, service),
             watch_lifespan_ended(service),
+            watch_used_bytes(kube_client, service),
         )
-        await watch_disk_usage(kube_client, service)
 
 
 def main() -> None:  # pragma: no coverage
