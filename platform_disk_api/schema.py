@@ -12,7 +12,7 @@ class DiskRequestSchema(Schema):
         required=False,
         allow_none=True,
         validate=[
-            validate.Regexp(r"^[a-z](?:-?[a-z0-9])*$"),
+            validate.Regexp(r"^[a-z](?:-?[a-z0-9])*(?!\n)$"),
             validate.Length(min=3, max=40),
         ],
     )

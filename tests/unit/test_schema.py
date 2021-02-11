@@ -19,15 +19,17 @@ def test_validate_disk_request_with_life_span_ok() -> None:
     assert request.life_span == timedelta(hours=1)
 
 
-def test_validate_disk_request_with_name_ok() -> None:
-    request = DiskRequestSchema().load({"storage": 2000, "name": "cool-disk"})
+@pytest.mark.parametrize("name", ["cool-disk", "singleword", "word-1-digit"])
+def test_validate_disk_request_with_name_ok(name: str) -> None:
+    request = DiskRequestSchema().load({"storage": 2000, "name": name})
     assert request.storage == 2000
-    assert request.name == "cool-disk"
+    assert request.name == name
 
 
-def test_validate_disk_request_with_invalid_name_fail() -> None:
+@pytest.mark.parametrize("name", ["with space", "1digit", "with-endline\n"])
+def test_validate_disk_request_with_invalid_name_fail(name: str) -> None:
     with pytest.raises(ValidationError):
-        DiskRequestSchema().load({"storage": 2000, "name": "cool disk"})
+        DiskRequestSchema().load({"storage": 2000, "name": name})
 
 
 def test_validate_disk_request_no_storage() -> None:
