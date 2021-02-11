@@ -212,7 +212,6 @@ class TestApi:
 
     async def test_disk_create(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -230,7 +229,6 @@ class TestApi:
 
     async def test_storage_limit_single_disk(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -247,7 +245,6 @@ class TestApi:
 
     async def test_storage_limit_multiple_disk(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -269,7 +266,6 @@ class TestApi:
 
     async def test_list_disk_includes_only_own(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -313,7 +309,6 @@ class TestApi:
 
     async def test_list_disk_includes_shared_disk(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -346,7 +341,6 @@ class TestApi:
 
     async def test_can_delete_own_disk(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -372,7 +366,6 @@ class TestApi:
 
     async def test_cannot_delete_another_disk(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -402,7 +395,6 @@ class TestApi:
 
     async def test_get_disk(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -423,9 +415,35 @@ class TestApi:
             disk_got = DiskSchema().load(await resp.json())
             assert disk.id == disk_got.id
 
+    async def test_get_disk_by_name(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[[], Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory()
+        async with await client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "name": "test-name"},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+            disk = DiskSchema().load(await resp.json())
+        async with await client.get(
+            disk_api.single_disk_url(disk.name),
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPOk.status_code
+            disk_got = DiskSchema().load(await resp.json())
+            assert disk.id == disk_got.id
+        async with await client.delete(
+            disk_api.single_disk_url(disk.name),
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPNoContent.status_code
+
     async def test_get_wrong_id(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
@@ -439,7 +457,6 @@ class TestApi:
 
     async def test_delete_wrong_id(
         self,
-        cleanup_pvcs: None,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],

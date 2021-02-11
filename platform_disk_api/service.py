@@ -6,10 +6,12 @@ from typing import Callable, List, Optional, TypeVar
 from uuid import uuid4
 
 from .kube_client import (
+    DiskNaming,
     KubeClient,
     MergeDiff,
     PersistentVolumeClaimRead,
     PersistentVolumeClaimWrite,
+    ResourceExists,
     ResourceNotFound,
 )
 from .utils import datetime_dump, datetime_load, timedelta_dump, timedelta_load, utc_now
@@ -19,12 +21,17 @@ class DiskNotFound(Exception):
     pass
 
 
+class DiskNameUsed(Exception):
+    pass
+
+
 logger = logging.getLogger()
 
 
 USER_LABEL = "platform.neuromation.io/user"
 DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
 DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
+DISK_API_NAME_ANNOTATION = "platform.neuromation.io/disk-api-pvc-name"
 DISK_API_CREATED_AT_ANNOTATION = "platform.neuromation.io/disk-api-pvc-created-at"
 DISK_API_LAST_USAGE_ANNOTATION = "platform.neuromation.io/disk-api-pvc-last-usage"
 DISK_API_LIFE_SPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-life-span"
@@ -35,6 +42,7 @@ DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 class DiskRequest:
     storage: int  # In bytes
     life_span: Optional[timedelta] = None
+    name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +50,7 @@ class Disk:
     id: str
     storage: int  # In bytes
     owner: str
+    name: Optional[str]
     status: "Disk.Status"
     created_at: datetime
     last_usage: Optional[datetime]
@@ -62,6 +71,9 @@ class Service:
         self._kube_client = kube_client
         self._storage_class_name = storage_class_name
 
+    def _get_disk_naming_name(self, name: str, owner: str) -> str:
+        return f"{name}--{owner}"
+
     def _request_to_pvc(
         self, request: DiskRequest, username: str
     ) -> PersistentVolumeClaimWrite:
@@ -72,6 +84,8 @@ class Service:
             annotations[DISK_API_LIFE_SPAN_ANNOTATION] = timedelta_dump(
                 request.life_span
             )
+        if request.name:
+            annotations[DISK_API_NAME_ANNOTATION] = request.name
 
         return PersistentVolumeClaimWrite(
             name=f"disk-{uuid4()}",
@@ -114,6 +128,7 @@ class Service:
             else pvc.storage_requested,
             status=status_map[pvc.phase],
             owner=pvc.labels[USER_LABEL],
+            name=pvc.annotations.get(DISK_API_NAME_ANNOTATION),
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
             last_usage=last_usage,
             life_span=life_span,
@@ -122,12 +137,40 @@ class Service:
 
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:
         pvc_write = self._request_to_pvc(request, username)
-        pvc_read = await self._kube_client.create_pvc(pvc_write)
+        if request.name:
+            disk_naming = DiskNaming(
+                name=self._get_disk_naming_name(request.name, username),
+                disk_id=pvc_write.name,
+            )
+            try:
+                await self._kube_client.create_disk_naming(disk_naming)
+            except ResourceExists:
+                raise DiskNameUsed(
+                    f"Disk with name {request.name} already"
+                    f"exists for user {username}"
+                )
+        try:
+            pvc_read = await self._kube_client.create_pvc(pvc_write)
+        except Exception:
+            if request.name:
+                await self._kube_client.remove_disk_naming(
+                    self._get_disk_naming_name(request.name, username)
+                )
+            raise
         return await self._pvc_to_disk(pvc_read)
 
     async def get_disk(self, disk_id: str) -> Disk:
         try:
             pvc = await self._kube_client.get_pvc(disk_id)
+        except ResourceNotFound:
+            raise DiskNotFound
+        return await self._pvc_to_disk(pvc)
+
+    async def get_disk_by_name(self, name: str, owner: str) -> Disk:
+        try:
+            disk_naming_name = self._get_disk_naming_name(name, owner)
+            disk_naming = await self._kube_client.get_disk_naming(disk_naming_name)
+            pvc = await self._kube_client.get_pvc(disk_naming.disk_id)
         except ResourceNotFound:
             raise DiskNotFound
         return await self._pvc_to_disk(pvc)
@@ -142,6 +185,10 @@ class Service:
 
     async def remove_disk(self, disk_id: str) -> None:
         try:
+            disk = await self.get_disk(disk_id)
+            if disk.name:
+                disk_naming_name = self._get_disk_naming_name(disk.name, disk.owner)
+                await self._kube_client.remove_disk_naming(disk_naming_name)
             diff = MergeDiff.make_add_label_diff(DISK_API_DELETED_LABEL, "true")
             await self._kube_client.update_pvc(disk_id, diff)
             await self._kube_client.remove_pvc(disk_id)

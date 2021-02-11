@@ -58,7 +58,6 @@ class TestUsageWatcher:
 
     async def test_usage_watcher_updates_label(
         self,
-        cleanup_pvcs: None,
         watcher_task: None,
         kube_client: KubeClientForTest,
         service: Service,
@@ -83,7 +82,6 @@ class TestUsageWatcher:
 
     async def test_task_cleanuped_no_usage(
         self,
-        cleanup_pvcs: None,
         cleanup_task: None,
         service: Service,
     ) -> None:
@@ -96,7 +94,6 @@ class TestUsageWatcher:
 
     async def test_task_cleanuped_with_usage(
         self,
-        cleanup_pvcs: None,
         cleanup_task: None,
         service: Service,
     ) -> None:

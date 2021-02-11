@@ -120,20 +120,17 @@ async def kube_client(
     kube_client_factory: Callable[[KubeConfig], KubeClientForTest],
 ) -> AsyncIterator[KubeClientForTest]:
     client = kube_client_factory(kube_config)
+
+    async def _clean_k8s(kube_client: KubeClient) -> None:
+        for pvc in await kube_client.list_pvc():
+            try:
+                await kube_client.remove_pvc(pvc.name)
+            except ResourceNotFound:
+                pass
+        for disk_naming in await kube_client.list_disk_namings():
+            await kube_client.remove_disk_naming(disk_naming.name)
+
     async with client:
+        await _clean_k8s(client)
         yield client
-
-
-@pytest.fixture
-async def cleanup_pvcs(kube_client: KubeClient) -> AsyncIterator[None]:
-    for pvc in await kube_client.list_pvc():
-        try:
-            await kube_client.remove_pvc(pvc.name)
-        except ResourceNotFound:
-            pass
-    yield
-    for pvc in await kube_client.list_pvc():
-        try:
-            await kube_client.remove_pvc(pvc.name)
-        except ResourceNotFound:
-            pass
+        await _clean_k8s(client)
