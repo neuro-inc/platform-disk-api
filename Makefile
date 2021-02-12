@@ -73,6 +73,9 @@ docker_push: build
 	docker tag $(IMAGE) $(CLOUD_IMAGE)
 	docker push $(CLOUD_IMAGE)
 
+	docker tag $(IMAGE) $(CLOUD_IMAGE_REPO):latest
+	docker push $(CLOUD_IMAGE_REPO):latest
+
 helm_install:
 	curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash -s -- -v $(HELM_VERSION)
 	helm init --client-only
