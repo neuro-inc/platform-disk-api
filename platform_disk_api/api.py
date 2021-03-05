@@ -130,7 +130,7 @@ class DiskApiHandler:
             try:
                 disk = await self._service.get_disk_by_name(id_or_name, user.name)
             except DiskNotFound:
-                raise HTTPNotFound
+                raise HTTPNotFound(text=f"Disk {id_or_name} not found")
         return disk
 
     @docs(
