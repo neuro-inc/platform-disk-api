@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 setup_requires = ("setuptools_scm",)
 
 install_requires = (
-    "aiohttp==3.7.4",
+    "aiohttp==3.7.4.post0",
     "yarl==1.6.3",
     "neuro_auth_client==21.1.6",
     "marshmallow==3.10.0",
