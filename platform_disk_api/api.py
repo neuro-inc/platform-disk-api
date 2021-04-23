@@ -399,11 +399,7 @@ async def create_app(config: Config) -> aiohttp.web.Application:
     return app
 
 
-def main() -> None:  # pragma: no coverage
-    init_logging()
-    config = EnvironConfigFactory().create()
-    logging.info("Loaded config: %r", config)
-
+def setup_tracing(config: Config) -> None:
     if config.zipkin:
         setup_zipkin_tracer(
             config.zipkin.app_name,
@@ -421,6 +417,12 @@ def main() -> None:  # pragma: no coverage
             sample_rate=config.sentry.sample_rate,
         )
 
+
+def main() -> None:  # pragma: no coverage
+    init_logging()
+    config = EnvironConfigFactory().create()
+    logging.info("Loaded config: %r", config)
+    setup_tracing(config)
     aiohttp.web.run_app(
         create_app(config), host=config.server.host, port=config.server.port
     )
