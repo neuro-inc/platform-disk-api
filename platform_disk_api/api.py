@@ -318,10 +318,7 @@ def _setup_cors(app: aiohttp.web.Application, config: CORSConfig) -> None:
         cors.add(route)
 
 
-async def create_app(config: Config) -> aiohttp.web.Application:
-    app = aiohttp.web.Application(middlewares=[handle_exceptions])
-    app["config"] = config
-
+def make_tracing_trace_configs(config: Config) -> List[aiohttp.TraceConfig]:
     trace_configs = []
 
     if config.zipkin:
@@ -330,12 +327,21 @@ async def create_app(config: Config) -> aiohttp.web.Application:
     if config.sentry:
         trace_configs.append(make_sentry_trace_config())
 
+    return trace_configs
+
+
+async def create_app(config: Config) -> aiohttp.web.Application:
+    app = aiohttp.web.Application(middlewares=[handle_exceptions])
+    app["config"] = config
+
     async def _init_app(app: aiohttp.web.Application) -> AsyncIterator[None]:
         async with AsyncExitStack() as exit_stack:
             logger.info("Initializing Auth client")
             auth_client = await exit_stack.enter_async_context(
                 AuthClient(
-                    config.platform_auth.url, config.platform_auth.token, trace_configs
+                    config.platform_auth.url,
+                    config.platform_auth.token,
+                    make_tracing_trace_configs(config),
                 )
             )
 
@@ -346,7 +352,7 @@ async def create_app(config: Config) -> aiohttp.web.Application:
 
             logger.info("Initializing Kubernetes client")
             kube_client = await exit_stack.enter_async_context(
-                create_kube_client(config.kube, trace_configs)
+                create_kube_client(config.kube, make_tracing_trace_configs(config))
             )
 
             logger.info("Initializing Service")
