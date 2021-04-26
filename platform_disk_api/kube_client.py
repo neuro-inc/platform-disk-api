@@ -217,7 +217,7 @@ class PodWatchEvent:
 
     @classmethod
     def is_error(cls, payload: Dict[str, Any]) -> bool:
-        return cls.Type == payload["type"].upper()
+        return cls.Type.ERROR == payload["type"].upper()
 
 
 @dataclass(frozen=True)
