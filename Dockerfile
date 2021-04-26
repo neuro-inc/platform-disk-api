@@ -14,7 +14,7 @@ ARG DIST_FILENAME
 
 # Install package itself
 COPY dist/${DIST_FILENAME} ${DIST_FILENAME}
-RUN pip install --user $DIST_FILENAME
+RUN pip install -U pip && pip install --user $DIST_FILENAME
 
 FROM python:3.7.5-stretch AS service
 

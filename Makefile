@@ -32,6 +32,7 @@ include k8s.mk
 
 setup:
 	@echo "Using extra pip index: $(PIP_EXTRA_INDEX_URL)"
+	pip install -U pip
 	pip install -r requirements/test.txt
 	pre-commit install
 
