@@ -9,6 +9,7 @@ from .config import (
     Config,
     CORSConfig,
     DiskConfig,
+    DiskUsageWatcherConfig,
     KubeClientAuthType,
     KubeConfig,
     PlatformAuthConfig,
@@ -36,8 +37,16 @@ class EnvironConfigFactory:
             cors=self.create_cors(),
             disk=self.create_disk(),
             enable_docs=enable_docs,
-            zipkin=self.create_zipkin(),
-            sentry=self.create_sentry(),
+            zipkin=self.create_zipkin("platform-disks"),
+            sentry=self.create_sentry("platform-disks"),
+        )
+
+    def create_disk_usage_watcher(self) -> DiskUsageWatcherConfig:
+        return DiskUsageWatcherConfig(
+            server=self._create_server(),
+            kube=self.create_kube(),
+            zipkin=self.create_zipkin("platform-disks-usage-watcher"),
+            sentry=self.create_sentry("platform-disks-usage-watcher"),
         )
 
     def _create_server(self) -> ServerConfig:
@@ -102,25 +111,25 @@ class EnvironConfigFactory:
             origins = origins_str.split(",")
         return CORSConfig(allowed_origins=origins)
 
-    def create_zipkin(self) -> Optional[ZipkinConfig]:
+    def create_zipkin(self, default_app_name: str) -> Optional[ZipkinConfig]:
         if "NP_ZIPKIN_URL" not in self._environ:
             return None
 
         url = URL(self._environ["NP_ZIPKIN_URL"])
-        app_name = self._environ.get("NP_ZIPKIN_APP_NAME", ZipkinConfig.app_name)
+        app_name = self._environ.get("NP_ZIPKIN_APP_NAME", default_app_name)
         sample_rate = float(
             self._environ.get("NP_ZIPKIN_SAMPLE_RATE", ZipkinConfig.sample_rate)
         )
         return ZipkinConfig(url=url, app_name=app_name, sample_rate=sample_rate)
 
-    def create_sentry(self) -> Optional[SentryConfig]:
+    def create_sentry(self, default_app_name: str) -> Optional[SentryConfig]:
         if "NP_SENTRY_DSN" not in self._environ:
             return None
 
         return SentryConfig(
             dsn=URL(self._environ["NP_SENTRY_DSN"]),
             cluster_name=self._environ["NP_SENTRY_CLUSTER_NAME"],
-            app_name=self._environ.get("NP_SENTRY_APP_NAME", SentryConfig.app_name),
+            app_name=self._environ.get("NP_SENTRY_APP_NAME", default_app_name),
             sample_rate=float(
                 self._environ.get("NP_SENTRY_SAMPLE_RATE", SentryConfig.sample_rate)
             ),

@@ -1,6 +1,6 @@
 import logging
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import AsyncIterator, Awaitable, Callable, List
+from typing import AsyncIterator, Awaitable, Callable, List, Optional
 
 import aiohttp
 import aiohttp.web
@@ -275,7 +275,7 @@ async def create_disk_app(config: Config) -> aiohttp.web.Application:
 
 @asynccontextmanager
 async def create_kube_client(
-    config: KubeConfig, trace_configs: List[aiohttp.TraceConfig]
+    config: KubeConfig, trace_configs: Optional[List[aiohttp.TraceConfig]] = None
 ) -> AsyncIterator[KubeClient]:
     client = KubeClient(
         base_url=config.endpoint_url,
