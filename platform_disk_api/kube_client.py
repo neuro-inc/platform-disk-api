@@ -480,7 +480,16 @@ class KubeClient:
             # Check stats for each node
             node_name = node["metadata"]["name"]
             node_summary_url = f"{nodes_url}/{node_name}/proxy/stats/summary"
-            payload = await self._request(method="GET", url=node_summary_url)
+            try:
+                payload = await self._request(method="GET", url=node_summary_url)
+            except aiohttp.ContentTypeError as exc:
+                logger.exception(
+                    "Failed to parse node stats. "
+                    "Response status: %s. Response headers: %s",
+                    exc.status,
+                    exc.headers,
+                )
+                continue
             for pod in payload.get("pods", []):
                 for volume in pod.get("volume", []):
                     try:
