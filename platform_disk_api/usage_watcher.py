@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from asyncio.futures import CancelledError
 from datetime import datetime
 from typing import Iterable, List, Optional
 
@@ -21,6 +22,9 @@ from platform_disk_api.service import DiskNotFound, Service
 from platform_disk_api.utils import utc_now
 
 
+logger = logging.getLogger(__name__)
+
+
 async def update_last_used(
     service: Service, pvc_names: Iterable[str], time: datetime
 ) -> None:
@@ -34,47 +38,65 @@ async def update_last_used(
 async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
     resource_version: Optional[str] = None
     while True:
-        if resource_version is None:
-            async with new_trace_cm(name="watch_disk_usage_start"):
-                list_result = await kube_client.list_pods()
-                now = utc_now()
-                pvc_names = {pvc for pod in list_result.pods for pvc in pod.pvc_in_use}
-                await update_last_used(service, pvc_names, now)
-                resource_version = list_result.resource_version
         try:
-            async for event in kube_client.watch_pods():
+            if resource_version is None:
+                async with new_trace_cm(name="watch_disk_usage_start"):
+                    list_result = await kube_client.list_pods()
+                    now = utc_now()
+                    pvc_names = {
+                        pvc for pod in list_result.pods for pvc in pod.pvc_in_use
+                    }
+                    await update_last_used(service, pvc_names, now)
+                    resource_version = list_result.resource_version
+            async for event in kube_client.watch_pods(resource_version):
                 async with new_trace_cm(name="watch_disk_usage"):
                     if event.type == PodWatchEvent.Type.BOOKMARK:
                         resource_version = event.resource_version
                     else:
                         await update_last_used(service, event.pod.pvc_in_use, utc_now())
+        except asyncio.CancelledError:
+            raise
         except ResourceGone:
             resource_version = None
+        except Exception:
+            logger.exception("Failed to update disk usage")
 
 
 async def watch_used_bytes(
     kube_client: KubeClient, service: Service, check_interval: float = 60
 ) -> None:
     while True:
-        async with new_trace_cm(name="watch_used_bytes"):
-            async for stat in kube_client.get_pvc_volumes_metrics():
-                try:
-                    await service.update_disk_used_bytes(stat.pvc_name, stat.used_bytes)
-                except DiskNotFound:
-                    pass
-        await asyncio.sleep(check_interval)
+        try:
+            async with new_trace_cm(name="watch_used_bytes"):
+                async for stat in kube_client.get_pvc_volumes_metrics():
+                    try:
+                        await service.update_disk_used_bytes(
+                            stat.pvc_name, stat.used_bytes
+                        )
+                    except DiskNotFound:
+                        pass
+            await asyncio.sleep(check_interval)
+        except CancelledError:
+            raise
+        except Exception:
+            logger.exception("Failed to update used bytes")
 
 
 async def watch_lifespan_ended(service: Service, check_interval: float = 600) -> None:
     while True:
-        async with new_trace_cm(name="watch_lifespan_ended"):
-            for disk in await service.get_all_disks():
-                if disk.life_span is None:
-                    continue
-                lifespan_start = disk.last_usage or disk.created_at
-                if lifespan_start + disk.life_span < utc_now():
-                    await service.remove_disk(disk.id)
-        await asyncio.sleep(check_interval)
+        try:
+            async with new_trace_cm(name="watch_lifespan_ended"):
+                for disk in await service.get_all_disks():
+                    if disk.life_span is None:
+                        continue
+                    lifespan_start = disk.last_usage or disk.created_at
+                    if lifespan_start + disk.life_span < utc_now():
+                        await service.remove_disk(disk.id)
+            await asyncio.sleep(check_interval)
+        except CancelledError:
+            raise
+        except Exception:
+            logger.exception("Failed to check lifespan")
 
 
 async def async_main(config: DiskUsageWatcherConfig) -> None:
