@@ -215,6 +215,10 @@ class PodWatchEvent:
             type=event_type, pod=PodRead.from_primitive(payload["object"])
         )
 
+    @classmethod
+    def is_error(cls, payload: Dict[str, Any]) -> bool:
+        return cls.Type == payload["type"].upper()
+
 
 @dataclass(frozen=True)
 class PVCVolumeMetrics:
@@ -396,6 +400,8 @@ class KubeClient:
                 raise ResourceNotFound(payload)
             if code == 409:
                 raise ResourceExists(payload)
+            if code == 410:
+                raise ResourceGone(payload)
             if code == 422:
                 raise ResourceInvalid(payload["message"])
             raise KubeClientException(payload["message"])
@@ -466,6 +472,10 @@ class KubeClient:
             try:
                 async for line in response.content:
                     payload = json.loads(line)
+
+                    if PodWatchEvent.is_error(payload):
+                        self._raise_for_status(payload["object"])
+
                     yield PodWatchEvent.from_primitive(payload)
             except asyncio.TimeoutError:
                 pass
