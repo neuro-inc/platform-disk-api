@@ -2,6 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: disknamings-admin
+  namespace: {{ .Values.NP_DISK_API_K8S_NS }}
 rules:
 - apiGroups:
   - "neuromation.io"
@@ -17,6 +18,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: disknamings-admin
+  namespace: {{ .Values.NP_DISK_API_K8S_NS }}
 subjects:
 - kind: ServiceAccount
   name: default
