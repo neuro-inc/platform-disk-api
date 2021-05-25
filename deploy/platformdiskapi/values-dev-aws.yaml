@@ -1,14 +1,27 @@
-IMAGE: ''
 NP_DISK_PROVIDER: "aws"  # "aws", "gcp", "azure" or "openebs"
-NP_DISK_API_REQUESTS_CPU: "0.1"
-NP_DISK_API_LIMITS_CPU: "0.2"
-NP_DISK_API_REQUESTS_MEMORY: "150Mi"
-NP_DISK_API_LIMITS_MEMORY: "300Mi"
-NP_DISK_API_REPLICAS: "2"
 NP_DISK_API_PLATFORM_AUTH_URL: http://platformauthapi:8080
 NP_DISK_API_K8S_NS: platform-jobs
 NP_DISK_API_K8S_STORAGE_CLASS_NAME: storage-class-disks
 NP_DISK_API_ENABLE_DOCS: "true" # "true" or "false"
 NP_DISK_API_STORAGE_LIMIT_PER_USER: "536870912000"  # In bytes, 500 gb
 NP_CLUSTER_NAME: default
-NP_CORS_ORIGINS: http://localhost:8000,https://master--neuro-web.netlify.com,https://master--neuro-web.netlify.app
+NP_CORS_ORIGINS: http://localhost:8000,https://master--neuro-web.netlify.app,https://master--mts-web.netlify.app,https://master--megafon-web.netlify.app,https://master--minzdrav-web.netlify.app
+
+platform:
+  token:
+    valueFrom:
+      secretKeyRef:
+        name: platformservices-secret
+        key: compute_token
+
+ingress:
+  enabled: true
+
+  extraAnnotations:
+    external-dns.platform.neuromation.io: "true"
+  hosts: [dev.neu.ro]
+
+sentry:
+  dsn: https://432bc48cd2444be7afec5efeb1fc03a6@o489136.ingest.sentry.io/5530426
+  clusterName: dev
+  sampleRate: 0.01

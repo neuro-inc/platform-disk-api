@@ -1,6 +1,5 @@
 *
-!setup.py
-!setup.cfg
-!platform_disk_api
+!dist
+!platform_disk_api.egg-info
 
 **/*.pyc

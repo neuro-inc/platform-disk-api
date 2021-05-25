@@ -15,7 +15,6 @@ from jose import jwt
 from neuro_auth_client import AuthClient, Cluster, User as AuthClientUser
 from yarl import URL
 
-from platform_disk_api.api import create_auth_client
 from platform_disk_api.config import PlatformAuthConfig
 from tests.integration.conftest import get_service_url, random_name
 
@@ -52,7 +51,7 @@ def auth_config(token_factory: Callable[[str], str]) -> Iterator[PlatformAuthCon
 async def auth_client(
     auth_config: PlatformAuthConfig,
 ) -> AsyncGenerator[AuthClient, None]:
-    async with create_auth_client(auth_config) as client:
+    async with AuthClient(auth_config.url, auth_config.token) as client:
         await client.ping()
         yield client
 

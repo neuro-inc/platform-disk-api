@@ -8,10 +8,13 @@ from platform_disk_api.config import (
     Config,
     CORSConfig,
     DiskConfig,
+    DiskUsageWatcherConfig,
     KubeClientAuthType,
     KubeConfig,
     PlatformAuthConfig,
+    SentryConfig,
     ServerConfig,
+    ZipkinConfig,
 )
 from platform_disk_api.config_factory import EnvironConfigFactory
 
@@ -56,6 +59,9 @@ def test_create(cert_authority_path: str, token_path: str) -> None:
         "NP_DISK_API_STORAGE_LIMIT_PER_USER": "444",
         "NP_CLUSTER_NAME": "default",
         "NP_CORS_ORIGINS": "https://domain1.com,http://do.main",
+        "NP_ZIPKIN_URL": "https://zipkin:9411",
+        "NP_SENTRY_DSN": "https://sentry",
+        "NP_SENTRY_CLUSTER_NAME": "test",
     }
     config = EnvironConfigFactory(environ).create()
     assert config == Config(
@@ -80,4 +86,93 @@ def test_create(cert_authority_path: str, token_path: str) -> None:
         cluster_name="default",
         cors=CORSConfig(["https://domain1.com", "http://do.main"]),
         enable_docs=True,
+        zipkin=ZipkinConfig(url=URL("https://zipkin:9411"), app_name="platform-disks"),
+        sentry=SentryConfig(
+            dsn=URL("https://sentry"), app_name="platform-disks", cluster_name="test"
+        ),
+    )
+
+
+def test_create_disk_usage_watcher() -> None:
+    environ: Dict[str, Any] = {
+        "NP_DISK_API_HOST": "127.0.0.1",
+        "NP_DISK_API_PORT": 8081,
+        "NP_DISK_API_K8S_API_URL": "https://localhost:8443",
+        "NP_ZIPKIN_URL": "https://zipkin:9411",
+        "NP_SENTRY_DSN": "https://sentry",
+        "NP_SENTRY_CLUSTER_NAME": "test",
+    }
+    config = EnvironConfigFactory(environ).create_disk_usage_watcher()
+    assert config == DiskUsageWatcherConfig(
+        server=ServerConfig(host="127.0.0.1", port=8081),
+        kube=KubeConfig(endpoint_url="https://localhost:8443"),
+        zipkin=ZipkinConfig(
+            url=URL("https://zipkin:9411"), app_name="platform-disks-usage-watcher"
+        ),
+        sentry=SentryConfig(
+            dsn=URL("https://sentry"),
+            app_name="platform-disks-usage-watcher",
+            cluster_name="test",
+        ),
+    )
+
+
+def test_create_zipkin_none() -> None:
+    result = EnvironConfigFactory({}).create_zipkin("app")
+
+    assert result is None
+
+
+def test_create_zipkin_default() -> None:
+    env = {"NP_ZIPKIN_URL": "https://zipkin:9411"}
+    result = EnvironConfigFactory(env).create_zipkin("app")
+
+    assert result == ZipkinConfig(url=URL("https://zipkin:9411"), app_name="app")
+
+
+def test_create_zipkin_custom() -> None:
+    env = {
+        "NP_ZIPKIN_URL": "https://zipkin:9411",
+        "NP_ZIPKIN_APP_NAME": "api",
+        "NP_ZIPKIN_SAMPLE_RATE": "1",
+    }
+    result = EnvironConfigFactory(env).create_zipkin("app")
+
+    assert result == ZipkinConfig(
+        url=URL("https://zipkin:9411"), app_name="api", sample_rate=1
+    )
+
+
+def test_create_sentry_none() -> None:
+    result = EnvironConfigFactory({}).create_sentry("app")
+
+    assert result is None
+
+
+def test_create_sentry_default() -> None:
+    env = {
+        "NP_SENTRY_DSN": "https://sentry",
+        "NP_SENTRY_CLUSTER_NAME": "test",
+    }
+    result = EnvironConfigFactory(env).create_sentry("app")
+
+    assert result == SentryConfig(
+        dsn=URL("https://sentry"), app_name="app", cluster_name="test"
+    )
+
+
+def test_create_sentry_custom() -> None:
+    env = {
+        "NP_SENTRY_DSN": "https://sentry",
+        "NP_SENTRY_APP_NAME": "api",
+        "NP_SENTRY_CLUSTER_NAME": "test",
+        "NP_SENTRY_SAMPLE_RATE": "1",
+    }
+    result = EnvironConfigFactory(env).create_sentry("app")
+
+    assert result == SentryConfig(
+        dsn=URL("https://sentry"),
+        app_name="api",
+        cluster_name="test",
+        sample_rate=1,
     )

@@ -215,6 +215,41 @@ class PodWatchEvent:
             type=event_type, pod=PodRead.from_primitive(payload["object"])
         )
 
+    @classmethod
+    def is_error(cls, payload: Dict[str, Any]) -> bool:
+        return cls.Type.ERROR == payload["type"].upper()
+
+
+@dataclass(frozen=True)
+class PVCVolumeMetrics:
+    pvc_name: str
+    used_bytes: int
+
+
+@dataclass(frozen=True)
+class DiskNaming:
+    name: str
+    disk_id: str
+
+    @classmethod
+    def from_primitive(cls, payload: Dict[str, Any]) -> "DiskNaming":
+        return DiskNaming(
+            name=payload["metadata"]["name"],
+            disk_id=payload["spec"]["disk_id"],
+        )
+
+    def to_primitive(self) -> Dict[str, Any]:
+        return {
+            "kind": "DiskNaming",
+            "apiVersion": "neuromation.io/v1",
+            "metadata": {
+                "name": self.name,
+            },
+            "spec": {
+                "disk_id": self.disk_id,
+            },
+        }
+
 
 class KubeClient:
     def __init__(
@@ -233,6 +268,7 @@ class KubeClient:
         read_timeout_s: int = 100,
         watch_timeout_s: int = 1800,
         conn_pool_size: int = 100,
+        trace_configs: Optional[List[aiohttp.TraceConfig]] = None,
     ) -> None:
         self._base_url = base_url
         self._namespace = namespace
@@ -250,6 +286,8 @@ class KubeClient:
         self._read_timeout_s = read_timeout_s
         self._watch_timeout_s = watch_timeout_s
         self._conn_pool_size = conn_pool_size
+        self._trace_configs = trace_configs
+
         self._client: Optional[aiohttp.ClientSession] = None
 
     @property
@@ -288,7 +326,10 @@ class KubeClient:
             connect=self._conn_timeout_s, total=self._read_timeout_s
         )
         return aiohttp.ClientSession(
-            connector=connector, timeout=timeout, headers=headers
+            connector=connector,
+            timeout=timeout,
+            headers=headers,
+            trace_configs=self._trace_configs,
         )
 
     @property
@@ -327,6 +368,16 @@ class KubeClient:
         return f"{self._pvc_url}/{pvc_name}"
 
     @property
+    def _disk_naming_url(self) -> str:
+        return (
+            f"{self._base_url}/apis/neuromation.io/v1/"
+            f"namespaces/{self._namespace}/disknamings"
+        )
+
+    def _generate_disk_naming_url(self, name: str) -> str:
+        return f"{self._disk_naming_url}/{name}"
+
+    @property
     def _pod_url(self) -> str:
         return f"{self._namespace_url}/pods"
 
@@ -340,13 +391,17 @@ class KubeClient:
     def _raise_for_status(self, payload: Dict[str, Any]) -> None:
         kind = payload["kind"]
         if kind == "Status":
-            code = payload["code"]
+            if payload.get("status") == "Success":
+                return
+            code = payload.get("code")
             if code == 400:
                 raise ResourceBadRequest(payload)
             if code == 404:
                 raise ResourceNotFound(payload)
             if code == 409:
                 raise ResourceExists(payload)
+            if code == 410:
+                raise ResourceGone(payload)
             if code == 422:
                 raise ResourceInvalid(payload["message"])
             raise KubeClientException(payload["message"])
@@ -417,6 +472,63 @@ class KubeClient:
             try:
                 async for line in response.content:
                     payload = json.loads(line)
+
+                    if PodWatchEvent.is_error(payload):
+                        self._raise_for_status(payload["object"])
+
                     yield PodWatchEvent.from_primitive(payload)
             except asyncio.TimeoutError:
                 pass
+
+    async def get_pvc_volumes_metrics(self) -> AsyncIterator[PVCVolumeMetrics]:
+        # Get list of all nodes
+        nodes_url = f"{self._api_v1_url}/nodes"
+        payload = await self._request(method="GET", url=nodes_url)
+        self._raise_for_status(payload)
+        nodes_list = payload.get("items", [])
+        for node in nodes_list:
+            # Check stats for each node
+            node_name = node["metadata"]["name"]
+            node_summary_url = f"{nodes_url}/{node_name}/proxy/stats/summary"
+            try:
+                payload = await self._request(method="GET", url=node_summary_url)
+            except aiohttp.ContentTypeError as exc:
+                logger.exception(
+                    "Failed to parse node stats. "
+                    "Response status: %s. Response headers: %s",
+                    exc.status,
+                    exc.headers,
+                )
+                continue
+            for pod in payload.get("pods", []):
+                for volume in pod.get("volume", []):
+                    try:
+                        yield PVCVolumeMetrics(
+                            pvc_name=volume["pvcRef"]["name"],
+                            used_bytes=volume["usedBytes"],
+                        )
+                    except KeyError:
+                        pass
+
+    async def create_disk_naming(self, disk_naming: DiskNaming) -> None:
+        url = self._disk_naming_url
+        payload = await self._request(
+            method="POST", url=url, json=disk_naming.to_primitive()
+        )
+        self._raise_for_status(payload)
+
+    async def list_disk_namings(self) -> List[DiskNaming]:
+        url = self._disk_naming_url
+        payload = await self._request(method="GET", url=url)
+        return [DiskNaming.from_primitive(item) for item in payload.get("items", [])]
+
+    async def get_disk_naming(self, name: str) -> DiskNaming:
+        url = self._generate_disk_naming_url(name)
+        payload = await self._request(method="GET", url=url)
+        self._raise_for_status(payload)
+        return DiskNaming.from_primitive(payload)
+
+    async def remove_disk_naming(self, name: str) -> None:
+        url = self._generate_disk_naming_url(name)
+        payload = await self._request(method="DELETE", url=url)
+        self._raise_for_status(payload)

@@ -1,10 +1,11 @@
 import logging
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import AsyncIterator, Awaitable, Callable
+from typing import AsyncIterator, Awaitable, Callable, List, Optional
 
 import aiohttp
 import aiohttp.web
 import aiohttp_cors
+import pkg_resources
 from aiohttp.web import (
     HTTPBadRequest,
     HTTPInternalServerError,
@@ -21,6 +22,7 @@ from aiohttp.web_exceptions import (
     HTTPNotFound,
     HTTPOk,
 )
+from aiohttp.web_urldispatcher import AbstractRoute
 from aiohttp_apispec import docs, request_schema, response_schema, setup_aiohttp_apispec
 from aiohttp_security import check_authorized
 from neuro_auth_client import (
@@ -31,9 +33,17 @@ from neuro_auth_client import (
     check_permissions,
 )
 from neuro_auth_client.security import AuthScheme, setup_security
-from platform_logging import init_logging
+from platform_logging import (
+    init_logging,
+    make_sentry_trace_config,
+    make_zipkin_trace_config,
+    notrace,
+    setup_sentry,
+    setup_zipkin,
+    setup_zipkin_tracer,
+)
 
-from .config import Config, CORSConfig, KubeConfig, PlatformAuthConfig
+from .config import Config, CORSConfig, KubeConfig
 from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .kube_client import KubeClient
@@ -45,8 +55,8 @@ logger = logging.getLogger(__name__)
 
 
 class ApiHandler:
-    def register(self, app: aiohttp.web.Application) -> None:
-        app.add_routes(
+    def register(self, app: aiohttp.web.Application) -> List[AbstractRoute]:
+        return app.add_routes(
             [
                 aiohttp.web.get("/ping", self.handle_ping),
                 aiohttp.web.get("/secured-ping", self.handle_secured_ping),
@@ -58,6 +68,7 @@ class ApiHandler:
         summary="Health ping endpoint",
         responses={200: {"description": "Pong"}},
     )
+    @notrace
     async def handle_ping(self, request: Request) -> Response:
         return Response(text="Pong")
 
@@ -66,6 +77,7 @@ class ApiHandler:
         summary="Health ping endpoint with auth check",
         responses={200: {"description": "Secured Pong"}},
     )
+    @notrace
     async def handle_secured_ping(self, request: Request) -> Response:
         await check_authorized(request)
         return Response(text="Secured Pong")
@@ -80,8 +92,10 @@ class DiskApiHandler:
         # TODO: add routes to handler
         app.add_routes([aiohttp.web.post("", self.handle_create_disk)])
         app.add_routes([aiohttp.web.get("", self.handle_list_disks)])
-        app.add_routes([aiohttp.web.get("/{disk_id}", self.handle_get_disk)])
-        app.add_routes([aiohttp.web.delete("/{disk_id}", self.handle_delete_disk)])
+        app.add_routes([aiohttp.web.get("/{disk_id_or_name}", self.handle_get_disk)])
+        app.add_routes(
+            [aiohttp.web.delete("/{disk_id_or_name}", self.handle_delete_disk)]
+        )
 
     @property
     def _service(self) -> Service:
@@ -117,6 +131,18 @@ class DiskApiHandler:
             if disk.owner == user.name:
                 storage_used += disk.storage
         return storage_used
+
+    async def _resolve_disk(self, request: Request) -> Disk:
+        id_or_name = request.match_info["disk_id_or_name"]
+        try:
+            disk = await self._service.get_disk(id_or_name)
+        except DiskNotFound:
+            user = await self._get_untrusted_user(request)
+            try:
+                disk = await self._service.get_disk_by_name(id_or_name, user.name)
+            except DiskNotFound:
+                raise HTTPNotFound(text=f"Disk {id_or_name} not found")
+        return disk
 
     @docs(
         tags=["disks"],
@@ -168,7 +194,7 @@ class DiskApiHandler:
 
     @docs(
         tags=["disks"],
-        summary="Get Disk objects by id",
+        summary="Get Disk objects by id or name",
         responses={
             HTTPOk.status_code: {"description": "Disk found", "schema": DiskSchema()},
             HTTPNotFound.status_code: {
@@ -178,11 +204,7 @@ class DiskApiHandler:
     )
     @response_schema(DiskSchema(), 200)
     async def handle_get_disk(self, request: Request) -> Response:
-        disk_id = request.match_info["disk_id"]
-        try:
-            disk = await self._service.get_disk(disk_id)
-        except DiskNotFound:
-            raise HTTPNotFound
+        disk = await self._resolve_disk(request)
         await check_permissions(request, [self._get_disk_read_perm(disk)])
         resp_payload = DiskSchema().dump(disk)
         return json_response(resp_payload, status=HTTPOk.status_code)
@@ -190,9 +212,9 @@ class DiskApiHandler:
     @docs(tags=["disks"], summary="List all users Disk objects")
     @response_schema(DiskSchema(many=True), 200)
     async def handle_list_disks(self, request: Request) -> Response:
-        user = await self._get_untrusted_user(request)
+        username = await check_authorized(request)
         tree = await self._auth_client.get_permissions_tree(
-            user.name, self._disk_cluster_uri
+            username, self._disk_cluster_uri
         )
         disks = [
             disk
@@ -213,13 +235,9 @@ class DiskApiHandler:
         },
     )
     async def handle_delete_disk(self, request: Request) -> Response:
-        disk_id = request.match_info["disk_id"]
-        try:
-            disk = await self._service.get_disk(disk_id)
-        except DiskNotFound:
-            raise HTTPNotFound
+        disk = await self._resolve_disk(request)
         await check_permissions(request, [self._get_disk_write_perm(disk)])
-        await self._service.remove_disk(disk_id)
+        await self._service.remove_disk(disk.id)
         raise HTTPNoContent
 
 
@@ -241,11 +259,11 @@ async def handle_exceptions(
         return json_response(payload, status=HTTPInternalServerError.status_code)
 
 
-async def create_api_v1_app() -> aiohttp.web.Application:
-    api_v1_app = aiohttp.web.Application()
-    api_v1_handler = ApiHandler()
-    api_v1_handler.register(api_v1_app)
-    return api_v1_app
+package_version = pkg_resources.get_distribution("platform-disk-api").version
+
+
+async def add_version_to_header(request: Request, response: StreamResponse) -> None:
+    response.headers["X-Service-Version"] = f"platform-disk-api/{package_version}"
 
 
 async def create_disk_app(config: Config) -> aiohttp.web.Application:
@@ -256,13 +274,9 @@ async def create_disk_app(config: Config) -> aiohttp.web.Application:
 
 
 @asynccontextmanager
-async def create_auth_client(config: PlatformAuthConfig) -> AsyncIterator[AuthClient]:
-    async with AuthClient(config.url, config.token) as client:
-        yield client
-
-
-@asynccontextmanager
-async def create_kube_client(config: KubeConfig) -> AsyncIterator[KubeClient]:
+async def create_kube_client(
+    config: KubeConfig, trace_configs: Optional[List[aiohttp.TraceConfig]] = None
+) -> AsyncIterator[KubeClient]:
     client = KubeClient(
         base_url=config.endpoint_url,
         namespace=config.namespace,
@@ -277,6 +291,7 @@ async def create_kube_client(config: KubeConfig) -> AsyncIterator[KubeClient]:
         read_timeout_s=config.client_read_timeout_s,
         watch_timeout_s=config.client_watch_timeout_s,
         conn_pool_size=config.client_conn_pool_size,
+        trace_configs=trace_configs,
     )
     try:
         await client.init()
@@ -303,6 +318,18 @@ def _setup_cors(app: aiohttp.web.Application, config: CORSConfig) -> None:
         cors.add(route)
 
 
+def make_tracing_trace_configs(config: Config) -> List[aiohttp.TraceConfig]:
+    trace_configs = []
+
+    if config.zipkin:
+        trace_configs.append(make_zipkin_trace_config())
+
+    if config.sentry:
+        trace_configs.append(make_sentry_trace_config())
+
+    return trace_configs
+
+
 async def create_app(config: Config) -> aiohttp.web.Application:
     app = aiohttp.web.Application(middlewares=[handle_exceptions])
     app["config"] = config
@@ -311,7 +338,11 @@ async def create_app(config: Config) -> aiohttp.web.Application:
         async with AsyncExitStack() as exit_stack:
             logger.info("Initializing Auth client")
             auth_client = await exit_stack.enter_async_context(
-                create_auth_client(config.platform_auth)
+                AuthClient(
+                    config.platform_auth.url,
+                    config.platform_auth.token,
+                    make_tracing_trace_configs(config),
+                )
             )
 
             await setup_security(
@@ -321,7 +352,7 @@ async def create_app(config: Config) -> aiohttp.web.Application:
 
             logger.info("Initializing Kubernetes client")
             kube_client = await exit_stack.enter_async_context(
-                create_kube_client(config.kube)
+                create_kube_client(config.kube, make_tracing_trace_configs(config))
             )
 
             logger.info("Initializing Service")
@@ -333,7 +364,9 @@ async def create_app(config: Config) -> aiohttp.web.Application:
 
     app.cleanup_ctx.append(_init_app)
 
-    api_v1_app = await create_api_v1_app()
+    api_v1_app = aiohttp.web.Application()
+    api_v1_handler = ApiHandler()
+    probes_routes = api_v1_handler.register(api_v1_app)
     app["api_v1_app"] = api_v1_app
 
     disk_app = await create_disk_app(config)
@@ -357,13 +390,39 @@ async def create_app(config: Config) -> aiohttp.web.Application:
                 "jwt": {"type": "apiKey", "name": "Authorization", "in": "header"},
             },
         )
+
+    app.on_response_prepare.append(add_version_to_header)
+
+    if config.zipkin:
+        setup_zipkin(app, skip_routes=probes_routes)
+
     return app
+
+
+def setup_tracing(config: Config) -> None:
+    if config.zipkin:
+        setup_zipkin_tracer(
+            config.zipkin.app_name,
+            config.server.host,
+            config.server.port,
+            config.zipkin.url,
+            config.zipkin.sample_rate,
+        )
+
+    if config.sentry:
+        setup_sentry(
+            config.sentry.dsn,
+            app_name=config.sentry.app_name,
+            cluster_name=config.sentry.cluster_name,
+            sample_rate=config.sentry.sample_rate,
+        )
 
 
 def main() -> None:  # pragma: no coverage
     init_logging()
     config = EnvironConfigFactory().create()
     logging.info("Loaded config: %r", config)
+    setup_tracing(config)
     aiohttp.web.run_app(
         create_app(config), host=config.server.host, port=config.server.port
     )

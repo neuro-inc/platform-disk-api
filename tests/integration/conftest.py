@@ -50,6 +50,7 @@ def config_factory(
     kube_config: KubeConfig,
     cluster_name: str,
     k8s_storage_class: str,
+    kube_client: None,  # Force cleanup
 ) -> Callable[..., Config]:
     def _f(**kwargs: Any) -> Config:
         defaults = dict(

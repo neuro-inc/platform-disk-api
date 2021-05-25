@@ -21,3 +21,4 @@ provisioner: kubernetes.io/azure-disk
         value: "1"
 provisioner: openebs.io/provisioner-iscsi
 {{- end}}
+volumeBindingMode: WaitForFirstConsumer
