@@ -16,7 +16,9 @@ jobs:
   test:
     name: Run tests
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request_target' || github.actor == 'dependabot[bot]'
+    if: |
+      (github.event_name != 'pull_request_target' && github.actor != 'dependabot[bot]') ||
+      (github.event_name == 'pull_request_target' && github.actor == 'dependabot[bot]')
     env:
       CLOUD_PROVIDER: ${{ secrets.CLOUD_PROVIDER_DEV }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
