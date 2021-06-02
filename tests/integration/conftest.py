@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import secrets
 import subprocess
@@ -43,7 +42,6 @@ async def k8s_storage_class() -> str:
 async def client() -> AsyncIterator[aiohttp.ClientSession]:
     async with aiohttp.ClientSession() as session:
         yield session
-    await asyncio.sleep(1)
 
 
 @pytest.fixture
