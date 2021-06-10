@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from asyncio import CancelledError
 from datetime import datetime
 from typing import Iterable, List, Optional
 
@@ -76,7 +75,7 @@ async def watch_used_bytes(
                     except DiskNotFound:
                         pass
             await asyncio.sleep(check_interval)
-        except CancelledError:
+        except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("Failed to update used bytes")
@@ -93,7 +92,7 @@ async def watch_lifespan_ended(service: Service, check_interval: float = 600) ->
                     if lifespan_start + disk.life_span < utc_now():
                         await service.remove_disk(disk.id)
             await asyncio.sleep(check_interval)
-        except CancelledError:
+        except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("Failed to check lifespan")

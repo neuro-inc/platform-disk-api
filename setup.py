@@ -6,13 +6,13 @@ setup_requires = ("setuptools_scm",)
 install_requires = (
     "aiohttp==3.7.4.post0",
     "yarl==1.6.3",
-    "neuro_auth_client==21.5.17",
+    "neuro_auth_client==21.6.8",
     "marshmallow==3.12.1",
     "aiohttp-apispec==2.2.1",
-    "platform-logging==21.5.13",
+    "platform-logging==21.5.27",
     "aiohttp-cors==0.7.0",
     "aiozipkin==1.1.0",
-    "sentry-sdk==1.0.0",
+    "sentry-sdk==1.1.0",
 )
 
 setup(
@@ -24,7 +24,7 @@ setup(
     packages=find_packages(),
     setup_requires=setup_requires,
     install_requires=install_requires,
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     entry_points={
         "console_scripts": [
             "platform-disk-api=platform_disk_api.api:main",
