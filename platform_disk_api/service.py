@@ -91,7 +91,10 @@ class Service:
             name=f"disk-{uuid4()}",
             storage=request.storage,
             storage_class_name=self._storage_class_name,
-            labels={USER_LABEL: username, DISK_API_MARK_LABEL: "true"},
+            labels={
+                USER_LABEL: username.replace("/", "--"),
+                DISK_API_MARK_LABEL: "true",
+            },
             annotations=annotations,
         )
 
@@ -127,7 +130,7 @@ class Service:
             if pvc.storage_real is not None
             else pvc.storage_requested,
             status=status_map[pvc.phase],
-            owner=pvc.labels[USER_LABEL],
+            owner=pvc.labels[USER_LABEL].replace("--", "/"),
             name=pvc.annotations.get(DISK_API_NAME_ANNOTATION),
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
             last_usage=last_usage,

@@ -5,13 +5,13 @@ import pytest
 from yarl import URL
 
 from platform_disk_api.config import (
+    AuthConfig,
     Config,
     CORSConfig,
     DiskConfig,
     DiskUsageWatcherConfig,
     KubeClientAuthType,
     KubeConfig,
-    PlatformAuthConfig,
     SentryConfig,
     ServerConfig,
     ZipkinConfig,
@@ -66,7 +66,7 @@ def test_create(cert_authority_path: str, token_path: str) -> None:
     config = EnvironConfigFactory(environ).create()
     assert config == Config(
         server=ServerConfig(host="0.0.0.0", port=8080),
-        platform_auth=PlatformAuthConfig(
+        platform_auth=AuthConfig(
             url=URL("http://platformauthapi/api/v1"), token="platform-auth-token"
         ),
         kube=KubeConfig(

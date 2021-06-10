@@ -12,7 +12,7 @@ class ServerConfig:
 
 
 @dataclass(frozen=True)
-class PlatformAuthConfig:
+class AuthConfig:
     url: URL
     token: str = field(repr=False)
 
@@ -68,7 +68,7 @@ class SentryConfig:
 @dataclass(frozen=True)
 class Config:
     server: ServerConfig
-    platform_auth: PlatformAuthConfig
+    platform_auth: AuthConfig
     kube: KubeConfig
     cors: CORSConfig
     disk: DiskConfig

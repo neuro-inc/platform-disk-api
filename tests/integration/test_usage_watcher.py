@@ -13,7 +13,7 @@ from platform_disk_api.usage_watcher import (
     watch_disk_usage,
     watch_lifespan_ended,
 )
-from tests.integration.conftest_kube import KubeClientForTest
+from tests.integration.kube import KubeClientForTest
 
 
 pytestmark = pytest.mark.asyncio

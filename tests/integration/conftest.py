@@ -1,21 +1,22 @@
+import asyncio
 import logging
 import secrets
 import subprocess
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Callable
+from typing import Any, AsyncIterator, Callable, Iterator
 
 import aiohttp
 import aiohttp.web
 import pytest
 
 from platform_disk_api.config import (
+    AuthConfig,
     Config,
     CORSConfig,
     DiskConfig,
     KubeConfig,
-    PlatformAuthConfig,
     ServerConfig,
 )
 
@@ -24,13 +25,28 @@ logger = logging.getLogger(__name__)
 
 
 pytest_plugins = [
-    "tests.integration.conftest_auth",
-    "tests.integration.conftest_kube",
+    "tests.integration.docker",
+    "tests.integration.auth",
+    "tests.integration.kube",
 ]
 
 
 def random_name(length: int = 8) -> str:
     return secrets.token_hex(length // 2 + length % 2)[:length]
+
+
+@pytest.fixture(scope="session")
+def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
+    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    loop.set_debug(True)
+
+    watcher = asyncio.SafeChildWatcher()
+    watcher.attach_loop(loop)
+    asyncio.get_event_loop_policy().set_child_watcher(watcher)
+
+    yield loop
+    loop.close()
 
 
 @pytest.fixture
@@ -46,7 +62,7 @@ async def client() -> AsyncIterator[aiohttp.ClientSession]:
 
 @pytest.fixture
 def config_factory(
-    auth_config: PlatformAuthConfig,
+    auth_config: AuthConfig,
     kube_config: KubeConfig,
     cluster_name: str,
     k8s_storage_class: str,
