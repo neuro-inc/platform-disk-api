@@ -6,13 +6,13 @@ from typing import Dict, Optional, Sequence
 from yarl import URL
 
 from .config import (
+    AuthConfig,
     Config,
     CORSConfig,
     DiskConfig,
     DiskUsageWatcherConfig,
     KubeClientAuthType,
     KubeConfig,
-    PlatformAuthConfig,
     SentryConfig,
     ServerConfig,
     ZipkinConfig,
@@ -54,10 +54,10 @@ class EnvironConfigFactory:
         port = int(self._environ.get("NP_DISK_API_PORT", ServerConfig.port))
         return ServerConfig(host=host, port=port)
 
-    def _create_platform_auth(self) -> PlatformAuthConfig:
+    def _create_platform_auth(self) -> AuthConfig:
         url = URL(self._environ["NP_DISK_API_PLATFORM_AUTH_URL"])
         token = self._environ["NP_DISK_API_PLATFORM_AUTH_TOKEN"]
-        return PlatformAuthConfig(url=url, token=token)
+        return AuthConfig(url=url, token=token)
 
     def create_kube(self) -> KubeConfig:
         endpoint_url = self._environ["NP_DISK_API_K8S_API_URL"]

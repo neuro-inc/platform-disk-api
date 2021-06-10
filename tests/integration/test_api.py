@@ -18,8 +18,8 @@ from platform_disk_api.config import Config
 from platform_disk_api.schema import DiskSchema
 from platform_disk_api.service import Disk
 
+from .auth import _User
 from .conftest import ApiAddress, create_local_app_server
-from .conftest_auth import _User
 
 
 pytestmark = pytest.mark.asyncio
@@ -226,6 +226,32 @@ class TestApi:
             disk: Disk = DiskSchema().load(await resp.json())
             assert disk.owner == user.name
             assert disk.storage >= 500
+
+    async def test_disk_create_username_with_slash(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[[str], Awaitable[_User]],
+    ) -> None:
+        await regular_user_factory("test")
+        user = await regular_user_factory("test/with/additional/parts")
+        async with client.post(
+            disk_api.disk_url,
+            json={"storage": 500},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code, await resp.text()
+            disk: Disk = DiskSchema().load(await resp.json())
+            assert disk.owner == user.name
+            assert disk.storage >= 500
+        async with client.get(
+            disk_api.disk_url,
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
+            assert len(disks) == 1
+            assert disks[0] == disk
 
     async def test_storage_limit_single_disk(
         self,
