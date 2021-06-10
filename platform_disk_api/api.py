@@ -183,12 +183,13 @@ class DiskApiHandler:
         node = tree.sub_tree
         if node.can_read():
             return True
+        parts = disk.owner.split("/") + [disk.id]
         try:
-            user_node = node.children[disk.owner]
-            if user_node.can_read():
-                return True
-            disk_node = user_node.children[disk.id]
-            return disk_node.can_read()
+            for part in parts:
+                if node.can_read():
+                    return True
+                node = node.children[part]
+            return node.can_read()
         except KeyError:
             return False
 
