@@ -237,7 +237,7 @@ class TestApi:
         user = await regular_user_factory("test/with/additional/parts")
         async with client.post(
             disk_api.disk_url,
-            json={"storage": 500},
+            json={"storage": 500, "name": "test"},
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code, await resp.text()

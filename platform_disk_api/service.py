@@ -72,7 +72,7 @@ class Service:
         self._storage_class_name = storage_class_name
 
     def _get_disk_naming_name(self, name: str, owner: str) -> str:
-        return f"{name}--{owner}"
+        return f"{name}--{owner.replace('/', '--')}"
 
     def _request_to_pvc(
         self, request: DiskRequest, username: str
