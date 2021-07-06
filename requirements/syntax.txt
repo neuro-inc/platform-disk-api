@@ -3,4 +3,4 @@ flake8==3.9.2
 flake8-isort==4.0.0
 mypy==0.910
 pre-commit==2.13.0
-types-pkg_resources==0.1.2
+types-pkg_resources==0.1.3
