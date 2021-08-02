@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Iterable, List, Optional
 
 import aiohttp
-from platform_logging import (
+from neuro_logging import (
     init_logging,
     make_sentry_trace_config,
     make_zipkin_trace_config,
