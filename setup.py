@@ -9,7 +9,7 @@ install_requires = (
     "neuro_auth_client==21.7.27",
     "marshmallow==3.12.2",
     "aiohttp-apispec==2.2.1",
-    "platform-logging==21.7.27",
+    "neuro-logging==21.8.2.2",
     "aiohttp-cors==0.7.0",
     "aiozipkin==1.1.0",
     "sentry-sdk==1.3.1",
