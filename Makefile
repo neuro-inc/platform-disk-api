@@ -56,13 +56,15 @@ build:
 
 docker_pull_test_images:
 ifeq ($(MINIKUBE_DRIVER),none)
-	@eval $$(minikube docker-env); \
-	docker pull $(IMAGE_REPO_BASE)/platformauthapi:latest; \
-	docker tag $(IMAGE_REPO_BASE)/platformauthapi:latest platformauthapi:latest
+	make _docker_pull_test_images
 else
+	@eval $$(minikube docker-env); \
+	make _docker_pull_test_images
+endif
+
+_docker_pull_test_images:
 	docker pull $(IMAGE_REPO_BASE)/platformauthapi:latest; \
 	docker tag $(IMAGE_REPO_BASE)/platformauthapi:latest platformauthapi:latest
-endif
 
 aws_k8s_login:
 	aws eks --region $(AWS_REGION) update-kubeconfig --name $(CLUSTER_NAME)
