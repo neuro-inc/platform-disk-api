@@ -25,6 +25,7 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AZURE_ACR_NAME: ${{ secrets.AZURE_DEV_ACR_NAME }}
+      MINIKUBE_DRIVER: none
     steps:
     - name: Checkout commit
       uses: actions/checkout@v2

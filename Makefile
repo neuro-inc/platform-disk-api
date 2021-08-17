@@ -14,8 +14,9 @@ IMAGE_REPO_artifactory = $(ARTIFACTORY_DOCKER_REPO)
 
 IMAGE_REGISTRY ?= artifactory
 
-IMAGE_NAME = platformdiskapi
-IMAGE_REPO = $(IMAGE_REPO_$(IMAGE_REGISTRY))/$(IMAGE_NAME)
+IMAGE_NAME      = platformdiskapi
+IMAGE_REPO_BASE = $(IMAGE_REPO_$(IMAGE_REGISTRY))
+IMAGE_REPO      = $(IMAGE_REPO_BASE)/$(IMAGE_NAME)
 
 TAG ?= latest
 
@@ -54,9 +55,14 @@ build:
 	--build-arg DIST_FILENAME=`python setup.py --fullname`.tar.gz .
 
 docker_pull_test_images:
+ifeq ($(MINIKUBE_DRIVER),none)
 	@eval $$(minikube docker-env); \
-	    docker pull $(CLOUD_IMAGE_REPO_BASE)/platformauthapi:latest; \
-	    docker tag $(CLOUD_IMAGE_REPO_BASE)/platformauthapi:latest platformauthapi:latest
+	docker pull $(IMAGE_REPO_BASE)/platformauthapi:latest; \
+	docker tag $(IMAGE_REPO_BASE)/platformauthapi:latest platformauthapi:latest
+else
+	docker pull $(IMAGE_REPO_BASE)/platformauthapi:latest; \
+	docker tag $(IMAGE_REPO_BASE)/platformauthapi:latest platformauthapi:latest
+endif
 
 aws_k8s_login:
 	aws eks --region $(AWS_REGION) update-kubeconfig --name $(CLUSTER_NAME)
