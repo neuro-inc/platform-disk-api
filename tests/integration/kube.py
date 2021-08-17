@@ -7,7 +7,7 @@ from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 import pytest
 
-from platform_disk_api.config import KubeConfig
+from platform_disk_api.config import KubeClientAuthType, KubeConfig
 from platform_disk_api.kube_client import KubeClient, PodRead, ResourceNotFound
 
 
@@ -60,6 +60,7 @@ async def kube_config(
         cert_authority_data_pem=cert_authority_data_pem,
         auth_cert_path=user["client-certificate"],
         auth_cert_key_path=user["client-key"],
+        auth_type=KubeClientAuthType.CERTIFICATE,
         namespace="default",
     )
     return kube_config

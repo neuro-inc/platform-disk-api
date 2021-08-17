@@ -32,6 +32,20 @@ class TestKubeClient:
         assert len(pvcs) == 1
         assert pvcs[0].name == pvc.name
 
+    async def test_create_single_pvc_with_default_storage_class(
+        self, kube_client: KubeClient
+    ) -> None:
+        pvc = await kube_client.create_pvc(
+            PersistentVolumeClaimWrite(
+                name=str(uuid4()),
+                storage=10 * 1024 * 1024,  # 10 mb
+            )
+        )
+        pvcs = await kube_client.list_pvc()
+        assert len(pvcs) == 1
+        assert pvcs[0].name == pvc.name
+        assert pvcs[0].storage_class_name == "standard"
+
     async def test_add_label_to_pvc(
         self, kube_client: KubeClient, k8s_storage_class: str
     ) -> None:

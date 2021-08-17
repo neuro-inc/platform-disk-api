@@ -28,6 +28,22 @@ class TestPVCSerialization:
             },
         }
 
+    def test_pvc_without_storage_class__to_primitive(self) -> None:
+        pvc = PersistentVolumeClaimWrite(
+            name="test",
+            storage=100,
+        )
+        assert pvc.to_primitive() == {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {"name": "test"},
+            "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "volumeMode": "Filesystem",
+                "resources": {"requests": {"storage": 100}},
+            },
+        }
+
     @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
     def test_pvc_with_labels_to_primitive(
         self, name: str, storage_class: str, storage: int

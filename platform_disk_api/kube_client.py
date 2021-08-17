@@ -70,8 +70,8 @@ def _storage_str_to_int(storage: str) -> int:
 @dataclass(frozen=True)
 class PersistentVolumeClaimWrite:
     name: str
-    storage_class_name: str
     storage: int  # In bytes
+    storage_class_name: str = ""
     labels: Dict[str, str] = field(default_factory=dict)
     annotations: Dict[str, str] = field(default_factory=dict)
 
@@ -84,9 +84,10 @@ class PersistentVolumeClaimWrite:
                 "accessModes": ["ReadWriteOnce"],
                 "volumeMode": "Filesystem",
                 "resources": {"requests": {"storage": self.storage}},
-                "storageClassName": self.storage_class_name,
             },
         }
+        if self.storage_class_name:
+            result["spec"]["storageClassName"] = self.storage_class_name
         if self.labels:
             result["metadata"]["labels"] = self.labels
         if self.annotations:

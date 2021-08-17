@@ -1,11 +1,3 @@
-NP_DISK_PROVIDER: "aws"  # "aws", "gcp" or "azure"
-NP_DISK_API_PLATFORM_AUTH_URL: http://platformauthapi:8080
-NP_DISK_API_K8S_NS: default
-NP_DISK_API_K8S_STORAGE_CLASS_NAME: storage-class-disks
-NP_DISK_API_ENABLE_DOCS: "false" # "true" or "false"
-NP_DISK_API_STORAGE_LIMIT_PER_USER: "536870912000"  # In bytes, 500 gb
-NP_CLUSTER_NAME: ""
-
 image:
   repository: "$IMAGE_REPO"
   tag: "$IMAGE_TAG"
@@ -14,8 +6,20 @@ imagePullSecrets: []
 
 replicas: 2
 
+disks:
+  namespace: default
+  limitPerUser: "536870912000" # In bytes, 500 gb
+
+  # Default storage class is used if null or empty.
+  storageClassName: null
+
 platform:
+  clusterName: ""
+  authUrl: http://platformauthapi:8080
   token: {}
+
+docs:
+  enabled: true
 
 resources:
   requests:
@@ -27,6 +31,8 @@ resources:
 
 ingress:
   enabled: false
+
+cors: {}
 
 secrets: []
 
