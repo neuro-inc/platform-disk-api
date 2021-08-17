@@ -33,7 +33,7 @@ class KubeConfig:
     endpoint_url: str
     cert_authority_data_pem: Optional[str] = field(repr=False, default=None)
     cert_authority_path: Optional[str] = None
-    auth_type: KubeClientAuthType = KubeClientAuthType.CERTIFICATE
+    auth_type: KubeClientAuthType = KubeClientAuthType.NONE
     auth_cert_path: Optional[str] = None
     auth_cert_key_path: Optional[str] = None
     token: Optional[str] = field(repr=False, default=None)
@@ -46,8 +46,8 @@ class KubeConfig:
 
 @dataclass(frozen=True)
 class DiskConfig:
-    k8s_storage_class: str
     storage_limit_per_user: int
+    k8s_storage_class: str = ""  # default k8s storage class
 
 
 @dataclass(frozen=True)

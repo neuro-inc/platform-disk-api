@@ -7,22 +7,17 @@ AZURE_ACR_NAME ?= crc570d91c95c6aac0ea80afb1019a0c6f
 ARTIFACTORY_DOCKER_REPO ?= neuro-docker-local-public.jfrog.io
 ARTIFACTORY_HELM_REPO ?= https://neuro.jfrog.io/artifactory/helm-local-public
 
-HELM_ENV ?= dev
+IMAGE_REPO_gke         = $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)
+IMAGE_REPO_aws         = $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
+IMAGE_REPO_azure       = $(AZURE_ACR_NAME).azurecr.io
+IMAGE_REPO_artifactory = $(ARTIFACTORY_DOCKER_REPO)
+
+IMAGE_REGISTRY ?= artifactory
+
+IMAGE_NAME = platformdiskapi
+IMAGE_REPO = $(IMAGE_REPO_$(IMAGE_REGISTRY))/$(IMAGE_NAME)
 
 TAG ?= latest
-
-IMAGE_NAME ?= platformdiskapi
-IMAGE ?= $(IMAGE_NAME):$(TAG)
-
-CLOUD_IMAGE_REPO_gke   ?= $(GKE_DOCKER_REGISTRY)/$(GKE_PROJECT_ID)
-CLOUD_IMAGE_REPO_aws   ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
-CLOUD_IMAGE_REPO_azure ?= $(AZURE_ACR_NAME).azurecr.io
-CLOUD_IMAGE_REPO_BASE   = $(CLOUD_IMAGE_REPO_$(CLOUD_PROVIDER))
-CLOUD_IMAGE_REPO        = $(CLOUD_IMAGE_REPO_BASE)/$(IMAGE_NAME)
-CLOUD_IMAGE             = $(CLOUD_IMAGE_REPO):$(TAG)
-
-ARTIFACTORY_IMAGE_REPO = $(ARTIFACTORY_DOCKER_REPO)/$(IMAGE_NAME)
-ARTIFACTORY_IMAGE = $(ARTIFACTORY_IMAGE_REPO):$(TAG)
 
 HELM_CHART = platformdiskapi
 
@@ -46,7 +41,6 @@ else
 	pre-commit run --all-files
 endif
 
-
 test_unit:
 	pytest -vv --cov=platform_disk_api --cov-report xml:.coverage-unit.xml tests/unit
 
@@ -55,7 +49,7 @@ test_integration:
 
 build:
 	python setup.py sdist
-	docker build -f Dockerfile -t $(IMAGE) \
+	docker build -f Dockerfile -t $(IMAGE_NAME):latest \
 	--build-arg PIP_EXTRA_INDEX_URL \
 	--build-arg DIST_FILENAME=`python setup.py --fullname`.tar.gz .
 
@@ -71,11 +65,11 @@ azure_k8s_login:
 	az aks get-credentials --resource-group $(AZURE_RG_NAME) --name $(CLUSTER_NAME)
 
 docker_push: build
-	docker tag $(IMAGE) $(CLOUD_IMAGE)
-	docker push $(CLOUD_IMAGE)
+	docker tag $(IMAGE_NAME):latest $(IMAGE_REPO):$(TAG)
+	docker push $(IMAGE_REPO):$(TAG)
 
-	docker tag $(IMAGE) $(CLOUD_IMAGE_REPO):latest
-	docker push $(CLOUD_IMAGE_REPO):latest
+	docker tag $(IMAGE_NAME):latest $(IMAGE_REPO):latest
+	docker push $(IMAGE_REPO):latest
 
 helm_install:
 	curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash -s -- -v $(HELM_VERSION)
@@ -89,19 +83,14 @@ _helm_fetch:
 	find temp_deploy/$(HELM_CHART) -type f -name 'values*' -delete
 
 _helm_expand_vars:
-	export IMAGE_REPO=$(ARTIFACTORY_IMAGE_REPO); \
+	export IMAGE_REPO=$(IMAGE_REPO); \
 	export IMAGE_TAG=$(TAG); \
 	cat deploy/$(HELM_CHART)/values-template.yaml | envsubst > temp_deploy/$(HELM_CHART)/values.yaml
 
 helm_deploy: _helm_fetch _helm_expand_vars
 	helm upgrade $(HELM_CHART) temp_deploy/$(HELM_CHART) \
-		-f deploy/$(HELM_CHART)/values-$(HELM_ENV)-$(CLOUD_PROVIDER).yaml \
-		--set "image.repository=$(CLOUD_IMAGE_REPO)" \
+		-f deploy/$(HELM_CHART)/values-$(HELM_ENV).yaml \
 		--namespace platform --install --wait --timeout 600
-
-artifactory_docker_push: build
-	docker tag $(IMAGE) $(ARTIFACTORY_IMAGE)
-	docker push $(ARTIFACTORY_IMAGE)
 
 artifactory_helm_push: _helm_fetch _helm_expand_vars
 	helm package --app-version=$(TAG) --version=$(TAG) temp_deploy/$(HELM_CHART)

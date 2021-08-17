@@ -37,7 +37,28 @@ def token_path(tmp_path: Path) -> str:
     return str(token_path)
 
 
-def test_create(cert_authority_path: str, token_path: str) -> None:
+def test_create_default() -> None:
+    environ: Dict[str, Any] = {
+        "NP_DISK_API_PLATFORM_AUTH_URL": "http://platformauthapi/api/v1",
+        "NP_DISK_API_PLATFORM_AUTH_TOKEN": "platform-auth-token",
+        "NP_DISK_API_K8S_API_URL": "https://localhost:8443",
+        "NP_DISK_API_STORAGE_LIMIT_PER_USER": "444",
+        "NP_CLUSTER_NAME": "default",
+    }
+    config = EnvironConfigFactory(environ).create()
+    assert config == Config(
+        server=ServerConfig(),
+        platform_auth=AuthConfig(
+            url=URL("http://platformauthapi/api/v1"), token="platform-auth-token"
+        ),
+        kube=KubeConfig(endpoint_url="https://localhost:8443"),
+        disk=DiskConfig(storage_limit_per_user=444),
+        cluster_name="default",
+        cors=CORSConfig(),
+    )
+
+
+def test_create_custom(cert_authority_path: str, token_path: str) -> None:
     environ: Dict[str, Any] = {
         "NP_DISK_API_HOST": "0.0.0.0",
         "NP_DISK_API_PORT": 8080,

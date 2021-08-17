@@ -27,7 +27,7 @@ class EnvironConfigFactory:
         self._environ = environ or os.environ
 
     def create(self) -> Config:
-        cluster_name = self._environ.get("NP_CLUSTER_NAME", "")
+        cluster_name = self._environ["NP_CLUSTER_NAME"]
         enable_docs = self._environ.get("NP_DISK_API_ENABLE_DOCS", "false") == "true"
         return Config(
             server=self._create_server(),
@@ -98,7 +98,9 @@ class EnvironConfigFactory:
 
     def create_disk(self) -> DiskConfig:
         return DiskConfig(
-            k8s_storage_class=self._environ["NP_DISK_API_K8S_STORAGE_CLASS"],
+            k8s_storage_class=self._environ.get(
+                "NP_DISK_API_K8S_STORAGE_CLASS", DiskConfig.k8s_storage_class
+            ),
             storage_limit_per_user=int(
                 self._environ["NP_DISK_API_STORAGE_LIMIT_PER_USER"]
             ),
