@@ -237,13 +237,13 @@ class TestKubeClient:
         task = asyncio.create_task(watcher())
 
         async with kube_client.run_pod([pvc1.name]):
-            pass
+            await asyncio.sleep(0.5)
 
         assert pvc1.name in seen_pvc
         assert pvc2.name not in seen_pvc
 
         async with kube_client.run_pod([pvc2.name]):
-            pass
+            await asyncio.sleep(0.5)
 
         assert pvc1.name in seen_pvc
         assert pvc2.name in seen_pvc
