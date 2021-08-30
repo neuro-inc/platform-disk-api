@@ -5,12 +5,12 @@
 1. Install minikube (https://github.com/kubernetes/minikube#installation);
 2. Authenticate local docker:
 ```shell
-export AWS_REGION=us-east-1 # replace with proper region
-make ecr_login # aws cli version 1 required
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 771188043543.dkr.ecr.us-east-1.amazonaws.com
 ```
+(If values is outdated, ask someone for recent on slack and then update this file)
 3. Launch minikube:
 ```shell
-./minikube.sh start
+make start_k8s
 ```
 4. Make sure the kubectl tool uses the minikube k8s cluster:
 ```shell
@@ -19,15 +19,13 @@ kubectl config use-context minikube
 ```
 5. Load images into minikube's virtual machine:
 ```shell
-export AWS_ACCOUNT_ID=771188043543 # replace with proper id.
-export AWS_REGION=us-east-1 # replace with proper region.
-./minikube.sh load-images
+make docker_pull_test_images
 ```
 6. Apply minikube configuration and some k8s fixture services:
 ```shell
-./minikube.sh apply
+make apply_configuration_k8s
 ```
-5. Create a new virtual environment with Python 3.7:
+5. Create a new virtual environment with Python 3.8:
 ```shell
 python -m venv venv
 source venv/bin/activate
@@ -44,10 +42,9 @@ make test_unit
 ```shell
 make test_integration
 ```
-9. Cleanup+shutdown minikube:
+9. Shutdown minikube:
 ```shell
-./minikube.sh clean
-./minikube.sh stop
+minikube stop
 ```
 
 ## How to release
