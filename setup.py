@@ -17,7 +17,7 @@ install_requires = (
 
 setup(
     name="platform-disk-api",
-    url="https://github.com/neuromation/platform-disk-api",
+    url="https://github.com/neuro-inc/platform-disk-api",
     use_scm_version={
         "git_describe_command": "git describe --dirty --tags --long --match v*.*.*",
     },
