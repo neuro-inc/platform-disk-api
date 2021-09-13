@@ -338,7 +338,7 @@ class TestApi:
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
-        grant_disk_permission: Callable[[User, Disk], Awaitable[None]],
+        grant_disk_permission: Callable[[_User, Disk], Awaitable[None]],
     ) -> None:
         user1 = await regular_user_factory()
         user2 = await regular_user_factory()
