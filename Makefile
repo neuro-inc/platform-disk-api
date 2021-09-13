@@ -22,12 +22,9 @@ TAG ?= latest
 
 HELM_CHART = platformdiskapi
 
-export PIP_EXTRA_INDEX_URL ?= $(shell python pip_extra_index_url.py)
-
 include k8s.mk
 
 setup:
-	@echo "Using extra pip index: $(PIP_EXTRA_INDEX_URL)"
 	pip install -U pip
 	pip install -r requirements/test.txt
 	pre-commit install
@@ -51,7 +48,6 @@ test_integration:
 build:
 	python setup.py sdist
 	docker build -f Dockerfile -t $(IMAGE_NAME):latest \
-	--build-arg PIP_EXTRA_INDEX_URL \
 	--build-arg DIST_FILENAME=`python setup.py --fullname`.tar.gz .
 
 docker_pull_test_images:
