@@ -12,7 +12,7 @@ install_requires = (
     "neuro-logging==21.9",
     "aiohttp-cors==0.7.0",
     "aiozipkin==1.1.0",
-    "sentry-sdk==1.4.2",
+    "sentry-sdk==1.4.3",
 )
 
 setup(
