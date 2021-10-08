@@ -5,7 +5,7 @@ setup_requires = ("setuptools_scm",)
 
 install_requires = (
     "aiohttp==3.7.4.post0",
-    "yarl==1.6.3",
+    "yarl==1.7.0",
     "neuro_auth_client==21.9.13.1",
     "marshmallow==3.12.2",
     "aiohttp-apispec==2.2.1",
