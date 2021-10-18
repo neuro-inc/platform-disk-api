@@ -51,7 +51,7 @@ build:
 	python -m build
 	docker build \
 		--build-arg PYTHON_BASE=slim-buster \
-		-t $(IMAGE_NAME):latest-slim .
+		-t $(IMAGE_NAME):latest .
 
 docker_pull_test_images:
 ifeq ($(MINIKUBE_DRIVER),none)
