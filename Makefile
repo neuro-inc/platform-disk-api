@@ -46,9 +46,12 @@ test_integration:
 	pytest -vv --maxfail=3 --cov=platform_disk_api --cov-report xml:.coverage-integration.xml tests/integration
 
 build:
-	python -c "import setuptools; setuptools.setup()" sdist
-	docker build -f Dockerfile -t $(IMAGE_NAME):latest \
-	--build-arg DIST_FILENAME=`python -c "import setuptools; setuptools.setup()" --fullname`.tar.gz .
+	rm -rf build dist
+	pip install -U build
+	python -m build
+	docker build \
+		--build-arg PYTHON_BASE=slim-buster \
+		-t $(IMAGE_NAME):latest-slim .
 
 docker_pull_test_images:
 ifeq ($(MINIKUBE_DRIVER),none)
