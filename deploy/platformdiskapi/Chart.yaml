@@ -1,3 +1,4 @@
+apiVersion: v2
 name: platformdiskapi
 description: Deploy platformdiskapi
 version: 0.0.1

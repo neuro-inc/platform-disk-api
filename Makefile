@@ -76,9 +76,8 @@ docker_push: build
 	docker push $(IMAGE_REPO):latest
 
 helm_install:
-	curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash -s -- -v $(HELM_VERSION)
-	helm init --client-only
-	helm plugin install https://github.com/belitre/helm-push-artifactory-plugin
+	curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash -s -- -v $(HELM_VERSION)
+	helm plugin install https://github.com/belitre/helm-push-artifactory-plugin --version 1.0.2
 
 _helm_fetch:
 	rm -rf temp_deploy/$(HELM_CHART)
@@ -94,7 +93,7 @@ _helm_expand_vars:
 helm_deploy: _helm_fetch _helm_expand_vars
 	helm upgrade $(HELM_CHART) temp_deploy/$(HELM_CHART) \
 		-f deploy/$(HELM_CHART)/values-$(HELM_ENV).yaml \
-		--namespace platform --install --wait --timeout 600
+		--namespace platform --install --wait --timeout 600s
 
 artifactory_helm_push: _helm_fetch _helm_expand_vars
 	helm package --app-version=$(TAG) --version=$(TAG) temp_deploy/$(HELM_CHART)
