@@ -1,6 +1,0 @@
-black==21.9b0
-flake8==3.9.2
-flake8-isort==4.0.0
-mypy==0.910
-pre-commit==2.15.0
-types-pkg_resources==0.1.3

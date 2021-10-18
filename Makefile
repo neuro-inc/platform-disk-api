@@ -26,11 +26,11 @@ include k8s.mk
 
 setup:
 	pip install -U pip
-	pip install -r requirements/test.txt
+	pip install -e .[dev]
 	pre-commit install
 
 lint: format
-	mypy platform_disk_api tests setup.py
+	mypy platform_disk_api tests
 
 format:
 ifdef CI_LINT_RUN
@@ -46,9 +46,9 @@ test_integration:
 	pytest -vv --maxfail=3 --cov=platform_disk_api --cov-report xml:.coverage-integration.xml tests/integration
 
 build:
-	python setup.py sdist
+	python -c "import setuptools; setuptools.setup()" sdist
 	docker build -f Dockerfile -t $(IMAGE_NAME):latest \
-	--build-arg DIST_FILENAME=`python setup.py --fullname`.tar.gz .
+	--build-arg DIST_FILENAME=`python -c "import setuptools; setuptools.setup()" --fullname`.tar.gz .
 
 docker_pull_test_images:
 ifeq ($(MINIKUBE_DRIVER),none)
