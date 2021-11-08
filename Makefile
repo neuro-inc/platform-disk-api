@@ -91,6 +91,6 @@ helm_create_chart:
 	echo "$$CHART" > charts/$(HELM_CHART)/Chart.yaml
 
 helm_deploy: helm_create_chart
-	helm upgrade $(HELM_CHART) temp_deploy/$(HELM_CHART) \
+	helm upgrade $(HELM_CHART) charts/$(HELM_CHART) \
 		-f deploy/$(HELM_CHART)/values-$(HELM_ENV).yaml \
 		--namespace platform --install --wait --timeout 600s
