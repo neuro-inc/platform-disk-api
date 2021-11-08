@@ -55,7 +55,7 @@ docker_build:
 		--build-arg PYTHON_BASE=slim-buster \
 		-t $(IMAGE_NAME):latest .
 
-docker_push: build
+docker_push: docker_build
 	docker tag $(IMAGE_NAME):latest $(IMAGE_REPO):$(TAG)
 	docker push $(IMAGE_REPO):$(TAG)
 
@@ -90,7 +90,7 @@ helm_create_chart:
 	CHART=$$(cat charts/$(HELM_CHART)/Chart.yaml | envsubst); \
 	echo "$$CHART" > charts/$(HELM_CHART)/Chart.yaml
 
-helm_deploy: _helm_fetch _helm_expand_vars
+helm_deploy: helm_create_chart
 	helm upgrade $(HELM_CHART) temp_deploy/$(HELM_CHART) \
 		-f deploy/$(HELM_CHART)/values-$(HELM_ENV).yaml \
 		--namespace platform --install --wait --timeout 600s
