@@ -92,5 +92,5 @@ helm_create_chart:
 
 helm_deploy: helm_create_chart
 	helm upgrade $(HELM_CHART) charts/$(HELM_CHART) \
-		-f deploy/$(HELM_CHART)/values-$(HELM_ENV).yaml \
+		-f charts/$(HELM_CHART)/values-$(HELM_ENV).yaml \
 		--namespace platform --install --wait --timeout 600s
