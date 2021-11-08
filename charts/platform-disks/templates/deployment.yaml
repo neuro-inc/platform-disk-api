@@ -1,12 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: platformdiskapi
+  name: {{ include "platformDisks.fullname" . }}
+  labels: {{ include "platformDisks.labels.standard" . | nindent 4 }}
+    service: disks
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      service: platformdiskapi
+      app: {{ include "platformDisks.name" . }}
+      release: {{ .Release.Name }}
+      service: disks
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -15,7 +19,9 @@ spec:
   template:
     metadata:
       labels:
-        service: platformdiskapi
+        app: {{ include "platformDisks.name" . }}
+        release: {{ .Release.Name }}
+        service: disks
       {{- if .Values.secrets }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}

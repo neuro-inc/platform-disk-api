@@ -1,8 +1,10 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: disknamings-admin
+  name: {{ include "platformDisks.fullname" . }}
   namespace: {{ .Values.disks.namespace }}
+  labels: {{ include "platformDisks.labels.standard" . | nindent 4 }}
+    service: disks
 rules:
 - apiGroups:
   - "neuromation.io"
@@ -17,13 +19,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: disknamings-admin
+  name: {{ include "platformDisks.fullname" . }}
   namespace: {{ .Values.disks.namespace }}
+  labels: {{ include "platformDisks.labels.standard" . | nindent 4 }}
+    service: disks
 subjects:
 - kind: ServiceAccount
   name: default
   namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
-  name: disknamings-admin
+  name: {{ include "platformDisks.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
