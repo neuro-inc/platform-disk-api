@@ -3,14 +3,14 @@ kind: Deployment
 metadata:
   name: {{ include "platformDisks.fullname" . }}
   labels: {{ include "platformDisks.labels.standard" . | nindent 4 }}
-    service: disks
+    service: platform-disks
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
       app: {{ include "platformDisks.name" . }}
       release: {{ .Release.Name }}
-      service: disks
+      service: platform-disks
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -21,7 +21,7 @@ spec:
       labels:
         app: {{ include "platformDisks.name" . }}
         release: {{ .Release.Name }}
-        service: disks
+        service: platform-disks
       {{- if .Values.secrets }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
@@ -31,7 +31,7 @@ spec:
       imagePullSecrets: {{ toYaml .Values.imagePullSecrets | nindent 6 }}
       {{- end}}
       containers:
-      - name: platformdiskapi
+      - name: platform-disks
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         livenessProbe:
           httpGet:

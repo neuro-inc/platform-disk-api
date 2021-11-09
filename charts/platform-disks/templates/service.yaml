@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: {{ include "platformDisks.fullname" . }}
   labels: {{ include "platformDisks.labels.standard" . | nindent 4 }}
-    service: disks
+    service: platform-disks
   annotations:
     traefik.ingress.kubernetes.io/affinity: "true"
     traefik.ingress.kubernetes.io/session-cookie-name: NEURO_DISK_API_SESSION
@@ -16,4 +16,4 @@ spec:
   selector:
     app: {{ include "platformDisks.name" . }}
     release: {{ .Release.Name }}
-    service: disks
+    service: platform-disks
