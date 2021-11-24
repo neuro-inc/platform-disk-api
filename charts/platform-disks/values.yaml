@@ -14,8 +14,8 @@ disks:
   storageClassName: null
 
 platform:
-  clusterName: ""
-  authUrl: http://platformauthapi:8080
+  clusterName:
+  authUrl:
   token: {}
 
 docs:
