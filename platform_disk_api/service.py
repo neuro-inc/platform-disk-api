@@ -191,7 +191,10 @@ class Service:
             disk = await self.get_disk(disk_id)
             if disk.name:
                 disk_naming_name = self._get_disk_naming_name(disk.name, disk.owner)
-                await self._kube_client.remove_disk_naming(disk_naming_name)
+                try:
+                    await self._kube_client.remove_disk_naming(disk_naming_name)
+                except ResourceNotFound:
+                    pass  # already removed
             diff = MergeDiff.make_add_label_diff(DISK_API_DELETED_LABEL, "true")
             await self._kube_client.update_pvc(disk_id, diff)
             await self._kube_client.remove_pvc(disk_id)
