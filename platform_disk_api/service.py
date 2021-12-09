@@ -31,6 +31,7 @@ logger = logging.getLogger()
 USER_LABEL = "platform.neuromation.io/user"
 DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
 DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
+DISK_API_ORG_LABEL = "platform.neuromation.io/disk-api-org-name"
 DISK_API_NAME_ANNOTATION = "platform.neuromation.io/disk-api-pvc-name"
 DISK_API_CREATED_AT_ANNOTATION = "platform.neuromation.io/disk-api-pvc-created-at"
 DISK_API_LAST_USAGE_ANNOTATION = "platform.neuromation.io/disk-api-pvc-last-usage"
@@ -43,6 +44,7 @@ class DiskRequest:
     storage: int  # In bytes
     life_span: Optional[timedelta] = None
     name: Optional[str] = None
+    org_name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,7 @@ class Disk:
     storage: int  # In bytes
     owner: str
     name: Optional[str]
+    org_name: Optional[str]
     status: "Disk.Status"
     created_at: datetime
     last_usage: Optional[datetime]
@@ -86,15 +89,18 @@ class Service:
             )
         if request.name:
             annotations[DISK_API_NAME_ANNOTATION] = request.name
+        labels = {
+            USER_LABEL: username.replace("/", "--"),
+            DISK_API_MARK_LABEL: "true",
+        }
+        if request.org_name:
+            labels[DISK_API_ORG_LABEL] = request.org_name
 
         return PersistentVolumeClaimWrite(
             name=f"disk-{uuid4()}",
             storage=request.storage,
             storage_class_name=self._storage_class_name,
-            labels={
-                USER_LABEL: username.replace("/", "--"),
-                DISK_API_MARK_LABEL: "true",
-            },
+            labels=labels,
             annotations=annotations,
         )
 
@@ -132,6 +138,7 @@ class Service:
             status=status_map[pvc.phase],
             owner=pvc.labels[USER_LABEL].replace("--", "/"),
             name=pvc.annotations.get(DISK_API_NAME_ANNOTATION),
+            org_name=pvc.labels.get(DISK_API_ORG_LABEL),
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
             last_usage=last_usage,
             life_span=life_span,

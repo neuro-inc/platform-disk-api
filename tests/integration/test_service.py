@@ -31,6 +31,14 @@ class TestService:
         assert len(disks) == 1
         assert disks[0].id == disk.id
 
+    async def test_create_disk_with_org(self, service: Service) -> None:
+        request = DiskRequest(storage=1024 * 1024, org_name="test-org")
+        disk = await service.create_disk(request, "testuser")
+        assert disk.org_name == "test-org"
+        disks = await service.get_all_disks()
+        assert len(disks) == 1
+        assert disks[0].org_name == "test-org"
+
     async def test_create_disk_with_same_name_fail(self, service: Service) -> None:
         request = DiskRequest(storage=1024 * 1024, name="test")
         await service.create_disk(request, "testuser")
