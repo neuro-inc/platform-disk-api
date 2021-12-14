@@ -9,7 +9,6 @@ from typing import (
     Dict,
     List,
     Optional,
-    Sequence,
 )
 
 import aiodocker
@@ -22,7 +21,6 @@ from neuro_auth_client import (
     AuthClient,
     Cluster as AuthCluster,
     Permission,
-    Quota,
     User as AuthClientUser,
 )
 from yarl import URL
@@ -166,32 +164,36 @@ async def regular_user_factory(
     auth_client: AuthClient,
     token_factory: Callable[[str], str],
     admin_token: str,
-    test_cluster_name: str,
-) -> Callable[[Optional[str], Optional[Quota], str], Awaitable[_User]]:
+    cluster_name: str,
+) -> AsyncIterator[Callable[[Optional[str]], Awaitable[_User]]]:
     async def _factory(
         name: Optional[str] = None,
-        quota: Optional[Quota] = None,
-        cluster_name: str = test_cluster_name,
-        auth_clusters: Optional[Sequence[AuthCluster]] = None,
+        skip_grant: bool = False,
+        org_name: Optional[str] = None,
+        org_level: bool = False,
     ) -> _User:
         if not name:
-            name = random_name()
-        quota = quota or Quota()
-        if auth_clusters is None:
-            auth_clusters = [AuthCluster(name=cluster_name, quota=quota)]
-        user = AuthClientUser(name=name, clusters=list(auth_clusters))
+            name = f"user-{random_name()}"
+        user = AuthClientUser(name=name, clusters=[AuthCluster(name=cluster_name)])
         await auth_client.add_user(user, token=admin_token)
-        # Grant cluster-specific permissions
-        permissions = []
-
-        for cluster in auth_clusters:
-            permissions.extend(
-                [
-                    Permission(uri=f"disk://{cluster.name}/{name}", action="write"),
-                ]
+        if not skip_grant:
+            # Grant permissions to the user home directory
+            if org_name is None:
+                permission = Permission(
+                    uri=f"disk://{cluster_name}/{name}", action="write"
+                )
+            elif org_level:
+                permission = Permission(
+                    uri=f"disk://{cluster_name}/{org_name}", action="write"
+                )
+            else:
+                permission = Permission(
+                    uri=f"disk://{cluster_name}/{org_name}/{name}", action="write"
+                )
+            await auth_client.grant_user_permissions(
+                name, [permission], token=admin_token
             )
-        await auth_client.grant_user_permissions(name, permissions, token=admin_token)
-        user_token = token_factory(user.name)
-        return _User(name=user.name, clusters=user.clusters, token=user_token)
 
-    return _factory
+        return _User(name=user.name, token=token_factory(user.name))
+
+    yield _factory

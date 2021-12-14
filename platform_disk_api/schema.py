@@ -16,6 +16,10 @@ class DiskRequestSchema(Schema):
             validate.Length(min=3, max=40),
         ],
     )
+    org_name = fields.String(
+        required=False,
+        allow_none=True,
+    )
 
     @post_load
     def make_request(self, data: Any, **kwargs: Any) -> DiskRequest:
@@ -30,6 +34,7 @@ class DiskSchema(Schema):
     )
     owner = fields.String(required=True)
     name = fields.String(required=True, allow_none=True)
+    org_name = fields.String(required=True, allow_none=True)
     created_at = fields.DateTime(required=True)
     last_usage = fields.DateTime(required=True, allow_none=True)
     life_span = fields.TimeDelta(required=True, allow_none=True)

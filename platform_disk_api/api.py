@@ -113,17 +113,31 @@ class DiskApiHandler:
     def _disk_cluster_uri(self) -> str:
         return f"disk://{self._config.cluster_name}"
 
-    def _get_user_disk_uri(self, user: User) -> str:
+    def _get_org_disks_uri(self, org_name: str) -> str:
+        return f"{self._disk_cluster_uri}/{org_name}"
+
+    def _get_user_disk_uri(self, user: User, org_name: Optional[str]) -> str:
+        if org_name:
+            return f"{self._get_org_disks_uri(org_name)}/{user.name}"
         return f"{self._disk_cluster_uri}/{user.name}"
 
-    def _get_user_disks_write_perm(self, user: User) -> Permission:
-        return Permission(self._get_user_disk_uri(user), "write")
+    def _get_user_disks_write_perm(
+        self, user: User, org_name: Optional[str]
+    ) -> Permission:
+        return Permission(self._get_user_disk_uri(user, org_name), "write")
+
+    def _get_disk_uri(self, disk: Disk) -> str:
+        if disk.org_name:
+            base = self._get_org_disks_uri(disk.org_name)
+        else:
+            base = self._disk_cluster_uri
+        return f"{base}/{disk.owner}/{disk.id}"
 
     def _get_disk_read_perm(self, disk: Disk) -> Permission:
-        return Permission(f"{self._disk_cluster_uri}/{disk.owner}/{disk.id}", "read")
+        return Permission(self._get_disk_uri(disk), "read")
 
     def _get_disk_write_perm(self, disk: Disk) -> Permission:
-        return Permission(f"{self._disk_cluster_uri}/{disk.owner}/{disk.id}", "write")
+        return Permission(self._get_disk_uri(disk), "write")
 
     async def _get_user_used_storage(self, user: User) -> int:
         storage_used = 0
@@ -161,9 +175,12 @@ class DiskApiHandler:
     @request_schema(DiskRequestSchema())
     async def handle_create_disk(self, request: Request) -> Response:
         user = await self._get_untrusted_user(request)
-        await check_permissions(request, [self._get_user_disks_write_perm(user)])
         payload = await request.json()
         disk_request = DiskRequestSchema().load(payload)
+        await check_permissions(
+            request, [self._get_user_disks_write_perm(user, disk_request.org_name)]
+        )
+
         if (
             self._config.disk.storage_limit_per_user
             < await self._get_user_used_storage(user) + disk_request.storage
@@ -184,6 +201,8 @@ class DiskApiHandler:
         if node.can_read():
             return True
         parts = disk.owner.split("/") + [disk.id]
+        if disk.org_name:
+            parts = [disk.org_name] + parts
         try:
             for part in parts:
                 if node.can_read():

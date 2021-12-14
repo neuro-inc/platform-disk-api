@@ -227,6 +227,24 @@ class TestApi:
             assert disk.owner == user.name
             assert disk.storage >= 500
 
+    async def test_disk_create_with_org(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory(org_name="test-org")
+        async with client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "org_name": "test-org"},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code, await resp.text()
+            disk: Disk = DiskSchema().load(await resp.json())
+            assert disk.owner == user.name
+            assert disk.storage >= 500
+            assert disk.org_name == "test-org"
+
     async def test_disk_create_username_with_slash(
         self,
         disk_api: DiskApiEndpoints,
@@ -364,6 +382,40 @@ class TestApi:
             disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == 1
             assert disks[0].id == disk.id
+
+    async def test_list_disk_org_level(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
+        grant_disk_permission: Callable[[_User, Disk], Awaitable[None]],
+    ) -> None:
+        user1 = await regular_user_factory(org_name="test-org")
+        user2 = await regular_user_factory(org_name="test-org")
+        user3 = await regular_user_factory(org_name="test-org", org_level=True)
+        async with await client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "org_name": "test-org"},
+            headers=user1.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+            disk1 = DiskSchema().load(await resp.json())
+        async with await client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "org_name": "test-org"},
+            headers=user2.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+            disk2 = DiskSchema().load(await resp.json())
+
+        async with client.get(
+            disk_api.disk_url,
+            headers=user3.headers,
+        ) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
+            assert len(disks) == 2
+            assert {disks[0].id, disks[1].id} == {disk1.id, disk2.id}
 
     async def test_can_delete_own_disk(
         self,
