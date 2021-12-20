@@ -26,6 +26,13 @@ class EnvironConfigFactory:
     def __init__(self, environ: Optional[Dict[str, str]] = None) -> None:
         self._environ = environ or os.environ
 
+    def _get_url(self, name: str) -> Optional[URL]:
+        value = self._environ[name]
+        if value == "-":
+            return None
+        else:
+            return URL(value)
+
     def create(self) -> Config:
         cluster_name = self._environ["NP_CLUSTER_NAME"]
         enable_docs = self._environ.get("NP_DISK_API_ENABLE_DOCS", "false") == "true"
@@ -55,7 +62,7 @@ class EnvironConfigFactory:
         return ServerConfig(host=host, port=port)
 
     def _create_platform_auth(self) -> AuthConfig:
-        url = URL(self._environ["NP_DISK_API_PLATFORM_AUTH_URL"])
+        url = self._get_url("NP_DISK_API_PLATFORM_AUTH_URL")
         token = self._environ["NP_DISK_API_PLATFORM_AUTH_TOKEN"]
         return AuthConfig(url=url, token=token)
 

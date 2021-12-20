@@ -13,7 +13,7 @@ class ServerConfig:
 
 @dataclass(frozen=True)
 class AuthConfig:
-    url: URL
+    url: Optional[URL]
     token: str = field(repr=False)
 
 
