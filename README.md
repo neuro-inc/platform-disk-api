@@ -25,7 +25,7 @@ make docker_pull_test_images
 ```shell
 make apply_configuration_k8s
 ```
-5. Create a new virtual environment with Python 3.8:
+5. Create a new virtual environment:
 ```shell
 python -m venv venv
 source venv/bin/activate
