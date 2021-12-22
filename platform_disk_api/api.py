@@ -51,7 +51,6 @@ from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
 from .service import Disk, DiskNotFound, Service
 
-
 logger = logging.getLogger(__name__)
 
 

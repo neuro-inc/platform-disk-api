@@ -11,8 +11,8 @@ from platform_disk_api.kube_client import (
     ResourceExists,
     ResourceNotFound,
 )
-from tests.integration.kube import KubeClientForTest
 
+from tests.integration.kube import KubeClientForTest
 
 pytestmark = pytest.mark.asyncio
 

@@ -21,7 +21,6 @@ from platform_disk_api.service import Disk
 from .auth import _User
 from .conftest import ApiAddress, create_local_app_server
 
-
 pytestmark = pytest.mark.asyncio
 
 

@@ -19,6 +19,7 @@ from neuro_auth_client import (
 from yarl import URL
 
 from platform_disk_api.config import AuthConfig
+
 from tests.integration.conftest import random_name
 
 

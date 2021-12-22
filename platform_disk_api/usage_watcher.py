@@ -21,7 +21,6 @@ from platform_disk_api.kube_client import KubeClient, PodWatchEvent, ResourceGon
 from platform_disk_api.service import DiskNotFound, Service
 from platform_disk_api.utils import utc_now
 
-
 logger = logging.getLogger(__name__)
 
 

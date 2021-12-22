@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from aiohttp.web import HTTPUnauthorized, Request
 from aiohttp_security.api import AUTZ_KEY, IDENTITY_KEY
 
-
 logger = logging.getLogger(__name__)
 
 
