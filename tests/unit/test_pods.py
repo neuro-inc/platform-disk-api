@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -6,7 +6,7 @@ from platform_disk_api.kube_client import PodListResult, PodRead, PodWatchEvent
 
 
 class TestPodSerialization:
-    def _make_pod_payload(self, pvc_names: List[str]) -> Dict[str, Any]:
+    def _make_pod_payload(self, pvc_names: list[str]) -> dict[str, Any]:
         return {
             "kind": "Pod",
             "apiVersion": "v1",
@@ -30,7 +30,7 @@ class TestPodSerialization:
     @pytest.mark.parametrize("pvc_names", [("pvc1", "pvc2", "pvc3")])
     def test_pod_from_primitive(
         self,
-        pvc_names: List[str],
+        pvc_names: list[str],
     ) -> None:
         pod = PodRead.from_primitive(self._make_pod_payload(pvc_names))
 
@@ -42,7 +42,7 @@ class TestPodSerialization:
     def test_pod_list_from_primitive(
         self,
         resource_version: str,
-        pvc_names: List[str],
+        pvc_names: list[str],
     ) -> None:
         result = PodListResult.from_primitive(
             {
@@ -57,7 +57,7 @@ class TestPodSerialization:
     @pytest.mark.parametrize("pvc_names", [("pvc1", "pvc2", "pvc3")])
     def test_pod_watch_event_from_primitive(
         self,
-        pvc_names: List[str],
+        pvc_names: list[str],
     ) -> None:
         event = PodWatchEvent.from_primitive(
             {"type": "ADDED", "object": self._make_pod_payload(pvc_names)}

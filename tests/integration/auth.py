@@ -1,15 +1,8 @@
 import asyncio
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import (
-    AsyncGenerator,
-    AsyncIterator,
-    Awaitable,
-    Callable,
-    Dict,
-    List,
-    Optional,
-)
+from typing import Optional
 
 import aiodocker
 import pytest
@@ -142,7 +135,7 @@ async def wait_for_auth_server(
 class _User:
     name: str
     token: str
-    clusters: List[AuthCluster] = field(default_factory=list)
+    clusters: list[AuthCluster] = field(default_factory=list)
 
     @property
     def cluster_name(self) -> str:
@@ -150,7 +143,7 @@ class _User:
         return self.clusters[0].name
 
     @property
-    def headers(self) -> Dict[str, str]:
+    def headers(self) -> dict[str, str]:
         return {AUTHORIZATION: f"Bearer {self.token}"}
 
 

@@ -1,7 +1,7 @@
 import asyncio
+from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
 from datetime import timedelta
-from typing import AsyncIterator, Callable
 
 import pytest
 

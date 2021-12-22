@@ -1,7 +1,8 @@
 import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from importlib.metadata import version
-from typing import AsyncIterator, Awaitable, Callable, List, Optional
+from typing import Optional
 
 import aiohttp
 import aiohttp.web
@@ -55,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 
 class ApiHandler:
-    def register(self, app: aiohttp.web.Application) -> List[AbstractRoute]:
+    def register(self, app: aiohttp.web.Application) -> list[AbstractRoute]:
         return app.add_routes(
             [
                 aiohttp.web.get("/ping", self.handle_ping),
@@ -295,7 +296,7 @@ async def create_disk_app(config: Config) -> aiohttp.web.Application:
 
 @asynccontextmanager
 async def create_kube_client(
-    config: KubeConfig, trace_configs: Optional[List[aiohttp.TraceConfig]] = None
+    config: KubeConfig, trace_configs: Optional[list[aiohttp.TraceConfig]] = None
 ) -> AsyncIterator[KubeClient]:
     client = KubeClient(
         base_url=config.endpoint_url,
@@ -338,7 +339,7 @@ def _setup_cors(app: aiohttp.web.Application, config: CORSConfig) -> None:
         cors.add(route)
 
 
-def make_tracing_trace_configs(config: Config) -> List[aiohttp.TraceConfig]:
+def make_tracing_trace_configs(config: Config) -> list[aiohttp.TraceConfig]:
     trace_configs = []
 
     if config.zipkin:

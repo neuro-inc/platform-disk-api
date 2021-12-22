@@ -1,8 +1,9 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, List, Optional, TypeVar
+from typing import Optional, TypeVar
 from uuid import uuid4
 
 from .kube_client import (
@@ -185,7 +186,7 @@ class Service:
             raise DiskNotFound
         return await self._pvc_to_disk(pvc)
 
-    async def get_all_disks(self) -> List[Disk]:
+    async def get_all_disks(self) -> list[Disk]:
         return [
             await self._pvc_to_disk(pvc)
             for pvc in await self._kube_client.list_pvc()

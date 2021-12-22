@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 from yarl import URL
@@ -38,7 +38,7 @@ def token_path(tmp_path: Path) -> str:
 
 
 def test_create_default() -> None:
-    environ: Dict[str, Any] = {
+    environ: dict[str, Any] = {
         "NP_DISK_API_PLATFORM_AUTH_URL": "-",
         "NP_DISK_API_PLATFORM_AUTH_TOKEN": "platform-auth-token",
         "NP_DISK_API_K8S_API_URL": "https://localhost:8443",
@@ -57,7 +57,7 @@ def test_create_default() -> None:
 
 
 def test_create_custom(cert_authority_path: str, token_path: str) -> None:
-    environ: Dict[str, Any] = {
+    environ: dict[str, Any] = {
         "NP_DISK_API_HOST": "0.0.0.0",
         "NP_DISK_API_PORT": 8080,
         "NP_DISK_API_PLATFORM_AUTH_URL": "http://platformauthapi/api/v1",
@@ -113,7 +113,7 @@ def test_create_custom(cert_authority_path: str, token_path: str) -> None:
 
 
 def test_create_disk_usage_watcher() -> None:
-    environ: Dict[str, Any] = {
+    environ: dict[str, Any] = {
         "NP_DISK_API_HOST": "127.0.0.1",
         "NP_DISK_API_PORT": 8081,
         "NP_DISK_API_K8S_API_URL": "https://localhost:8443",

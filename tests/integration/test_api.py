@@ -1,5 +1,5 @@
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, replace
-from typing import AsyncIterator, Awaitable, Callable, List
 
 import aiohttp
 import pytest
@@ -267,7 +267,7 @@ class TestApi:
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
-            disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
+            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == 1
             assert disks[0] == disk
 
@@ -339,7 +339,7 @@ class TestApi:
             headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
-            disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
+            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == len(user_1_disks)
             assert {disk.id for disk in disks} == set(user_1_disks)
         async with client.get(
@@ -379,7 +379,7 @@ class TestApi:
             headers=user2.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
-            disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
+            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == 1
             assert disks[0].id == disk.id
 
@@ -413,7 +413,7 @@ class TestApi:
             headers=user3.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
-            disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
+            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == 2
             assert {disks[0].id, disks[1].id} == {disk1.id, disk2.id}
 
@@ -467,7 +467,7 @@ class TestApi:
             headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
-            disks: List[Disk] = DiskSchema(many=True).load(await resp.json())
+            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == 1
             assert disks[0].id == disk.id
 

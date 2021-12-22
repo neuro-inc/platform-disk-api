@@ -2,10 +2,11 @@ import asyncio
 import json
 import logging
 import ssl
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, Optional
 from urllib.parse import urlsplit
 
 import aiohttp
@@ -72,11 +73,11 @@ class PersistentVolumeClaimWrite:
     name: str
     storage: int  # In bytes
     storage_class_name: str = ""
-    labels: Dict[str, str] = field(default_factory=dict)
-    annotations: Dict[str, str] = field(default_factory=dict)
+    labels: dict[str, str] = field(default_factory=dict)
+    annotations: dict[str, str] = field(default_factory=dict)
 
-    def to_primitive(self) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
+    def to_primitive(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
             "kind": "PersistentVolumeClaim",
             "apiVersion": "v1",
             "metadata": {"name": self.name},
@@ -96,9 +97,9 @@ class PersistentVolumeClaimWrite:
 
 
 class MergeDiff:
-    _diff: Dict[str, Any]
+    _diff: dict[str, Any]
 
-    def __init__(self, diff: Dict[str, Any]) -> None:
+    def __init__(self, diff: dict[str, Any]) -> None:
         self._diff = diff
 
     def serialize(self) -> str:
@@ -120,8 +121,8 @@ class PersistentVolumeClaimRead:
     phase: "PersistentVolumeClaimRead.Phase"
     storage_requested: int
     storage_real: Optional[int]
-    labels: Dict[str, str]
-    annotations: Dict[str, str]
+    labels: dict[str, str]
+    annotations: dict[str, str]
 
     class Phase(str, Enum):
         """Possible values for phase of PVC.
@@ -135,7 +136,7 @@ class PersistentVolumeClaimRead:
         LOST = "Lost"
 
     @classmethod
-    def from_primitive(cls, payload: Dict[str, Any]) -> "PersistentVolumeClaimRead":
+    def from_primitive(cls, payload: dict[str, Any]) -> "PersistentVolumeClaimRead":
         try:
             storage_real: Optional[int] = _storage_str_to_int(
                 payload["status"]["capacity"]["storage"]
@@ -157,10 +158,10 @@ class PersistentVolumeClaimRead:
 
 @dataclass(frozen=True)
 class PodRead:
-    pvc_in_use: List[str]
+    pvc_in_use: list[str]
 
     @classmethod
-    def from_primitive(cls, payload: Dict[str, Any]) -> "PodRead":
+    def from_primitive(cls, payload: dict[str, Any]) -> "PodRead":
         pvc_names = []
         for volume in payload["spec"]["volumes"]:
             pvc_data = volume.get("persistentVolumeClaim")
@@ -172,10 +173,10 @@ class PodRead:
 @dataclass(frozen=True)
 class PodListResult:
     resource_version: str
-    pods: List[PodRead]
+    pods: list[PodRead]
 
     @classmethod
-    def from_primitive(cls, payload: Dict[str, Any]) -> "PodListResult":
+    def from_primitive(cls, payload: dict[str, Any]) -> "PodListResult":
         return PodListResult(
             resource_version=payload["metadata"]["resourceVersion"],
             pods=[PodRead.from_primitive(item) for item in payload["items"]],
@@ -202,7 +203,7 @@ class PodWatchEvent:
         BOOKMARK = "BOOKMARK"
 
     @classmethod
-    def from_primitive(cls, payload: Dict[str, Any]) -> "PodWatchEvent":
+    def from_primitive(cls, payload: dict[str, Any]) -> "PodWatchEvent":
         event_type = next(
             event_type for event_type in cls.Type if event_type == payload["type"]
         )
@@ -217,7 +218,7 @@ class PodWatchEvent:
         )
 
     @classmethod
-    def is_error(cls, payload: Dict[str, Any]) -> bool:
+    def is_error(cls, payload: dict[str, Any]) -> bool:
         return cls.Type.ERROR == payload["type"].upper()
 
 
@@ -233,13 +234,13 @@ class DiskNaming:
     disk_id: str
 
     @classmethod
-    def from_primitive(cls, payload: Dict[str, Any]) -> "DiskNaming":
+    def from_primitive(cls, payload: dict[str, Any]) -> "DiskNaming":
         return DiskNaming(
             name=payload["metadata"]["name"],
             disk_id=payload["spec"]["disk_id"],
         )
 
-    def to_primitive(self) -> Dict[str, Any]:
+    def to_primitive(self) -> dict[str, Any]:
         return {
             "kind": "DiskNaming",
             "apiVersion": "neuromation.io/v1",
@@ -269,7 +270,7 @@ class KubeClient:
         read_timeout_s: int = 100,
         watch_timeout_s: int = 1800,
         conn_pool_size: int = 100,
-        trace_configs: Optional[List[aiohttp.TraceConfig]] = None,
+        trace_configs: Optional[list[aiohttp.TraceConfig]] = None,
     ) -> None:
         self._base_url = base_url
         self._namespace = namespace
@@ -382,14 +383,14 @@ class KubeClient:
     def _pod_url(self) -> str:
         return f"{self._namespace_url}/pods"
 
-    async def _request(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+    async def _request(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         assert self._client, "client is not initialized"
         async with self._client.request(*args, **kwargs) as response:
             # TODO (A Danshyn 05/21/18): check status code etc
             payload = await response.json()
             return payload
 
-    def _raise_for_status(self, payload: Dict[str, Any]) -> None:
+    def _raise_for_status(self, payload: dict[str, Any]) -> None:
         kind = payload["kind"]
         if kind == "Status":
             if payload.get("status") == "Success":
@@ -415,7 +416,7 @@ class KubeClient:
         self._raise_for_status(payload)
         return PersistentVolumeClaimRead.from_primitive(payload)
 
-    async def list_pvc(self) -> List[PersistentVolumeClaimRead]:
+    async def list_pvc(self) -> list[PersistentVolumeClaimRead]:
         url = self._pvc_url
         payload = await self._request(method="GET", url=url)
         return [
@@ -518,7 +519,7 @@ class KubeClient:
         )
         self._raise_for_status(payload)
 
-    async def list_disk_namings(self) -> List[DiskNaming]:
+    async def list_disk_namings(self) -> list[DiskNaming]:
         url = self._disk_naming_url
         payload = await self._request(method="GET", url=url)
         return [DiskNaming.from_primitive(item) for item in payload.get("items", [])]

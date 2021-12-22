@@ -1,7 +1,8 @@
 import asyncio
 import logging
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Iterable, List, Optional
+from typing import Optional
 
 import aiohttp
 from neuro_logging import (
@@ -115,7 +116,7 @@ async def async_main(config: DiskUsageWatcherConfig) -> None:
 
 def make_tracing_trace_configs(
     config: DiskUsageWatcherConfig,
-) -> List[aiohttp.TraceConfig]:
+) -> list[aiohttp.TraceConfig]:
     trace_configs = []
 
     if config.zipkin:
