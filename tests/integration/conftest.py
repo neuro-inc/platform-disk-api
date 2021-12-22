@@ -21,7 +21,6 @@ from platform_disk_api.config import (
     ServerConfig,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

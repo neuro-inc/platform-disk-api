@@ -13,8 +13,8 @@ from platform_disk_api.usage_watcher import (
     watch_disk_usage,
     watch_lifespan_ended,
 )
-from tests.integration.kube import KubeClientForTest
 
+from tests.integration.kube import KubeClientForTest
 
 pytestmark = pytest.mark.asyncio
 
@@ -74,7 +74,6 @@ class TestUsageWatcher:
             before_start = utc_now()
             async with kube_client.run_pod([disk.id]):
                 await asyncio.wait_for(wait_for_last_usage(disk.id), timeout=10)
-                pass
 
             disk = await service.get_disk(disk.id)
             assert disk.last_usage

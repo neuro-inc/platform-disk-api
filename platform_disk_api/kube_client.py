@@ -14,7 +14,6 @@ from aiohttp import ClientTimeout
 
 from .config import KubeClientAuthType
 
-
 logger = logging.getLogger(__name__)
 
 
