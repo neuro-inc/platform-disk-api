@@ -1,11 +1,11 @@
 import logging
 from contextlib import AsyncExitStack, asynccontextmanager
+from importlib.metadata import version
 from typing import AsyncIterator, Awaitable, Callable, List, Optional
 
 import aiohttp
 import aiohttp.web
 import aiohttp_cors
-import pkg_resources
 from aiohttp.web import (
     HTTPBadRequest,
     HTTPInternalServerError,
@@ -279,7 +279,7 @@ async def handle_exceptions(
         return json_response(payload, status=HTTPInternalServerError.status_code)
 
 
-package_version = pkg_resources.get_distribution("platform-disk-api").version
+package_version = version(__package__)
 
 
 async def add_version_to_header(request: Request, response: StreamResponse) -> None:
