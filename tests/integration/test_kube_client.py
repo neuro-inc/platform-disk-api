@@ -15,7 +15,6 @@ from platform_disk_api.kube_client import (
 from tests.integration.kube import KubeClientForTest
 
 
-
 class TestKubeClient:
     async def test_create_single_pvc(
         self, kube_client: KubeClient, k8s_storage_class: str

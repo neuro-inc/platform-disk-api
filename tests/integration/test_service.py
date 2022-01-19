@@ -7,7 +7,6 @@ from platform_disk_api.service import DiskNameUsed, DiskNotFound, DiskRequest, S
 from platform_disk_api.utils import utc_now
 
 
-
 class TestService:
     @pytest.fixture
     def service(

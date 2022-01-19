@@ -17,7 +17,6 @@ from platform_disk_api.usage_watcher import (
 from tests.integration.kube import KubeClientForTest
 
 
-
 class TestUsageWatcher:
     @pytest.fixture
     def service(self, kube_client: KubeClient, k8s_storage_class: str) -> Service:
