@@ -16,7 +16,6 @@ from platform_disk_api.usage_watcher import (
 
 from tests.integration.kube import KubeClientForTest
 
-pytestmark = pytest.mark.asyncio
 
 
 class TestUsageWatcher:

@@ -14,7 +14,6 @@ from platform_disk_api.kube_client import (
 
 from tests.integration.kube import KubeClientForTest
 
-pytestmark = pytest.mark.asyncio
 
 
 class TestKubeClient:
