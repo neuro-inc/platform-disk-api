@@ -6,8 +6,6 @@ from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
 from platform_disk_api.service import DiskNameUsed, DiskNotFound, DiskRequest, Service
 from platform_disk_api.utils import utc_now
 
-pytestmark = pytest.mark.asyncio
-
 
 class TestService:
     @pytest.fixture
