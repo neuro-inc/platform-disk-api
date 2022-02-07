@@ -25,7 +25,7 @@ docker_build:
 	rm -rf build dist
 	pip install -U build
 	python -m build
-	docker build -t $(IMAGE_NAME):latest .
+	docker build -t platformdiskapi:latest .
 
 docker_pull_test_images:
 ifeq ($(MINIKUBE_DRIVER),none)
