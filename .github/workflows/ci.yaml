@@ -46,14 +46,12 @@ jobs:
         make lint
     - name: Run unit tests
       run: make test_unit
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
+    - name: Login to ghcr.io
+      uses: docker/login-action@v1.12.0
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-    - name: Login to AWS ECR
-      uses: aws-actions/amazon-ecr-login@v1
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
     - name: Start minikube
       run: |
         make install_k8s
@@ -69,8 +67,6 @@ jobs:
         make test_integration
     - name: Build Docker image
       run: make docker_build
-      env:
-        IMAGE_TAG: latest
     - name: Upload image artifact
       uses: neuro-inc/upload-image-action@v21.9.2
       with:
