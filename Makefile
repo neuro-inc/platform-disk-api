@@ -37,4 +37,3 @@ endif
 
 _docker_pull_test_images:
 	docker pull ghcr.io/neuro-inc/platformauthapi:latest; \
-	docker tag ghcr.io/neuro-inc/platformauthapi:latest platformauthapi:latest
