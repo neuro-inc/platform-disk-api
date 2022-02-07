@@ -36,5 +36,5 @@ else
 endif
 
 _docker_pull_test_images:
-	docker pull $(IMAGE_REPO_BASE)/platformauthapi:latest; \
+	docker pull ghcr.io/neuro-inc/platformauthapi:latest; \
 	docker tag ghcr.io/neuro-inc/platformauthapi:latest platformauthapi:latest
