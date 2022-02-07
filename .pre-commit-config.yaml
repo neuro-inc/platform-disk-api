@@ -68,6 +68,6 @@ repos:
   - id: check-github-workflows
 ci:
   skip:
-  - actionlint-docker
+#  - actionlint-docker
   - check-github-actions
   - check-github-workflows
