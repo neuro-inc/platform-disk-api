@@ -68,7 +68,7 @@ class TestUsageWatcher:
                 await asyncio.sleep(0.1)
 
         for _ in range(10):
-            disk = await service.create_disk(DiskRequest(1024 ** 2), "user")
+            disk = await service.create_disk(DiskRequest(1024**2), "user")
             before_start = utc_now()
             async with kube_client.run_pod([disk.id]):
                 await asyncio.wait_for(wait_for_last_usage(disk.id), timeout=10)

@@ -185,7 +185,7 @@ class DiskApiHandler:
             self._config.disk.storage_limit_per_user
             < await self._get_user_used_storage(user) + disk_request.storage
         ):
-            limit_gb = self._config.disk.storage_limit_per_user / 2 ** 30
+            limit_gb = self._config.disk.storage_limit_per_user / 2**30
             return json_response(
                 {
                     "code": "over_limit",
