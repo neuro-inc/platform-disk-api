@@ -4,9 +4,9 @@ metadata:
   name: {{ include "platformDisks.fullname" . }}
   labels: {{ include "platformDisks.labels.standard" . | nindent 4 }}
     service: platform-disks
-  annotations:
-    traefik.ingress.kubernetes.io/affinity: "true"
-    traefik.ingress.kubernetes.io/session-cookie-name: NEURO_DISK_API_SESSION
+{{- with .Values.service.annotations }}
+  annotations: {{ toYaml . | nindent 4 }}
+{{- end }}
 spec:
   type: ClusterIP
   ports:
