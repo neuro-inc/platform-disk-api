@@ -31,10 +31,12 @@ resources:
 
 ingress:
   enabled: false
-  # annotations:
+  ingressClassName: ""
+  hosts: []
+  annotations: {}
 
 service:
-  # annotations:
+  annotations: {}
 
 cors: {}
 
