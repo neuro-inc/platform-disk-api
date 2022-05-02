@@ -1,10 +1,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: {{ include "platformDisks.fullname" . }}
-  namespace: {{ .Values.disks.namespace }}
   labels: {{ include "platformDisks.labels.standard" . | nindent 4 }}
-    service: platform-disks
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
 rules:
 - apiGroups:
   - "neuromation.io"
@@ -12,22 +11,10 @@ rules:
   - disknamings
   verbs:
   - create
+  - delete
+  - deletecollection
+  - patch
+  - update
   - get
   - list
-  - delete
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ include "platformDisks.fullname" . }}
-  namespace: {{ .Values.disks.namespace }}
-  labels: {{ include "platformDisks.labels.standard" . | nindent 4 }}
-    service: platform-disks
-subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: {{ .Release.Namespace }}
-roleRef:
-  kind: Role
-  name: {{ include "platformDisks.fullname" . }}
-  apiGroup: rbac.authorization.k8s.io
+  - watch
