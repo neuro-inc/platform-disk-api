@@ -24,13 +24,10 @@ service:
     traefik.ingress.kubernetes.io/service.sticky.cookie.name: NEURO_DISK_API_SESSION
     traefik.ingress.kubernetes.io/session-cookie-name: NEURO_DISK_API_SESSION
 
+
 cors:
   origins:
-  - http://localhost:8000
-  - https://master--neuro-web.netlify.app
-  - https://master--mts-web.netlify.app
-  - https://master--megafon-web.netlify.app
-  - https://master--minzdrav-web.netlify.app
+  - *
 
 sentry:
   dsn: https://432bc48cd2444be7afec5efeb1fc03a6@o489136.ingest.sentry.io/5530426
