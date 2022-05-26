@@ -24,8 +24,15 @@ from aiohttp.web_exceptions import (
     HTTPOk,
 )
 from aiohttp.web_urldispatcher import AbstractRoute
-from aiohttp_apispec import docs, request_schema, response_schema, setup_aiohttp_apispec
+from aiohttp_apispec import (
+    docs,
+    querystring_schema,
+    request_schema,
+    response_schema,
+    setup_aiohttp_apispec,
+)
 from aiohttp_security import check_authorized
+from marshmallow import Schema, fields
 from neuro_auth_client import (
     AuthClient,
     ClientSubTreeViewRoot,
@@ -151,9 +158,12 @@ class DiskApiHandler:
         try:
             disk = await self._service.get_disk(id_or_name)
         except DiskNotFound:
-            user = await self._get_untrusted_user(request)
+            owner = request.query.get("owner")
+            if owner is None:
+                user = await self._get_untrusted_user(request)
+                owner = user.name
             try:
-                disk = await self._service.get_disk_by_name(id_or_name, user.name)
+                disk = await self._service.get_disk_by_name(id_or_name, owner)
             except DiskNotFound:
                 raise HTTPNotFound(text=f"Disk {id_or_name} not found")
         return disk
@@ -224,6 +234,7 @@ class DiskApiHandler:
         },
     )
     @response_schema(DiskSchema(), 200)
+    @querystring_schema(Schema.from_dict({"owner": fields.String(required=False)}))
     async def handle_get_disk(self, request: Request) -> Response:
         disk = await self._resolve_disk(request)
         await check_permissions(request, [self._get_disk_read_perm(disk)])
@@ -255,6 +266,7 @@ class DiskApiHandler:
             },
         },
     )
+    @querystring_schema(Schema.from_dict({"owner": fields.String(required=False)}))
     async def handle_delete_disk(self, request: Request) -> Response:
         disk = await self._resolve_disk(request)
         await check_permissions(request, [self._get_disk_write_perm(disk)])

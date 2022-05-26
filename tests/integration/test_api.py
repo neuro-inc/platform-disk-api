@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, replace
+from typing import Protocol
 
 import aiohttp
 import pytest
@@ -11,7 +12,7 @@ from aiohttp.web_exceptions import (
     HTTPNotFound,
     HTTPUnauthorized,
 )
-from neuro_auth_client import AuthClient, Permission, User
+from neuro_auth_client import AuthClient, Permission
 
 from platform_disk_api.api import create_app
 from platform_disk_api.config import Config
@@ -61,16 +62,21 @@ async def disk_api(config: Config) -> AsyncIterator[DiskApiEndpoints]:
         yield DiskApiEndpoints(address=address)
 
 
+class DiskGranter(Protocol):
+    async def __call__(self, user: _User, disk: Disk, action: str = "read") -> None:
+        ...
+
+
 @pytest.fixture
 async def grant_disk_permission(
     auth_client: AuthClient,
     token_factory: Callable[[str], str],
     admin_token: str,
     cluster_name: str,
-) -> AsyncIterator[Callable[[User, Disk], Awaitable[None]]]:
-    async def _grant(user: User, disk: Disk) -> None:
+) -> AsyncIterator[DiskGranter]:
+    async def _grant(user: _User, disk: Disk, action: str = "read") -> None:
         permission = Permission(
-            uri=f"disk://{cluster_name}/{disk.owner}/{disk.id}", action="read"
+            uri=f"disk://{cluster_name}/{disk.owner}/{disk.id}", action=action
         )
         await auth_client.grant_user_permissions(user.name, [permission], admin_token)
 
@@ -353,7 +359,7 @@ class TestApi:
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[[], Awaitable[_User]],
-        grant_disk_permission: Callable[[_User, Disk], Awaitable[None]],
+        grant_disk_permission: DiskGranter,
     ) -> None:
         user1 = await regular_user_factory()
         user2 = await regular_user_factory()
@@ -385,7 +391,7 @@ class TestApi:
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[..., Awaitable[_User]],
-        grant_disk_permission: Callable[[_User, Disk], Awaitable[None]],
+        grant_disk_permission: DiskGranter,
     ) -> None:
         user1 = await regular_user_factory(org_name="test-org")
         user2 = await regular_user_factory(org_name="test-org")
@@ -514,6 +520,38 @@ class TestApi:
         async with await client.delete(
             disk_api.single_disk_url(disk.name),
             headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPNoContent.status_code
+
+    async def test_get_shared_disk_by_name(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[[], Awaitable[_User]],
+        grant_disk_permission: DiskGranter,
+    ) -> None:
+        user1 = await regular_user_factory()
+        user2 = await regular_user_factory()
+        async with await client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "name": "test-name"},
+            headers=user1.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+            disk = DiskSchema().load(await resp.json())
+        await grant_disk_permission(user2, disk, "write")
+        async with await client.get(
+            disk_api.single_disk_url(disk.name),
+            headers=user2.headers,
+            params={"owner": user1.name},
+        ) as resp:
+            assert resp.status == HTTPOk.status_code
+            disk_got = DiskSchema().load(await resp.json())
+            assert disk.id == disk_got.id
+        async with await client.delete(
+            disk_api.single_disk_url(disk.name),
+            headers=user2.headers,
+            params={"owner": user1.name},
         ) as resp:
             assert resp.status == HTTPNoContent.status_code
 
