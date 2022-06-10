@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import aiodocker
@@ -10,12 +10,7 @@ from aiohttp import ClientError
 from aiohttp.hdrs import AUTHORIZATION
 from async_timeout import timeout
 from jose import jwt
-from neuro_auth_client import (
-    AuthClient,
-    Cluster as AuthCluster,
-    Permission,
-    User as AuthClientUser,
-)
+from neuro_auth_client import AuthClient, Permission, User as AuthClientUser
 from yarl import URL
 
 from platform_disk_api.config import AuthConfig
@@ -136,12 +131,6 @@ async def wait_for_auth_server(
 class _User:
     name: str
     token: str
-    clusters: list[AuthCluster] = field(default_factory=list)
-
-    @property
-    def cluster_name(self) -> str:
-        assert self.clusters, "Test user has no access to any cluster"
-        return self.clusters[0].name
 
     @property
     def headers(self) -> dict[str, str]:
@@ -168,7 +157,7 @@ async def regular_user_factory(
     ) -> _User:
         if not name:
             name = f"user-{random_name()}"
-        user = AuthClientUser(name=name, clusters=[AuthCluster(name=cluster_name)])
+        user = AuthClientUser(name=name)
         await auth_client.add_user(user, token=admin_token)
         if not skip_grant:
             # Grant permissions to the user home directory
