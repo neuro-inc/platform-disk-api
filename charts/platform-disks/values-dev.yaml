@@ -24,7 +24,6 @@ service:
     traefik.ingress.kubernetes.io/service.sticky.cookie.name: NEURO_DISK_API_SESSION
     traefik.ingress.kubernetes.io/session-cookie-name: NEURO_DISK_API_SESSION
 
-
 cors:
   origins:
   - '*'
