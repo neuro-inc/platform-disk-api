@@ -11,9 +11,9 @@ function k8s::install_kubectl {
 }
 
 function k8s::install_minikube {
-    # we have to pin this version in order to run minikube on CircleCI
-    # Ubuntu 14 VMs. The newer versions depend on systemd.
-    local minikube_version="v1.11.0"
+    local minikube_version="v1.25.2"
+    sudo apt-get update
+    sudo apt-get install -y conntrack
     curl -Lo minikube https://storage.googleapis.com/minikube/releases/${minikube_version}/minikube-linux-amd64
     chmod +x minikube
     sudo mv minikube /usr/local/bin/
@@ -33,7 +33,6 @@ function k8s::start {
 
     sudo -E minikube start \
         --vm-driver=none \
-        --kubernetes-version=v1.14.10 \
         --wait=all \
         --wait-timeout=5m
 }
@@ -44,7 +43,7 @@ function k8s::apply_all_configurations {
     kubectl apply -f tests/k8s/rb.default.gke.yml
     kubectl apply -f tests/k8s/platformapi.yml
     kubectl apply -f tests/k8s/storageclass.yml
-    kubectl apply -f tests/k8s/crd-disknaming.yml
+    kubectl apply -f charts/platform-disks/templates/crd-disknaming.yml
 }
 
 
