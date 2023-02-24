@@ -13,7 +13,6 @@ from platform_disk_api.usage_watcher import (
     watch_disk_usage,
     watch_lifespan_ended,
 )
-
 from tests.integration.kube import KubeClientForTest
 
 
@@ -68,7 +67,9 @@ class TestUsageWatcher:
                 await asyncio.sleep(0.1)
 
         for _ in range(10):
-            disk = await service.create_disk(DiskRequest(1024**2), "user")
+            disk = await service.create_disk(
+                DiskRequest(1024**2, project_name="test-project"), "user"
+            )
             before_start = utc_now()
             async with kube_client.run_pod([disk.id]):
                 await asyncio.wait_for(wait_for_last_usage(disk.id), timeout=10)
@@ -83,7 +84,12 @@ class TestUsageWatcher:
         service: Service,
     ) -> None:
         disk = await service.create_disk(
-            DiskRequest(storage=1000, life_span=timedelta(seconds=1)), "user"
+            DiskRequest(
+                storage=1000,
+                life_span=timedelta(seconds=1),
+                project_name="test-project",
+            ),
+            "user",
         )
         await asyncio.sleep(1.5)
         with pytest.raises(DiskNotFound):
@@ -95,7 +101,12 @@ class TestUsageWatcher:
         service: Service,
     ) -> None:
         disk = await service.create_disk(
-            DiskRequest(storage=1000, life_span=timedelta(seconds=2)), "user"
+            DiskRequest(
+                storage=1000,
+                life_span=timedelta(seconds=2),
+                project_name="test-project",
+            ),
+            "user",
         )
         await asyncio.sleep(1.33)
         await service.mark_disk_usage(disk.id, utc_now())
