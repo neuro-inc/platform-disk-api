@@ -300,6 +300,20 @@ class TestApi:
             assert len(disks) == 1
             assert disks[0] == disk
 
+    async def test_disk_create_project_unauthorized(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory(project_name="test-project")
+        async with client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "project_name": "other-test-project"},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPForbidden.status_code, await resp.text()
+
     async def test_storage_limit_single_disk(
         self,
         disk_api: DiskApiEndpoints,

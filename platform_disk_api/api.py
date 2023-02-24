@@ -192,9 +192,9 @@ class DiskApiHandler:
         user = await self._get_untrusted_user(request)
         payload = await request.json()
 
-        # TODO: make project_name required after projects release
-        disk_request = DiskRequestSchema().load(payload, partial=["project_name"])
-        disk_request.project_name = disk_request.project_name or user.name
+        # TODO: remove after projects release
+        payload["project_name"] = payload.get("project_name", user.name)
+        disk_request = DiskRequestSchema().load(payload)
 
         await check_permissions(
             request,
