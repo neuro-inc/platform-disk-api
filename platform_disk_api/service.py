@@ -30,6 +30,7 @@ logger = logging.getLogger()
 
 
 USER_LABEL = "platform.neuromation.io/user"
+PROJECT_LABEL = "platform.neuromation.io/project"
 DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
 DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
 DISK_API_ORG_LABEL = "platform.neuromation.io/disk-api-org-name"
@@ -43,6 +44,7 @@ DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 @dataclass(frozen=True)
 class DiskRequest:
     storage: int  # In bytes
+    project_name: str
     life_span: Optional[timedelta] = None
     name: Optional[str] = None
     org_name: Optional[str] = None
@@ -53,6 +55,7 @@ class Disk:
     id: str
     storage: int  # In bytes
     owner: str
+    project_name: str
     name: Optional[str]
     org_name: Optional[str]
     status: "Disk.Status"
@@ -92,6 +95,7 @@ class Service:
             annotations[DISK_API_NAME_ANNOTATION] = request.name
         labels = {
             USER_LABEL: username.replace("/", "--"),
+            PROJECT_LABEL: request.project_name,
             DISK_API_MARK_LABEL: "true",
         }
         if request.org_name:
@@ -127,6 +131,7 @@ class Service:
                 return mapper(pvc.annotations[annotation])
             return None
 
+        username = pvc.labels[USER_LABEL].replace("--", "/")
         last_usage = _get_if_present(DISK_API_LAST_USAGE_ANNOTATION, datetime_load)
         life_span = _get_if_present(DISK_API_LIFE_SPAN_ANNOTATION, timedelta_load)
         used_bytes = _get_if_present(DISK_API_USED_BYTES_ANNOTATION, int)
@@ -137,7 +142,8 @@ class Service:
             if pvc.storage_real is not None
             else pvc.storage_requested,
             status=status_map[pvc.phase],
-            owner=pvc.labels[USER_LABEL].replace("--", "/"),
+            owner=username,
+            project_name=pvc.labels.get(PROJECT_LABEL, username),
             name=pvc.annotations.get(DISK_API_NAME_ANNOTATION),
             org_name=pvc.labels.get(DISK_API_ORG_LABEL),
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
@@ -186,10 +192,13 @@ class Service:
             raise DiskNotFound
         return await self._pvc_to_disk(pvc)
 
-    async def get_all_disks(self) -> list[Disk]:
+    async def get_all_disks(self, project_name: Optional[str] = None) -> list[Disk]:
+        label_selector = None
+        if project_name:
+            label_selector = f"{PROJECT_LABEL}={project_name}"
         return [
             await self._pvc_to_disk(pvc)
-            for pvc in await self._kube_client.list_pvc()
+            for pvc in await self._kube_client.list_pvc(label_selector)
             if pvc.labels.get(DISK_API_MARK_LABEL, False)
             and not pvc.labels.get(DISK_API_DELETED_LABEL, False)
         ]

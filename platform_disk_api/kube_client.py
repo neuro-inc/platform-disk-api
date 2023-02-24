@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 import aiohttp
 from aiohttp import ClientTimeout
+from yarl import URL
 
 from .config import KubeClientAuthType
 
@@ -415,8 +416,12 @@ class KubeClient:
         self._raise_for_status(payload)
         return PersistentVolumeClaimRead.from_primitive(payload)
 
-    async def list_pvc(self) -> list[PersistentVolumeClaimRead]:
-        url = self._pvc_url
+    async def list_pvc(
+        self, label_selector: Optional[str] = None
+    ) -> list[PersistentVolumeClaimRead]:
+        url = URL(self._pvc_url)
+        if label_selector:
+            url = url.with_query(labelSelector=label_selector)
         payload = await self._request(method="GET", url=url)
         return [
             PersistentVolumeClaimRead.from_primitive(item)

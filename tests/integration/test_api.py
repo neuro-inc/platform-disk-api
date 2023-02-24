@@ -217,7 +217,24 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory(project_name="test-project")
+        async with client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "project_name": "test-project"},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code, await resp.text()
+            disk: Disk = DiskSchema().load(await resp.json())
+            assert disk.owner == user.name
+            assert disk.storage >= 500
+
+    async def test_disk_create_with_default_project(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
         user = await regular_user_factory()
         async with client.post(
@@ -228,6 +245,7 @@ class TestApi:
             assert resp.status == HTTPCreated.status_code, await resp.text()
             disk: Disk = DiskSchema().load(await resp.json())
             assert disk.owner == user.name
+            assert disk.project_name == user.name
             assert disk.storage >= 500
 
     async def test_disk_create_with_org(
@@ -236,10 +254,16 @@ class TestApi:
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        user = await regular_user_factory(org_name="test-org")
+        user = await regular_user_factory(
+            org_name="test-org", project_name="test-project"
+        )
         async with client.post(
             disk_api.disk_url,
-            json={"storage": 500, "org_name": "test-org"},
+            json={
+                "storage": 500,
+                "org_name": "test-org",
+                "project_name": "test-project",
+            },
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code, await resp.text()
@@ -252,13 +276,15 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[str], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
         await regular_user_factory("test")
-        user = await regular_user_factory("test/with/additional/parts")
+        user = await regular_user_factory(
+            "test/with/additional/parts", project_name="test-project"
+        )
         async with client.post(
             disk_api.disk_url,
-            json={"storage": 500, "name": "test"},
+            json={"storage": 500, "name": "test", "project_name": "test-project"},
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code, await resp.text()
@@ -278,13 +304,16 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
         config: Config,
     ) -> None:
-        user = await regular_user_factory()
+        user = await regular_user_factory(project_name="test-project")
         async with client.post(
             disk_api.disk_url,
-            json={"storage": config.disk.storage_limit_per_user + 100},
+            json={
+                "storage": config.disk.storage_limit_per_user + 100,
+                "project_name": "test-project",
+            },
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPForbidden.status_code, await resp.text()
@@ -294,18 +323,21 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
         config: Config,
     ) -> None:
-        user = await regular_user_factory()
+        user = await regular_user_factory(project_name="test-project")
         await client.post(
             disk_api.disk_url,
-            json={"storage": config.disk.storage_limit_per_user - 100},
+            json={
+                "storage": config.disk.storage_limit_per_user - 100,
+                "project_name": "test-project",
+            },
             headers=user.headers,
         )
         async with client.post(
             disk_api.disk_url,
-            json={"storage": 200},
+            json={"storage": 200, "project_name": "test-project"},
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPForbidden.status_code, await resp.text()
@@ -315,16 +347,16 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        user1 = await regular_user_factory()
-        user2 = await regular_user_factory()
+        user1 = await regular_user_factory(project_name="test-project")
+        user2 = await regular_user_factory(project_name="test-project")
         user_1_disks = []
         user_2_disks = []
         for _ in range(3):
             async with client.post(
                 disk_api.disk_url,
-                json={"storage": 500},
+                json={"storage": 500, "project_name": "test-project"},
                 headers=user1.headers,
             ) as resp:
                 disk = DiskSchema().load(await resp.json())
@@ -332,7 +364,7 @@ class TestApi:
         for _ in range(4):
             async with client.post(
                 disk_api.disk_url,
-                json={"storage": 500},
+                json={"storage": 500, "project_name": "test-project"},
                 headers=user2.headers,
             ) as resp:
                 disk = DiskSchema().load(await resp.json())
@@ -358,14 +390,14 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
         grant_disk_permission: DiskGranter,
     ) -> None:
-        user1 = await regular_user_factory()
-        user2 = await regular_user_factory()
+        user1 = await regular_user_factory(project_name="test-project")
+        user2 = await regular_user_factory(project_name="test-project")
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500},
+            json={"storage": 500, "project_name": "test-project"},
             headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
@@ -393,19 +425,33 @@ class TestApi:
         regular_user_factory: Callable[..., Awaitable[_User]],
         grant_disk_permission: DiskGranter,
     ) -> None:
-        user1 = await regular_user_factory(org_name="test-org")
-        user2 = await regular_user_factory(org_name="test-org")
-        user3 = await regular_user_factory(org_name="test-org", org_level=True)
+        user1 = await regular_user_factory(
+            org_name="test-org", project_name="test-project"
+        )
+        user2 = await regular_user_factory(
+            org_name="test-org", project_name="test-project"
+        )
+        user3 = await regular_user_factory(
+            org_name="test-org", org_level=True, project_name="test-project"
+        )
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500, "org_name": "test-org"},
+            json={
+                "storage": 500,
+                "org_name": "test-org",
+                "project_name": "test-project",
+            },
             headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
             disk1 = DiskSchema().load(await resp.json())
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500, "org_name": "test-org"},
+            json={
+                "storage": 500,
+                "org_name": "test-org",
+                "project_name": "test-project",
+            },
             headers=user2.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
@@ -420,16 +466,54 @@ class TestApi:
             assert len(disks) == 2
             assert {disks[0].id, disks[1].id} == {disk1.id, disk2.id}
 
+    async def test_list_disk_in_project(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
+        grant_disk_permission: DiskGranter,
+    ) -> None:
+        user = await regular_user_factory(org_name="test-org", org_level=True)
+        async with await client.post(
+            disk_api.disk_url,
+            json={
+                "storage": 500,
+                "org_name": "test-org",
+                "project_name": "test-project",
+            },
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+            disk1 = DiskSchema().load(await resp.json())
+        async with await client.post(
+            disk_api.disk_url,
+            json={
+                "storage": 500,
+                "org_name": "test-org",
+                "project_name": "other-test-project",
+            },
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+
+        async with client.get(
+            disk_api.disk_url,
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
+            assert disks[0].id == disk1.id
+
     async def test_can_delete_own_disk(
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        user = await regular_user_factory()
+        user = await regular_user_factory(project_name="test-project")
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500},
+            json={"storage": 500, "project_name": "test-project"},
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
@@ -449,13 +533,13 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        user1 = await regular_user_factory()
-        user2 = await regular_user_factory()
+        user1 = await regular_user_factory(project_name="test-project")
+        user2 = await regular_user_factory(project_name="test-project")
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500},
+            json={"storage": 500, "project_name": "test-project"},
             headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
@@ -478,12 +562,12 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        user = await regular_user_factory()
+        user = await regular_user_factory(project_name="test-project")
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500},
+            json={"storage": 500, "project_name": "test-project"},
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
@@ -500,12 +584,12 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        user = await regular_user_factory()
+        user = await regular_user_factory(project_name="test-project")
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500, "name": "test-name"},
+            json={"storage": 500, "name": "test-name", "project_name": "test-project"},
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
@@ -527,14 +611,14 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
         grant_disk_permission: DiskGranter,
     ) -> None:
-        user1 = await regular_user_factory()
-        user2 = await regular_user_factory()
+        user1 = await regular_user_factory(project_name="test-project")
+        user2 = await regular_user_factory(project_name="test-project")
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500, "name": "test-name"},
+            json={"storage": 500, "name": "test-name", "project_name": "test-project"},
             headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code
@@ -559,9 +643,9 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        user = await regular_user_factory()
+        user = await regular_user_factory(project_name="test-project")
         async with await client.get(
             disk_api.single_disk_url("wrong-id"),
             headers=user.headers,
@@ -572,9 +656,9 @@ class TestApi:
         self,
         disk_api: DiskApiEndpoints,
         client: aiohttp.ClientSession,
-        regular_user_factory: Callable[[], Awaitable[_User]],
+        regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        user = await regular_user_factory()
+        user = await regular_user_factory(project_name="test-project")
         async with await client.delete(
             disk_api.single_disk_url("wrong-id"),
             headers=user.headers,

@@ -123,15 +123,20 @@ class DiskApiHandler:
     def _get_org_disks_uri(self, org_name: str) -> str:
         return f"{self._disk_cluster_uri}/{org_name}"
 
-    def _get_user_disk_uri(self, user: User, org_name: Optional[str]) -> str:
+    def _get_user_disk_uri(
+        self, user: User, org_name: Optional[str], project_name: Optional[str]
+    ) -> str:
         if org_name:
-            return f"{self._get_org_disks_uri(org_name)}/{user.name}"
-        return f"{self._disk_cluster_uri}/{user.name}"
+            return f"{self._get_org_disks_uri(org_name)}/{project_name}/{user.name}"
+        return f"{self._disk_cluster_uri}/{project_name}/{user.name}"
 
     def _get_user_disks_write_perm(
-        self, user: User, org_name: Optional[str]
+        self, user: User, org_name: Optional[str], project_name: Optional[str]
     ) -> Permission:
-        return Permission(self._get_user_disk_uri(user, org_name), "write")
+        project_name = project_name or user.name
+        return Permission(
+            self._get_user_disk_uri(user, org_name, project_name), "write"
+        )
 
     def _get_disk_uri(self, disk: Disk) -> str:
         if disk.org_name:
@@ -186,9 +191,18 @@ class DiskApiHandler:
     async def handle_create_disk(self, request: Request) -> Response:
         user = await self._get_untrusted_user(request)
         payload = await request.json()
-        disk_request = DiskRequestSchema().load(payload)
+
+        # TODO: make project_name required after projects release
+        disk_request = DiskRequestSchema().load(payload, partial=["project_name"])
+        disk_request.project_name = disk_request.project_name or user.name
+
         await check_permissions(
-            request, [self._get_user_disks_write_perm(user, disk_request.org_name)]
+            request,
+            [
+                self._get_user_disks_write_perm(
+                    user, disk_request.org_name, disk_request.project_name
+                )
+            ],
         )
 
         if (
@@ -248,9 +262,10 @@ class DiskApiHandler:
         tree = await self._auth_client.get_permissions_tree(
             username, self._disk_cluster_uri
         )
+        project_name = request.rel_url.query.get("project")
         disks = [
             disk
-            for disk in await self._service.get_all_disks()
+            for disk in await self._service.get_all_disks(project_name)
             if self._check_disk_read_perm(disk, tree)
         ]
         resp_payload = DiskSchema(many=True).dump(disks)

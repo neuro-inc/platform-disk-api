@@ -14,7 +14,6 @@ from neuro_auth_client import AuthClient, Permission, User as AuthClientUser
 from yarl import URL
 
 from platform_disk_api.config import AuthConfig
-
 from tests.integration.conftest import random_name
 
 
@@ -154,25 +153,20 @@ async def regular_user_factory(
         skip_grant: bool = False,
         org_name: Optional[str] = None,
         org_level: bool = False,
+        project_name: Optional[str] = None,
     ) -> _User:
         if not name:
             name = f"user-{random_name()}"
         user = AuthClientUser(name=name)
         await auth_client.add_user(user, token=admin_token)
         if not skip_grant:
-            # Grant permissions to the user home directory
-            if org_name is None:
-                permission = Permission(
-                    uri=f"disk://{cluster_name}/{name}", action="write"
-                )
-            elif org_level:
-                permission = Permission(
-                    uri=f"disk://{cluster_name}/{org_name}", action="write"
-                )
-            else:
-                permission = Permission(
-                    uri=f"disk://{cluster_name}/{org_name}/{name}", action="write"
-                )
+            project_path = f"/{project_name}" if project_name else ""
+            org_path = f"/{org_name}" if org_name else ""
+            name_path = "" if org_level else f"/{name}"
+            permission = Permission(
+                uri=f"disk://{cluster_name}{org_path}{project_path}{name_path}",
+                action="write",
+            )
             await auth_client.grant_user_permissions(
                 name, [permission], token=admin_token
             )
