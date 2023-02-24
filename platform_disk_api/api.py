@@ -143,7 +143,7 @@ class DiskApiHandler:
             base = self._get_org_disks_uri(disk.org_name)
         else:
             base = self._disk_cluster_uri
-        return f"{base}/{disk.owner}/{disk.id}"
+        return f"{base}/{disk.project_name}/{disk.owner}/{disk.id}"
 
     def _get_disk_read_perm(self, disk: Disk) -> Permission:
         return Permission(self._get_disk_uri(disk), "read")

@@ -373,6 +373,7 @@ class TestApi:
                 json={"storage": 500, "project_name": "test-project"},
                 headers=user1.headers,
             ) as resp:
+                assert resp.status == HTTPCreated.status_code, await resp.text()
                 disk = DiskSchema().load(await resp.json())
                 user_1_disks.append(disk.id)
         for _ in range(4):
@@ -381,6 +382,7 @@ class TestApi:
                 json={"storage": 500, "project_name": "test-project"},
                 headers=user2.headers,
             ) as resp:
+                assert resp.status == HTTPCreated.status_code, await resp.text()
                 disk = DiskSchema().load(await resp.json())
                 user_2_disks.append(disk.id)
         async with client.get(
@@ -440,20 +442,18 @@ class TestApi:
         grant_disk_permission: DiskGranter,
     ) -> None:
         user1 = await regular_user_factory(
-            org_name="test-org", project_name="test-project"
+            org_name="test-org", project_name="test-project1"
         )
         user2 = await regular_user_factory(
-            org_name="test-org", project_name="test-project"
+            org_name="test-org", project_name="test-project2"
         )
-        user3 = await regular_user_factory(
-            org_name="test-org", org_level=True, project_name="test-project"
-        )
+        user3 = await regular_user_factory(org_name="test-org", org_level=True)
         async with await client.post(
             disk_api.disk_url,
             json={
                 "storage": 500,
                 "org_name": "test-org",
-                "project_name": "test-project",
+                "project_name": "test-project1",
             },
             headers=user1.headers,
         ) as resp:
@@ -464,7 +464,7 @@ class TestApi:
             json={
                 "storage": 500,
                 "org_name": "test-org",
-                "project_name": "test-project",
+                "project_name": "test-project2",
             },
             headers=user2.headers,
         ) as resp:

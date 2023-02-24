@@ -95,7 +95,7 @@ class Service:
             annotations[DISK_API_NAME_ANNOTATION] = request.name
         labels = {
             USER_LABEL: username.replace("/", "--"),
-            PROJECT_LABEL: request.project_name,
+            PROJECT_LABEL: request.project_name.replace("/", "--"),
             DISK_API_MARK_LABEL: "true",
         }
         if request.org_name:
@@ -132,6 +132,7 @@ class Service:
             return None
 
         username = pvc.labels[USER_LABEL].replace("--", "/")
+        project_name = pvc.labels.get(PROJECT_LABEL, username).replace("--", "/")
         last_usage = _get_if_present(DISK_API_LAST_USAGE_ANNOTATION, datetime_load)
         life_span = _get_if_present(DISK_API_LIFE_SPAN_ANNOTATION, timedelta_load)
         used_bytes = _get_if_present(DISK_API_USED_BYTES_ANNOTATION, int)
@@ -143,7 +144,7 @@ class Service:
             else pvc.storage_requested,
             status=status_map[pvc.phase],
             owner=username,
-            project_name=pvc.labels.get(PROJECT_LABEL, username),
+            project_name=project_name,
             name=pvc.annotations.get(DISK_API_NAME_ANNOTATION),
             org_name=pvc.labels.get(DISK_API_ORG_LABEL),
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
