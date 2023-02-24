@@ -51,6 +51,9 @@ class DiskApiEndpoints:
     def disk_url(self) -> str:
         return f"{self.api_v1_endpoint}/disk"
 
+    def project_disk_url(self, project_name: str) -> str:
+        return f"{self.api_v1_endpoint}/disk?project={project_name}"
+
     def single_disk_url(self, disk_name: str) -> str:
         return f"{self.api_v1_endpoint}/disk/{disk_name}"
 
@@ -511,7 +514,7 @@ class TestApi:
             assert resp.status == HTTPCreated.status_code
 
         async with client.get(
-            disk_api.disk_url,
+            disk_api.project_disk_url("test-project"),
             headers=user.headers,
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
