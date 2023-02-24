@@ -79,7 +79,8 @@ async def grant_disk_permission(
 ) -> AsyncIterator[DiskGranter]:
     async def _grant(user: _User, disk: Disk, action: str = "read") -> None:
         permission = Permission(
-            uri=f"disk://{cluster_name}/{disk.owner}/{disk.id}", action=action
+            uri=f"disk://{cluster_name}/{disk.project_name}/{disk.owner}/{disk.id}",
+            action=action,
         )
         await auth_client.grant_user_permissions(user.name, [permission], admin_token)
 
@@ -631,11 +632,11 @@ class TestApi:
         regular_user_factory: Callable[..., Awaitable[_User]],
         grant_disk_permission: DiskGranter,
     ) -> None:
-        user1 = await regular_user_factory(project_name="test-project")
-        user2 = await regular_user_factory(project_name="test-project")
+        user1 = await regular_user_factory(project_name="test-project1")
+        user2 = await regular_user_factory(project_name="test-project2")
         async with await client.post(
             disk_api.disk_url,
-            json={"storage": 500, "name": "test-name", "project_name": "test-project"},
+            json={"storage": 500, "name": "test-name", "project_name": "test-project1"},
             headers=user1.headers,
         ) as resp:
             assert resp.status == HTTPCreated.status_code

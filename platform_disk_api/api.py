@@ -225,7 +225,7 @@ class DiskApiHandler:
         node = tree.sub_tree
         if node.can_read():
             return True
-        parts = disk.owner.split("/") + [disk.id]
+        parts = [disk.project_name] + disk.owner.split("/") + [disk.id]
         if disk.org_name:
             parts = [disk.org_name] + parts
         try:
