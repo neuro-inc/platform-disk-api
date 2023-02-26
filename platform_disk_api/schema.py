@@ -20,13 +20,7 @@ class DiskRequestSchema(Schema):
         required=False,
         allow_none=True,
     )
-    project_name = fields.String(
-        required=True,
-        validate=[
-            validate.Regexp(r"^[a-z](?:-?[a-z0-9])*(?!\n)$"),
-            validate.Length(min=3, max=40),
-        ],
-    )
+    project_name = fields.String(required=True)
 
     @post_load
     def make_request(self, data: Any, **kwargs: Any) -> DiskRequest:

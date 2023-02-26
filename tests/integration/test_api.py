@@ -52,7 +52,7 @@ class DiskApiEndpoints:
         return f"{self.api_v1_endpoint}/disk"
 
     def project_disk_url(self, project_name: str) -> str:
-        return f"{self.api_v1_endpoint}/disk?project={project_name}"
+        return f"{self.api_v1_endpoint}/disk?project_name={project_name}"
 
     def single_disk_url(self, disk_name: str) -> str:
         return f"{self.api_v1_endpoint}/disk/{disk_name}"

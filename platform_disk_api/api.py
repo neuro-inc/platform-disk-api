@@ -225,7 +225,7 @@ class DiskApiHandler:
         node = tree.sub_tree
         if node.can_read():
             return True
-        parts = [disk.project_name] + disk.owner.split("/") + [disk.id]
+        parts = disk.project_name.split("/") + disk.owner.split("/") + [disk.id]
         if disk.org_name:
             parts = [disk.org_name] + parts
         try:
@@ -262,7 +262,7 @@ class DiskApiHandler:
         tree = await self._auth_client.get_permissions_tree(
             username, self._disk_cluster_uri
         )
-        project_name = request.rel_url.query.get("project")
+        project_name = request.query.get("project_name")
         disks = [
             disk
             for disk in await self._service.get_all_disks(project_name)
