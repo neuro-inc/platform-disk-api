@@ -95,11 +95,12 @@ class Service:
             annotations[DISK_API_NAME_ANNOTATION] = request.name
         labels = {
             USER_LABEL: username.replace("/", "--"),
-            PROJECT_LABEL: request.project_name.replace("/", "--"),
             DISK_API_MARK_LABEL: "true",
         }
         if request.org_name:
             labels[DISK_API_ORG_LABEL] = request.org_name
+        if request.project_name != username:
+            labels[PROJECT_LABEL] = request.project_name
 
         return PersistentVolumeClaimWrite(
             name=f"disk-{uuid4()}",
@@ -193,10 +194,20 @@ class Service:
             raise DiskNotFound
         return await self._pvc_to_disk(pvc)
 
-    async def get_all_disks(self, project_name: Optional[str] = None) -> list[Disk]:
-        label_selector = None
-        if project_name:
-            label_selector = f"{PROJECT_LABEL}={project_name}"
+    async def get_all_disks(
+        self,
+        org_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        in_project: Optional[bool] = None,
+    ) -> list[Disk]:
+        label_selectors = []
+        if org_name:
+            label_selectors += [f"{DISK_API_ORG_LABEL}={org_name}"]
+        if in_project is False:
+            label_selectors += [f"!{PROJECT_LABEL}"]
+        elif project_name:
+            label_selectors += [f"{PROJECT_LABEL}={project_name}"]
+        label_selector = ",".join(label_selectors) if label_selectors else None
         return [
             await self._pvc_to_disk(pvc)
             for pvc in await self._kube_client.list_pvc(label_selector)

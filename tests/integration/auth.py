@@ -160,15 +160,28 @@ async def regular_user_factory(
         user = AuthClientUser(name=name)
         await auth_client.add_user(user, token=admin_token)
         if not skip_grant:
-            project_path = f"/{project_name}" if project_name else ""
             org_path = f"/{org_name}" if org_name else ""
+            project_path = f"/{project_name}" if project_name else ""
             name_path = "" if org_level else f"/{name}"
-            permission = Permission(
-                uri=f"disk://{cluster_name}{org_path}{project_path}{name_path}",
-                action="write",
-            )
+            permissions = [
+                Permission(uri=f"disk://{cluster_name}/{name}", action="write")
+            ]
+            if org_path:
+                permissions.append(
+                    Permission(
+                        uri=f"disk://{cluster_name}{org_path}{name_path}",
+                        action="write",
+                    )
+                )
+            if project_path:
+                permissions.append(
+                    Permission(
+                        uri=f"disk://{cluster_name}{org_path}{project_path}",
+                        action="write",
+                    )
+                )
             await auth_client.grant_user_permissions(
-                name, [permission], token=admin_token
+                name, permissions, token=admin_token
             )
 
         return _User(name=user.name, token=token_factory(user.name))

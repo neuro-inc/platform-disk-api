@@ -123,33 +123,56 @@ class DiskApiHandler:
     def _get_org_disks_uri(self, org_name: str) -> str:
         return f"{self._disk_cluster_uri}/{org_name}"
 
-    def _get_user_disk_uri(
-        self, user: User, org_name: Optional[str], project_name: Optional[str]
-    ) -> str:
+    def _get_project_disks_uri(self, project_name: str, org_name: Optional[str]) -> str:
         if org_name:
-            return f"{self._get_org_disks_uri(org_name)}/{project_name}/{user.name}"
-        return f"{self._disk_cluster_uri}/{project_name}/{user.name}"
+            base = self._get_org_disks_uri(org_name)
+        else:
+            base = self._disk_cluster_uri
+        return f"{base}/{project_name}"
+
+    def _get_project_disks_read_perm(
+        self, project_name: str, org_name: Optional[str]
+    ) -> Permission:
+        return Permission(self._get_project_disks_uri(project_name, org_name), "read")
+
+    def _get_project_disks_write_perm(
+        self, project_name: str, org_name: Optional[str]
+    ) -> Permission:
+        return Permission(self._get_project_disks_uri(project_name, org_name), "write")
+
+    def _get_user_disk_uri(self, user: User, org_name: Optional[str]) -> str:
+        if org_name:
+            return f"{self._get_org_disks_uri(org_name)}/{user.name}"
+        return f"{self._disk_cluster_uri}/{user.name}"
 
     def _get_user_disks_write_perm(
-        self, user: User, org_name: Optional[str], project_name: Optional[str]
+        self, user: User, org_name: Optional[str]
     ) -> Permission:
-        project_name = project_name or user.name
-        return Permission(
-            self._get_user_disk_uri(user, org_name, project_name), "write"
-        )
+        return Permission(self._get_user_disk_uri(user, org_name), "write")
 
     def _get_disk_uri(self, disk: Disk) -> str:
         if disk.org_name:
             base = self._get_org_disks_uri(disk.org_name)
         else:
             base = self._disk_cluster_uri
-        return f"{base}/{disk.project_name}/{disk.owner}/{disk.id}"
+        return f"{base}/{disk.owner}/{disk.id}"
 
     def _get_disk_read_perm(self, disk: Disk) -> Permission:
-        return Permission(self._get_disk_uri(disk), "read")
+        if disk.project_name == disk.owner:
+            return Permission(self._get_disk_uri(disk), "read")
+        return self._get_project_disks_read_perm(disk.project_name, disk.org_name)
 
     def _get_disk_write_perm(self, disk: Disk) -> Permission:
-        return Permission(self._get_disk_uri(disk), "write")
+        if disk.project_name == disk.owner:
+            return Permission(self._get_disk_uri(disk), "write")
+        return self._get_project_disks_write_perm(disk.project_name, disk.org_name)
+
+    def _get_disks_write_perm(
+        self, user: User, org_name: Optional[str], project_name: str
+    ) -> Permission:
+        if project_name == user.name:
+            return Permission(self._get_user_disk_uri(user, org_name), "write")
+        return self._get_project_disks_write_perm(project_name, org_name)
 
     async def _get_user_used_storage(self, user: User) -> int:
         storage_used = 0
@@ -199,7 +222,7 @@ class DiskApiHandler:
         await check_permissions(
             request,
             [
-                self._get_user_disks_write_perm(
+                self._get_disks_write_perm(
                     user, disk_request.org_name, disk_request.project_name
                 )
             ],
@@ -222,20 +245,11 @@ class DiskApiHandler:
         return json_response(resp_payload, status=HTTPCreated.status_code)
 
     def _check_disk_read_perm(self, disk: Disk, tree: ClientSubTreeViewRoot) -> bool:
-        node = tree.sub_tree
-        if node.can_read():
-            return True
-        parts = disk.project_name.split("/") + disk.owner.split("/") + [disk.id]
-        if disk.org_name:
-            parts = [disk.org_name] + parts
-        try:
-            for part in parts:
-                if node.can_read():
-                    return True
-                node = node.children[part]
-            return node.can_read()
-        except KeyError:
-            return False
+        if disk.project_name == disk.owner:
+            return tree.allows(self._get_disk_read_perm(disk))
+        return tree.allows(
+            self._get_project_disks_read_perm(disk.project_name, disk.org_name)
+        )
 
     @docs(
         tags=["disks"],
@@ -262,10 +276,14 @@ class DiskApiHandler:
         tree = await self._auth_client.get_permissions_tree(
             username, self._disk_cluster_uri
         )
+        org_name = request.query.get("org_name")
         project_name = request.query.get("project_name")
+        in_project = False if project_name == username else None
         disks = [
             disk
-            for disk in await self._service.get_all_disks(project_name)
+            for disk in await self._service.get_all_disks(
+                org_name=org_name, project_name=project_name, in_project=in_project
+            )
             if self._check_disk_read_perm(disk, tree)
         ]
         resp_payload = DiskSchema(many=True).dump(disks)
