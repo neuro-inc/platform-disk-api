@@ -245,11 +245,7 @@ class DiskApiHandler:
         return json_response(resp_payload, status=HTTPCreated.status_code)
 
     def _check_disk_read_perm(self, disk: Disk, tree: ClientSubTreeViewRoot) -> bool:
-        if disk.project_name == disk.owner:
-            return tree.allows(self._get_disk_read_perm(disk))
-        return tree.allows(
-            self._get_project_disks_read_perm(disk.project_name, disk.org_name)
-        )
+        return tree.allows(self._get_disk_read_perm(disk))
 
     @docs(
         tags=["disks"],
