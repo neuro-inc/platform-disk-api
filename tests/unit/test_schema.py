@@ -9,19 +9,26 @@ from platform_disk_api.utils import utc_now
 
 
 def test_validate_disk_request_ok() -> None:
-    request = DiskRequestSchema().load({"storage": 2000})
+    request = DiskRequestSchema().load(
+        {"storage": 2000, "project_name": "test-project"}
+    )
     assert request.storage == 2000
+    assert request.project_name == "test-project"
 
 
 def test_validate_disk_request_with_life_span_ok() -> None:
-    request = DiskRequestSchema().load({"storage": 2000, "life_span": 3600})
+    request = DiskRequestSchema().load(
+        {"storage": 2000, "life_span": 3600, "project_name": "test-project"}
+    )
     assert request.storage == 2000
     assert request.life_span == timedelta(hours=1)
 
 
 @pytest.mark.parametrize("name", ["cool-disk", "singleword", "word-1-digit"])
 def test_validate_disk_request_with_name_ok(name: str) -> None:
-    request = DiskRequestSchema().load({"storage": 2000, "name": name})
+    request = DiskRequestSchema().load(
+        {"storage": 2000, "name": name, "project_name": "test-project"}
+    )
     assert request.storage == 2000
     assert request.name == name
 
@@ -29,12 +36,19 @@ def test_validate_disk_request_with_name_ok(name: str) -> None:
 @pytest.mark.parametrize("name", ["with space", "1digit", "with-endline\n"])
 def test_validate_disk_request_with_invalid_name_fail(name: str) -> None:
     with pytest.raises(ValidationError):
-        DiskRequestSchema().load({"storage": 2000, "name": name})
+        DiskRequestSchema().load(
+            {"storage": 2000, "name": name, "project_name": "test-project"}
+        )
 
 
 def test_validate_disk_request_no_storage() -> None:
     with pytest.raises(ValidationError):
         DiskRequestSchema().load({})
+
+
+def test_validate_disk_request_no_project() -> None:
+    with pytest.raises(ValidationError):
+        DiskRequestSchema().load({"storage": 2000})
 
 
 def test_validate_disk_request_storage_is_string() -> None:
@@ -52,6 +66,7 @@ def test_validate_disk_serialize() -> None:
         owner="user",
         name=None,
         org_name=None,
+        project_name="test-project",
         status=Disk.Status.READY,
         last_usage=last_usage,
         created_at=created_at,
@@ -64,6 +79,7 @@ def test_validate_disk_serialize() -> None:
         "owner": "user",
         "name": None,
         "org_name": None,
+        "project_name": "test-project",
         "status": "Ready",
         "created_at": created_at.isoformat(),
         "last_usage": last_usage.isoformat(),
