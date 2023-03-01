@@ -123,56 +123,39 @@ class DiskApiHandler:
     def _get_org_disks_uri(self, org_name: str) -> str:
         return f"{self._disk_cluster_uri}/{org_name}"
 
-    def _get_project_disks_uri(self, project_name: str, org_name: Optional[str]) -> str:
+    def _get_user_disk_or_project_uri(
+        self, user: User, org_name: Optional[str], project_name: str
+    ) -> str:
         if org_name:
             base = self._get_org_disks_uri(org_name)
         else:
             base = self._disk_cluster_uri
+        if user.name == project_name:
+            return f"{base}/{user.name}"
         return f"{base}/{project_name}"
 
-    def _get_project_disks_read_perm(
-        self, project_name: str, org_name: Optional[str]
-    ) -> Permission:
-        return Permission(self._get_project_disks_uri(project_name, org_name), "read")
-
-    def _get_project_disks_write_perm(
-        self, project_name: str, org_name: Optional[str]
-    ) -> Permission:
-        return Permission(self._get_project_disks_uri(project_name, org_name), "write")
-
-    def _get_user_disk_uri(self, user: User, org_name: Optional[str]) -> str:
-        if org_name:
-            return f"{self._get_org_disks_uri(org_name)}/{user.name}"
-        return f"{self._disk_cluster_uri}/{user.name}"
-
-    def _get_user_disks_write_perm(
-        self, user: User, org_name: Optional[str]
-    ) -> Permission:
-        return Permission(self._get_user_disk_uri(user, org_name), "write")
-
-    def _get_disk_uri(self, disk: Disk) -> str:
+    def _get_disk_or_project_uri(self, disk: Disk) -> str:
         if disk.org_name:
             base = self._get_org_disks_uri(disk.org_name)
         else:
             base = self._disk_cluster_uri
-        return f"{base}/{disk.owner}/{disk.id}"
+        if disk.owner == disk.project_name:
+            return f"{base}/{disk.owner}/{disk.id}"
+        return f"{base}/{disk.project_name}"
 
     def _get_disk_read_perm(self, disk: Disk) -> Permission:
-        if disk.project_name == disk.owner:
-            return Permission(self._get_disk_uri(disk), "read")
-        return self._get_project_disks_read_perm(disk.project_name, disk.org_name)
+        return Permission(self._get_disk_or_project_uri(disk), "read")
 
     def _get_disk_write_perm(self, disk: Disk) -> Permission:
-        if disk.project_name == disk.owner:
-            return Permission(self._get_disk_uri(disk), "write")
-        return self._get_project_disks_write_perm(disk.project_name, disk.org_name)
+        return Permission(self._get_disk_or_project_uri(disk), "write")
 
     def _get_disks_write_perm(
         self, user: User, org_name: Optional[str], project_name: str
     ) -> Permission:
-        if project_name == user.name:
-            return self._get_user_disks_write_perm(user, org_name)
-        return self._get_project_disks_write_perm(project_name, org_name)
+        return Permission(
+            self._get_user_disk_or_project_uri(user, org_name, project_name),
+            "write",
+        )
 
     async def _get_user_used_storage(self, user: User) -> int:
         storage_used = 0
@@ -274,11 +257,10 @@ class DiskApiHandler:
         )
         org_name = request.query.get("org_name")
         project_name = request.query.get("project_name")
-        in_project = False if project_name == username else None
         disks = [
             disk
             for disk in await self._service.get_all_disks(
-                org_name=org_name, project_name=project_name, in_project=in_project
+                org_name=org_name, project_name=project_name
             )
             if self._check_disk_read_perm(disk, tree)
         ]

@@ -608,42 +608,6 @@ class TestApi:
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert disks[0].id == disk1.id
 
-    async def test_list_disk_in_default_project(
-        self,
-        disk_api: DiskApiEndpoints,
-        client: aiohttp.ClientSession,
-        regular_user_factory: Callable[..., Awaitable[_User]],
-    ) -> None:
-        user = await regular_user_factory(org_name="test-org", org_level=True)
-        async with await client.post(
-            disk_api.disk_url,
-            json={
-                "storage": 500,
-                "org_name": "test-org",
-            },
-            headers=user.headers,
-        ) as resp:
-            assert resp.status == HTTPCreated.status_code
-            disk1 = DiskSchema().load(await resp.json())
-        async with await client.post(
-            disk_api.disk_url,
-            json={
-                "storage": 500,
-                "org_name": "test-org",
-                "project_name": "test-project",
-            },
-            headers=user.headers,
-        ) as resp:
-            assert resp.status == HTTPCreated.status_code
-
-        async with client.get(
-            disk_api.project_disk_url(user.name),
-            headers=user.headers,
-        ) as resp:
-            assert resp.status == HTTPOk.status_code, await resp.text()
-            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
-            assert disks[0].id == disk1.id
-
     async def test_can_delete_own_disk(
         self,
         disk_api: DiskApiEndpoints,

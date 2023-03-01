@@ -194,17 +194,12 @@ class Service:
         return await self._pvc_to_disk(pvc)
 
     async def get_all_disks(
-        self,
-        org_name: Optional[str] = None,
-        project_name: Optional[str] = None,
-        in_project: Optional[bool] = None,
+        self, org_name: Optional[str] = None, project_name: Optional[str] = None
     ) -> list[Disk]:
         label_selectors = []
         if org_name:
             label_selectors += [f"{DISK_API_ORG_LABEL}={org_name}"]
-        if in_project is False:
-            label_selectors += [f"!{PROJECT_LABEL}"]
-        elif project_name:
+        if project_name:
             label_selectors += [f"{PROJECT_LABEL}={project_name}"]
         label_selector = ",".join(label_selectors) if label_selectors else None
         return [
