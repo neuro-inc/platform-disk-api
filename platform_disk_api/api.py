@@ -171,7 +171,7 @@ class DiskApiHandler:
         self, user: User, org_name: Optional[str], project_name: str
     ) -> Permission:
         if project_name == user.name:
-            return Permission(self._get_user_disk_uri(user, org_name), "write")
+            return self._get_user_disks_write_perm(user, org_name)
         return self._get_project_disks_write_perm(project_name, org_name)
 
     async def _get_user_used_storage(self, user: User) -> int:
