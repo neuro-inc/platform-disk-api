@@ -58,6 +58,6 @@ spec:
         - name: NP_SENTRY_SAMPLE_RATE
           value: {{ .Values.sentry.sampleRate | default 0 | quote }}
         {{- end }}
-      {{ - if .Values.priorityClassName }}
+      {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
