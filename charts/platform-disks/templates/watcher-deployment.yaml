@@ -39,9 +39,9 @@ spec:
         - name: NP_DISK_API_K8S_AUTH_TYPE
           value: token
         - name: NP_DISK_API_K8S_CA_PATH
-          value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          value: {{ include "platformDisks.kubeAuthMountRoot" . }}/ca.crt
         - name: NP_DISK_API_K8S_TOKEN_PATH
-          value: /var/run/secrets/kubernetes.io/serviceaccount/token
+          value: {{ include "platformDisks.kubeAuthMountRoot" . }}/token
         - name: NP_DISK_API_K8S_NS
           value: {{ .Values.disks.namespace | default "default" | quote }}
         {{- if .Values.zipkin }}
@@ -58,6 +58,23 @@ spec:
         - name: NP_SENTRY_SAMPLE_RATE
           value: {{ .Values.sentry.sampleRate | default 0 | quote }}
         {{- end }}
+        volumeMounts:
+        - mountPath: {{ include "platformDisks.kubeAuthMountRoot" . }}
+          name: kube-api-token
+          readOnly: true
+
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
+      volumes:
+      - name: kube-api-data
+        projected:
+          sources:
+          - serviceAccountToken:
+              expirationSeconds: 3600
+              path: token
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt

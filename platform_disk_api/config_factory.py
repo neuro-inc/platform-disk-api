@@ -84,6 +84,7 @@ class EnvironConfigFactory:
             auth_cert_path=self._environ.get("NP_DISK_API_K8S_AUTH_CERT_PATH"),
             auth_cert_key_path=self._environ.get("NP_DISK_API_K8S_AUTH_CERT_KEY_PATH"),
             token=token,
+            token_path=token_path,
             namespace=self._environ.get("NP_DISK_API_K8S_NS", KubeConfig.namespace),
             client_conn_timeout_s=int(
                 self._environ.get("NP_DISK_API_K8S_CLIENT_CONN_TIMEOUT")

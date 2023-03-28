@@ -330,7 +330,7 @@ async def create_kube_client(
         auth_cert_path=config.auth_cert_path,
         auth_cert_key_path=config.auth_cert_key_path,
         token=config.token,
-        token_path=None,  # TODO (A Yushkovskiy) add support for token_path or drop
+        token_path=config.token_path,
         conn_timeout_s=config.client_conn_timeout_s,
         read_timeout_s=config.client_read_timeout_s,
         watch_timeout_s=config.client_watch_timeout_s,

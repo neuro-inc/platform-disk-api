@@ -38,6 +38,7 @@ class KubeConfig:
     auth_cert_path: Optional[str] = None
     auth_cert_key_path: Optional[str] = None
     token: Optional[str] = field(repr=False, default=None)
+    token_path: Optional[str] = None
     namespace: str = "default"
     client_conn_timeout_s: int = 300
     client_read_timeout_s: int = 300

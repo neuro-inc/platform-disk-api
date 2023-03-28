@@ -25,3 +25,7 @@ chart: {{ include "platformDisks.chart" . }}
 heritage: {{ .Release.Service | quote }}
 release: {{ .Release.Name | quote }}
 {{- end -}}
+
+{{- define "platformDisks.kubeAuthMountRoot" -}}
+{{- printf "/var/run/secrets/kubernetes.io/serviceaccount" -}}
+{{- end -}}
