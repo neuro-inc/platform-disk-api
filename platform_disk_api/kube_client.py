@@ -514,7 +514,10 @@ class KubeClient:
             node_name = node["metadata"]["name"]
             node_summary_url = f"{nodes_url}/{node_name}/proxy/stats/summary"
             try:
-                payload = await self._request(method="GET", url=node_summary_url)
+                async with self._client.request(
+                    method="GET", url=node_summary_url
+                ) as resp:
+                    payload = await resp.json()
             except aiohttp.ContentTypeError as exc:
                 logger.exception(
                     "Failed to parse node stats. "
