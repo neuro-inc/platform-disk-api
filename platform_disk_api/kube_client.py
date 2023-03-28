@@ -503,9 +503,11 @@ class KubeClient:
                 pass
 
     async def get_pvc_volumes_metrics(self) -> AsyncIterator[PVCVolumeMetrics]:
+        assert self._client, "client is not initialized"
         # Get list of all nodes
         nodes_url = f"{self._api_v1_url}/nodes"
-        payload = await self._request(method="GET", url=nodes_url)
+        async with self._client.request(method="GET", url=nodes_url) as response:
+            payload = await response.json()
         nodes_list = payload.get("items", [])
         for node in nodes_list:
             # Check stats for each node
