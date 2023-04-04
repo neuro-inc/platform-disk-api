@@ -514,6 +514,7 @@ class KubeClient:
             try:
                 # not self._request since response has a different structure
                 # (does not contain `status` field)
+                assert self._client
                 async with self._client.request(
                     method="GET", url=node_summary_url
                 ) as resp:
