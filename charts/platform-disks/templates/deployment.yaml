@@ -99,7 +99,7 @@ spec:
         {{- end }}
         volumeMounts:
         - mountPath: {{ include "platformDisks.kubeAuthMountRoot" . }}
-          name: kube-api-token
+          name: kube-api-data
           readOnly: true
 
       {{- if .Values.priorityClassName }}

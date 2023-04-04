@@ -410,7 +410,7 @@ class KubeClient:
             return await self._request(*args, **kwargs)
 
     def _raise_for_status(self, payload: dict[str, Any]) -> None:
-        kind = payload.get("kind")
+        kind = payload["kind"]
         if kind == "Status":
             if payload.get("status") == "Success":
                 return
@@ -512,7 +512,12 @@ class KubeClient:
             node_name = node["metadata"]["name"]
             node_summary_url = f"{nodes_url}/{node_name}/proxy/stats/summary"
             try:
-                payload = await self._request(method="GET", url=node_summary_url)
+                # not self._request since response has a different structure
+                # (does not contain `status` field)
+                async with self._client.request(
+                    method="GET", url=node_summary_url
+                ) as resp:
+                    payload = await resp.json()
             except aiohttp.ContentTypeError as exc:
                 logger.exception(
                     "Failed to parse node stats. "
