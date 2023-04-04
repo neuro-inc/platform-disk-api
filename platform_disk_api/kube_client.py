@@ -503,21 +503,16 @@ class KubeClient:
                 pass
 
     async def get_pvc_volumes_metrics(self) -> AsyncIterator[PVCVolumeMetrics]:
-        assert self._client, "client is not initialized"
         # Get list of all nodes
         nodes_url = f"{self._api_v1_url}/nodes"
-        async with self._client.request(method="GET", url=nodes_url) as response:
-            payload = await response.json()
+        payload = await self._request(method="GET", url=nodes_url)
         nodes_list = payload.get("items", [])
         for node in nodes_list:
             # Check stats for each node
             node_name = node["metadata"]["name"]
             node_summary_url = f"{nodes_url}/{node_name}/proxy/stats/summary"
             try:
-                async with self._client.request(
-                    method="GET", url=node_summary_url
-                ) as resp:
-                    payload = await resp.json()
+                payload = await self._request(method="GET", url=node_summary_url)
             except aiohttp.ContentTypeError as exc:
                 logger.exception(
                     "Failed to parse node stats. "
