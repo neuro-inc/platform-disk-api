@@ -410,7 +410,7 @@ class KubeClient:
             return await self._request(*args, **kwargs)
 
     def _raise_for_status(self, payload: dict[str, Any]) -> None:
-        kind = payload["kind"]
+        kind = payload.get("kind")
         if kind == "Status":
             if payload.get("status") == "Success":
                 return
