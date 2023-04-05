@@ -92,6 +92,7 @@ def test_create_custom(cert_authority_path: str, token_path: str) -> None:
             cert_authority_data_pem=CA_DATA_PEM,
             auth_type=KubeClientAuthType.TOKEN,
             token=TOKEN,
+            token_path=token_path,
             auth_cert_path="/cert_path",
             auth_cert_key_path="/cert_key_path",
             namespace="other-namespace",

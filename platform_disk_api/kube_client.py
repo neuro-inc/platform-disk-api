@@ -42,6 +42,10 @@ class ResourceGone(KubeClientException):
     pass
 
 
+class KubeClientUnauthorized(Exception):
+    pass
+
+
 def _storage_str_to_int(storage: str) -> int:
     # More about this format:
     # https://github.com/kubernetes/kubernetes/blob/6b963ed9c841619d511d2830719b6100d6ab1431/staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go#L30
@@ -334,6 +338,11 @@ class KubeClient:
             trace_configs=self._trace_configs,
         )
 
+    async def _reload_http_client(self) -> None:
+        await self.close()
+        self._token = None
+        await self.init()
+
     @property
     def namespace(self) -> str:
         return self._namespace
@@ -385,10 +394,20 @@ class KubeClient:
 
     async def _request(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         assert self._client, "client is not initialized"
+        doing_retry = kwargs.pop("doing_retry", False)
+
         async with self._client.request(*args, **kwargs) as response:
-            # TODO (A Danshyn 05/21/18): check status code etc
             payload = await response.json()
+        try:
+            self._raise_for_status(payload)
             return payload
+        except KubeClientUnauthorized:
+            if doing_retry:
+                raise
+            # K8s SA's token might be stale, need to refresh it and retry
+            await self._reload_http_client()
+            kwargs["doing_retry"] = True
+            return await self._request(*args, **kwargs)
 
     def _raise_for_status(self, payload: dict[str, Any]) -> None:
         kind = payload["kind"]
@@ -398,6 +417,8 @@ class KubeClient:
             code = payload.get("code")
             if code == 400:
                 raise ResourceBadRequest(payload)
+            if code == 401:
+                raise KubeClientUnauthorized(payload)
             if code == 404:
                 raise ResourceNotFound(payload)
             if code == 409:
@@ -413,7 +434,6 @@ class KubeClient:
     ) -> PersistentVolumeClaimRead:
         url = self._pvc_url
         payload = await self._request(method="POST", url=url, json=pvc.to_primitive())
-        self._raise_for_status(payload)
         return PersistentVolumeClaimRead.from_primitive(payload)
 
     async def list_pvc(
@@ -431,7 +451,6 @@ class KubeClient:
     async def get_pvc(self, pvc_name: str) -> PersistentVolumeClaimRead:
         url = self._generate_pvc_url(pvc_name)
         payload = await self._request(method="GET", url=url)
-        self._raise_for_status(payload)
         return PersistentVolumeClaimRead.from_primitive(payload)
 
     async def update_pvc(
@@ -444,18 +463,15 @@ class KubeClient:
             data=json_diff.serialize(),
             headers={"Content-Type": "application/merge-patch+json"},
         )
-        self._raise_for_status(payload)
         return PersistentVolumeClaimRead.from_primitive(payload)
 
     async def remove_pvc(self, pvc_name: str) -> None:
         url = self._generate_pvc_url(pvc_name)
-        payload = await self._request(method="DELETE", url=url)
-        self._raise_for_status(payload)
+        await self._request(method="DELETE", url=url)
 
     async def list_pods(self) -> PodListResult:
         url = self._pod_url
         payload = await self._request(method="GET", url=url)
-        self._raise_for_status(payload)
         return PodListResult.from_primitive(payload)
 
     async def watch_pods(
@@ -490,14 +506,19 @@ class KubeClient:
         # Get list of all nodes
         nodes_url = f"{self._api_v1_url}/nodes"
         payload = await self._request(method="GET", url=nodes_url)
-        self._raise_for_status(payload)
         nodes_list = payload.get("items", [])
         for node in nodes_list:
             # Check stats for each node
             node_name = node["metadata"]["name"]
             node_summary_url = f"{nodes_url}/{node_name}/proxy/stats/summary"
             try:
-                payload = await self._request(method="GET", url=node_summary_url)
+                # not self._request since response has a different structure
+                # (does not contain `status` field)
+                assert self._client
+                async with self._client.request(
+                    method="GET", url=node_summary_url
+                ) as resp:
+                    payload = await resp.json()
             except aiohttp.ContentTypeError as exc:
                 logger.exception(
                     "Failed to parse node stats. "
@@ -518,10 +539,7 @@ class KubeClient:
 
     async def create_disk_naming(self, disk_naming: DiskNaming) -> None:
         url = self._disk_naming_url
-        payload = await self._request(
-            method="POST", url=url, json=disk_naming.to_primitive()
-        )
-        self._raise_for_status(payload)
+        await self._request(method="POST", url=url, json=disk_naming.to_primitive())
 
     async def list_disk_namings(self) -> list[DiskNaming]:
         url = self._disk_naming_url
@@ -531,10 +549,8 @@ class KubeClient:
     async def get_disk_naming(self, name: str) -> DiskNaming:
         url = self._generate_disk_naming_url(name)
         payload = await self._request(method="GET", url=url)
-        self._raise_for_status(payload)
         return DiskNaming.from_primitive(payload)
 
     async def remove_disk_naming(self, name: str) -> None:
         url = self._generate_disk_naming_url(name)
-        payload = await self._request(method="DELETE", url=url)
-        self._raise_for_status(payload)
+        await self._request(method="DELETE", url=url)
