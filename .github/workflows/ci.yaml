@@ -43,6 +43,13 @@ jobs:
         make lint
     - name: Run unit tests
       run: make test_unit
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: .coverage-unit.xml
+        flags: unit
+        name: codecov-unit
     - name: Login to ghcr.io
       uses: docker/login-action@v2.1.0
       with:
@@ -62,6 +69,13 @@ jobs:
     - name: Run integration tests
       run: |
         make test_integration
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: .coverage-integration.xml
+        flags: integration
+        name: codecov-integration
     - name: Build Docker image
       run: make docker_build
     - name: Upload image artifact
