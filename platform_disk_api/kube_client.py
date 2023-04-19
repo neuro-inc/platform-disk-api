@@ -316,6 +316,10 @@ class KubeClient:
     async def init(self) -> None:
         self._client = await self.create_http_client()
 
+    async def init_if_needed(self) -> None:
+        if not self._client or self._client.closed:
+            await self.init()
+
     async def create_http_client(self) -> aiohttp.ClientSession:
         connector = aiohttp.TCPConnector(
             limit=self._conn_pool_size, ssl=self._create_ssl_context()
@@ -393,6 +397,7 @@ class KubeClient:
         return f"{self._namespace_url}/pods"
 
     async def _request(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        await self.init_if_needed()
         assert self._client, "client is not initialized"
         doing_retry = kwargs.pop("doing_retry", False)
 
@@ -481,6 +486,7 @@ class KubeClient:
         if resource_version:
             params["resourceVersion"] = resource_version
         url = self._pod_url
+        await self.init_if_needed()
         assert self._client, "client is not initialized"
         timeout = ClientTimeout(
             connect=self._conn_timeout_s,
@@ -514,6 +520,7 @@ class KubeClient:
             try:
                 # not self._request since response has a different structure
                 # (does not contain `status` field)
+                await self.init_if_needed()
                 assert self._client
                 async with self._client.request(
                     method="GET", url=node_summary_url
