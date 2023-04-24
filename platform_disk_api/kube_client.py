@@ -167,7 +167,7 @@ class PodRead:
     @classmethod
     def from_primitive(cls, payload: dict[str, Any]) -> "PodRead":
         pvc_names = []
-        for volume in payload["spec"]["volumes"]:
+        for volume in payload["spec"].get("volumes", []):
             pvc_data = volume.get("persistentVolumeClaim")
             if pvc_data:
                 pvc_names.append(pvc_data["claimName"])

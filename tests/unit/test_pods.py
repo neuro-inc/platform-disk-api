@@ -7,7 +7,7 @@ from platform_disk_api.kube_client import PodListResult, PodRead, PodWatchEvent
 
 class TestPodSerialization:
     def _make_pod_payload(self, pvc_names: list[str]) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "kind": "Pod",
             "apiVersion": "v1",
             "metadata": {"name": "boo"},
@@ -20,14 +20,16 @@ class TestPodSerialization:
                         "command": ["sh", "-c", "sleep 1"],
                     }
                 ],
-                "volumes": [
-                    {"name": f"disk-{i}", "persistentVolumeClaim": {"claimName": name}}
-                    for (i, name) in enumerate(pvc_names)
-                ],
             },
         }
+        if pvc_names:
+            result["spec"]["volumes"] = [
+                {"name": f"disk-{i}", "persistentVolumeClaim": {"claimName": name}}
+                for (i, name) in enumerate(pvc_names)
+            ]
+        return result
 
-    @pytest.mark.parametrize("pvc_names", [("pvc1", "pvc2", "pvc3")])
+    @pytest.mark.parametrize("pvc_names", [(), ("pvc1", "pvc2", "pvc3")])
     def test_pod_from_primitive(
         self,
         pvc_names: list[str],
