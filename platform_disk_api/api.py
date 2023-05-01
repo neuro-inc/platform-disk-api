@@ -184,7 +184,7 @@ class DiskApiHandler:
                 org_name = None
                 project_name = owner
             if not project_name:
-                raise ValueError("project_name is required to search disk by name")
+                raise ValueError("project_name is required to search for disk by name")
             try:
                 disk = await self._service.get_disk_by_name(
                     id_or_name, org_name, project_name
