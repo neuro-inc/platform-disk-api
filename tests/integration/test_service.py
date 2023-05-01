@@ -80,7 +80,20 @@ class TestService:
             storage=1024 * 1024, name="test-name", project_name="test-project"
         )
         disk_created = await service.create_disk(request, "testuser")
-        disk_get = await service.get_disk_by_name("test-name", "testuser")
+        disk_get = await service.get_disk_by_name("test-name", None, "test-project")
+        assert disk_get.id == disk_created.id
+        assert disk_get.owner == disk_created.owner
+        assert disk_get.storage >= disk_created.storage
+
+    async def test_get_disk_by_name__if_owner_and_project_name_same(
+        self, service: Service
+    ) -> None:
+        request = DiskRequest(
+            storage=1024 * 1024, name="test-name", project_name="testuser"
+        )
+        disk_created = await service.create_disk(request, "testuser")
+
+        disk_get = await service.get_disk_by_name("test-name", "any", "testuser")
         assert disk_get.id == disk_created.id
         assert disk_get.owner == disk_created.owner
         assert disk_get.storage >= disk_created.storage

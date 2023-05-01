@@ -6,6 +6,7 @@ import aiohttp
 import pytest
 from aiohttp.web import HTTPOk
 from aiohttp.web_exceptions import (
+    HTTPBadRequest,
     HTTPCreated,
     HTTPForbidden,
     HTTPNoContent,
@@ -571,6 +572,38 @@ class TestApi:
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert disks[0].id == disk1.id
 
+    async def test_list_disk_in_no_org(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory()
+        async with await client.post(
+            disk_api.disk_url, json={"storage": 500}, headers=user.headers
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+            disk = DiskSchema().load(await resp.json())
+
+        async with client.get(disk_api.disk_url, headers=user.headers) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
+            assert disks[0].id == disk.id
+
+        async with client.get(
+            disk_api.org_disk_url("no_org"), headers=user.headers
+        ) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks = DiskSchema(many=True).load(await resp.json())
+            assert disks[0].id == disk.id
+
+        async with client.get(
+            disk_api.org_disk_url("test-org"), headers=user.headers
+        ) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks = DiskSchema(many=True).load(await resp.json())
+            assert len(disks) == 0
+
     async def test_list_disk_in_project(
         self,
         disk_api: DiskApiEndpoints,
@@ -607,6 +640,40 @@ class TestApi:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert disks[0].id == disk1.id
+
+    async def test_list_disk_in_project__owner_and_project_name_same(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory(org_level=True)
+        async with await client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "project_name": user.name},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code
+            disk = DiskSchema().load(await resp.json())
+
+        async with client.get(disk_api.disk_url, headers=user.headers) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
+            assert disks[0].id == disk.id
+
+        async with client.get(
+            disk_api.project_disk_url(user.name), headers=user.headers
+        ) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks = DiskSchema(many=True).load(await resp.json())
+            assert disks[0].id == disk.id
+
+        async with client.get(
+            disk_api.project_disk_url("test-project"), headers=user.headers
+        ) as resp:
+            assert resp.status == HTTPOk.status_code, await resp.text()
+            disks = DiskSchema(many=True).load(await resp.json())
+            assert len(disks) == 0
 
     async def test_can_delete_own_disk(
         self,
@@ -730,6 +797,7 @@ class TestApi:
         async with await client.get(
             disk_api.single_disk_url(disk.name),
             headers=user.headers,
+            params={"project_name": "test-project"},
         ) as resp:
             assert resp.status == HTTPOk.status_code
             disk_got = DiskSchema().load(await resp.json())
@@ -737,8 +805,76 @@ class TestApi:
         async with await client.delete(
             disk_api.single_disk_url(disk.name),
             headers=user.headers,
+            params={"project_name": "test-project"},
         ) as resp:
             assert resp.status == HTTPNoContent.status_code
+
+    async def test_get_disk_by_name__owner_and_project_name_same(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory()
+        async with client.post(
+            disk_api.disk_url,
+            json={"storage": 500, "name": "test-name", "project_name": user.name},
+            headers=user.headers,
+        ) as resp:
+            assert resp.status == HTTPCreated.status_code, await resp.text()
+            disk = DiskSchema().load(await resp.json())
+        async with await client.get(
+            disk_api.single_disk_url(disk.name), headers=user.headers
+        ) as resp:
+            assert resp.status == HTTPOk.status_code
+            disk_got = DiskSchema().load(await resp.json())
+            assert disk.id == disk_got.id
+        async with await client.get(
+            disk_api.single_disk_url(disk.name),
+            headers=user.headers,
+            params={"owner": user.name},
+        ) as resp:
+            assert resp.status == HTTPOk.status_code
+            disk_got = DiskSchema().load(await resp.json())
+            assert disk.id == disk_got.id
+        async with await client.get(
+            disk_api.single_disk_url(disk.name),
+            headers=user.headers,
+            params={"org_name": "any", "project_name": user.name},
+        ) as resp:
+            assert resp.status == HTTPOk.status_code
+            disk_got = DiskSchema().load(await resp.json())
+            assert disk.id == disk_got.id
+        async with await client.delete(
+            disk_api.single_disk_url(disk.name), headers=user.headers
+        ) as resp:
+            assert resp.status == HTTPNoContent.status_code
+
+    async def test_get_disk_by_name__bad_query_params(
+        self,
+        disk_api: DiskApiEndpoints,
+        client: aiohttp.ClientSession,
+        regular_user_factory: Callable[..., Awaitable[_User]],
+    ) -> None:
+        user = await regular_user_factory()
+        async with await client.get(
+            disk_api.single_disk_url("any"),
+            headers=user.headers,
+            params={"owner": user.name, "project_name": user.name},
+        ) as resp:
+            assert resp.status == HTTPBadRequest.status_code
+        async with await client.get(
+            disk_api.single_disk_url("any"),
+            headers=user.headers,
+            params={"owner": user.name, "org_name": "any"},
+        ) as resp:
+            assert resp.status == HTTPBadRequest.status_code
+        async with await client.get(
+            disk_api.single_disk_url("any"),
+            headers=user.headers,
+            params={"org_name": "any"},
+        ) as resp:
+            assert resp.status == HTTPBadRequest.status_code
 
     async def test_get_shared_disk_by_name(
         self,

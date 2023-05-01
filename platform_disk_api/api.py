@@ -170,11 +170,25 @@ class DiskApiHandler:
             disk = await self._service.get_disk(id_or_name)
         except DiskNotFound:
             owner = request.query.get("owner")
-            if owner is None:
-                user = await self._get_untrusted_user(request)
-                owner = user.name
+            org_name = request.query.get("org_name")
+            project_name = request.query.get("project_name")
+            if project_name:
+                if owner:
+                    raise ValueError("owner cannot be specified with project_name")
+            else:
+                if org_name:
+                    raise ValueError("org_name can be specified only with project_name")
+                if owner is None:
+                    user = await self._get_untrusted_user(request)
+                    owner = user.name
+                org_name = None
+                project_name = owner
+            if not project_name:
+                raise ValueError("project_name is required to search disk by name")
             try:
-                disk = await self._service.get_disk_by_name(id_or_name, owner)
+                disk = await self._service.get_disk_by_name(
+                    id_or_name, org_name, project_name
+                )
             except DiskNotFound:
                 raise HTTPNotFound(text=f"Disk {id_or_name} not found")
         return disk
@@ -241,7 +255,15 @@ class DiskApiHandler:
         },
     )
     @response_schema(DiskSchema(), 200)
-    @querystring_schema(Schema.from_dict({"owner": fields.String(required=False)}))
+    @querystring_schema(
+        Schema.from_dict(
+            {
+                "owner": fields.String(required=False),
+                "org_name": fields.String(required=False),
+                "project_name": fields.String(required=False),
+            }
+        )
+    )
     async def handle_get_disk(self, request: Request) -> Response:
         disk = await self._resolve_disk(request)
         await check_permissions(request, [self._get_disk_read_perm(disk)])
@@ -277,7 +299,15 @@ class DiskApiHandler:
             },
         },
     )
-    @querystring_schema(Schema.from_dict({"owner": fields.String(required=False)}))
+    @querystring_schema(
+        Schema.from_dict(
+            {
+                "owner": fields.String(required=False),
+                "org_name": fields.String(required=False),
+                "project_name": fields.String(required=False),
+            }
+        )
+    )
     async def handle_delete_disk(self, request: Request) -> Response:
         disk = await self._resolve_disk(request)
         await check_permissions(request, [self._get_disk_write_perm(disk)])
