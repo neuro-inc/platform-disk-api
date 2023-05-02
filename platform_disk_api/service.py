@@ -40,6 +40,8 @@ DISK_API_LAST_USAGE_ANNOTATION = "platform.neuromation.io/disk-api-pvc-last-usag
 DISK_API_LIFE_SPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-life-span"
 DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 
+NO_ORG = "NO_ORG"
+
 
 @dataclass(frozen=True)
 class DiskRequest:
@@ -78,8 +80,23 @@ class Service:
         self._kube_client = kube_client
         self._storage_class_name = storage_class_name
 
-    def _get_disk_naming_name(self, name: str, owner: str) -> str:
-        return f"{name}--{owner.replace('/', '--')}"
+    def _get_disk_naming_name(
+        self,
+        name: str,
+        owner: Optional[str],
+        org_name: Optional[str],
+        project_name: str,
+    ) -> str:
+        """Get kubernetes resource name for disk naming object.
+
+        Name format for user disks: <name>--<owner>.
+        Name format for project disks without org: <name>--<project>.
+        Name format for project disks with org: <name>--<org>--<project>."""
+        if project_name != owner and org_name:
+            prefix = f"{name}--{org_name}"
+        else:
+            prefix = name
+        return f"{prefix}--{project_name.replace('/', '--')}"
 
     def _request_to_pvc(
         self, request: DiskRequest, username: str
@@ -156,10 +173,13 @@ class Service:
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:
         pvc_write = self._request_to_pvc(request, username)
         if request.name:
-            disk_naming = DiskNaming(
-                name=self._get_disk_naming_name(request.name, username),
-                disk_id=pvc_write.name,
+            disk_naming_name = self._get_disk_naming_name(
+                request.name,
+                owner=username,
+                org_name=request.org_name,
+                project_name=request.project_name,
             )
+            disk_naming = DiskNaming(name=disk_naming_name, disk_id=pvc_write.name)
             try:
                 await self._kube_client.create_disk_naming(disk_naming)
             except ResourceExists:
@@ -171,9 +191,7 @@ class Service:
             pvc_read = await self._kube_client.create_pvc(pvc_write)
         except Exception:
             if request.name:
-                await self._kube_client.remove_disk_naming(
-                    self._get_disk_naming_name(request.name, username)
-                )
+                await self._kube_client.remove_disk_naming(disk_naming_name)
             raise
         return await self._pvc_to_disk(pvc_read)
 
@@ -184,36 +202,89 @@ class Service:
             raise DiskNotFound
         return await self._pvc_to_disk(pvc)
 
-    async def get_disk_by_name(self, name: str, owner: str) -> Disk:
+    async def get_disk_by_name(
+        self, name: str, org_name: Optional[str], project_name: str
+    ) -> Disk:
         try:
-            disk_naming_name = self._get_disk_naming_name(name, owner)
-            disk_naming = await self._kube_client.get_disk_naming(disk_naming_name)
-            pvc = await self._kube_client.get_pvc(disk_naming.disk_id)
+            try:
+                return await self._get_disk_by_name(
+                    name,
+                    owner=None,
+                    org_name=org_name,
+                    project_name=project_name,
+                )
+            except ResourceNotFound:
+                if not org_name:
+                    raise DiskNotFound
+                # project_name could be a username if user is searching for
+                # legacy disk which don't have project. We can try to search
+                # for user disk. It is important to check that it is a legacy disk
+                # before returning it since legacy disks and project disks
+                # without org have the same name format.
+                disk = await self._get_disk_by_name(
+                    name,
+                    owner=project_name,
+                    org_name=org_name,
+                    project_name=project_name,
+                )
+                if disk.project_name != disk.owner:
+                    raise DiskNotFound
+                return disk
         except ResourceNotFound:
-            raise DiskNotFound
+            pass
+        raise DiskNotFound
+
+    async def _get_disk_by_name(
+        self,
+        name: str,
+        owner: Optional[str],
+        org_name: Optional[str],
+        project_name: str,
+    ) -> Disk:
+        disk_naming_name = self._get_disk_naming_name(
+            name,
+            owner=owner,
+            org_name=org_name,
+            project_name=project_name,
+        )
+        disk_naming = await self._kube_client.get_disk_naming(disk_naming_name)
+        pvc = await self._kube_client.get_pvc(disk_naming.disk_id)
         return await self._pvc_to_disk(pvc)
 
     async def get_all_disks(
         self, org_name: Optional[str] = None, project_name: Optional[str] = None
     ) -> list[Disk]:
         label_selectors = []
-        if org_name:
+        if org_name and org_name.upper() == NO_ORG:
+            label_selectors += [f"!{DISK_API_ORG_LABEL}"]
+        elif org_name:
             label_selectors += [f"{DISK_API_ORG_LABEL}={org_name}"]
-        if project_name:
-            label_selectors += [f"{PROJECT_LABEL}={project_name}"]
         label_selector = ",".join(label_selectors) if label_selectors else None
-        return [
-            await self._pvc_to_disk(pvc)
-            for pvc in await self._kube_client.list_pvc(label_selector)
-            if pvc.labels.get(DISK_API_MARK_LABEL, False)
-            and not pvc.labels.get(DISK_API_DELETED_LABEL, False)
-        ]
+        disks = []
+        for pvc in await self._kube_client.list_pvc(label_selector):
+            if not pvc.labels.get(DISK_API_MARK_LABEL, False) or pvc.labels.get(
+                DISK_API_DELETED_LABEL, False
+            ):
+                continue
+            if project_name:
+                disk_project_name = pvc.labels.get(PROJECT_LABEL) or pvc.labels[
+                    USER_LABEL
+                ].replace("--", "/")
+                if project_name != disk_project_name:
+                    continue
+            disks.append(await self._pvc_to_disk(pvc))
+        return disks
 
     async def remove_disk(self, disk_id: str) -> None:
         try:
             disk = await self.get_disk(disk_id)
             if disk.name:
-                disk_naming_name = self._get_disk_naming_name(disk.name, disk.owner)
+                disk_naming_name = self._get_disk_naming_name(
+                    disk.name,
+                    owner=disk.owner,
+                    org_name=disk.org_name,
+                    project_name=disk.project_name,
+                )
                 try:
                     await self._kube_client.remove_disk_naming(disk_naming_name)
                 except ResourceNotFound:
