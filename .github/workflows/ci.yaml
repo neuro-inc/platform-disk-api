@@ -51,7 +51,7 @@ jobs:
         flags: unit
         name: codecov-unit
     - name: Login to ghcr.io
-      uses: docker/login-action@v2.1.0
+      uses: docker/login-action@v2.2.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
