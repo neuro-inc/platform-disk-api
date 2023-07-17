@@ -17,7 +17,13 @@ from neuro_logging import (
 from platform_disk_api.api import create_kube_client
 from platform_disk_api.config import DiskUsageWatcherConfig
 from platform_disk_api.config_factory import EnvironConfigFactory
-from platform_disk_api.kube_client import KubeClient, PodWatchEvent, ResourceGone
+from platform_disk_api.kube_client import (
+    KubeClient,
+    KubeClientExpired,
+    KubeClientUnauthorized,
+    PodWatchEvent,
+    ResourceGone,
+)
 from platform_disk_api.service import DiskNotFound, Service
 from platform_disk_api.utils import utc_now
 
@@ -57,6 +63,10 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
             raise
         except ResourceGone:
             resource_version = None
+        except KubeClientUnauthorized:
+            logger.info("Kube client unauthorized")
+        except KubeClientExpired:
+            logger.info("Kube client expired")
         except Exception:
             logger.exception("Failed to update disk usage")
 
