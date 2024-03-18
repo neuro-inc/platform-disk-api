@@ -70,8 +70,7 @@ async def disk_api(config: Config) -> AsyncIterator[DiskApiEndpoints]:
 
 
 class DiskGranter(Protocol):
-    async def __call__(self, user: _User, disk: Disk, action: str = "read") -> None:
-        ...
+    async def __call__(self, user: _User, disk: Disk, action: str = "read") -> None: ...
 
 
 @pytest.fixture
@@ -94,8 +93,7 @@ async def grant_disk_permission(
 class ProjectGranter(Protocol):
     async def __call__(
         self, user: _User, project_name: str, action: str = "read"
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 @pytest.fixture

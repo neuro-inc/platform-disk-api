@@ -160,8 +160,8 @@ class PersistentVolumeClaimRead:
                 payload["spec"]["resources"]["requests"]["storage"]
             ),
             storage_real=storage_real,
-            labels=payload["metadata"].get("labels", dict()),
-            annotations=payload["metadata"].get("annotations", dict()),
+            labels=payload["metadata"].get("labels", {}),
+            annotations=payload["metadata"].get("annotations", {}),
         )
 
 
@@ -494,7 +494,7 @@ class KubeClient:
     async def watch_pods(
         self, resource_version: Optional[str] = None
     ) -> AsyncIterator[PodWatchEvent]:
-        params = dict(watch="true", allowWatchBookmarks="true")
+        params = {"watch": "true", "allowWatchBookmarks": "true"}
         if resource_version:
             params["resourceVersion"] = resource_version
         url = self._pod_url

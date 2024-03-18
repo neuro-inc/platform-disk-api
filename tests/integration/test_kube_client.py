@@ -231,7 +231,7 @@ class TestKubeClient:
             name=str(uuid4()),
             storage_class_name=k8s_storage_class,
             storage=10 * 1024 * 1024,  # 10 mb
-            labels=dict(foo="bar"),
+            labels={"foo": "bar"},
         )
         await kube_client.create_pvc(pvc)
         pvcs = await kube_client.list_pvc()
@@ -245,7 +245,7 @@ class TestKubeClient:
             name=str(uuid4()),
             storage_class_name=k8s_storage_class,
             storage=10 * 1024 * 1024,  # 10 mb
-            annotations=dict(foo="bar"),
+            annotations={"foo": "bar"},
         )
         await kube_client.create_pvc(pvc)
         pvcs = await kube_client.list_pvc()
