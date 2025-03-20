@@ -56,7 +56,7 @@ from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
-from .service import Disk, DiskNotFound, Service
+from .service import Disk, DiskNotFound, Service, NO_ORG
 
 logger = logging.getLogger(__name__)
 
@@ -157,37 +157,26 @@ class DiskApiHandler:
             "write",
         )
 
-    async def _get_user_used_storage(self, user: User) -> int:
-        storage_used = 0
-        for disk in await self._service.get_all_disks():
-            if disk.owner == user.name:
-                storage_used += disk.storage
-        return storage_used
+    async def _get_used_storage(
+        self,
+        org_name: str,
+        project_name: str
+    ) -> int:
+        return sum([
+            d.storage for d in await self._service.get_all_disks(org_name, project_name)
+        ])
 
     async def _resolve_disk(self, request: Request) -> Disk:
         id_or_name = request.match_info["disk_id_or_name"]
+        org_name = request.query.get("org_name") or NO_ORG
+        project_name = request.query["project_name"]
+        namespace = await self._service.get_or_create_namespace(org_name, project_name)
         try:
-            disk = await self._service.get_disk(id_or_name)
+            disk = await self._service.get_disk(namespace, id_or_name)
         except DiskNotFound:
-            owner = request.query.get("owner")
-            org_name = request.query.get("org_name")
-            project_name = request.query.get("project_name")
-            if project_name:
-                if owner:
-                    raise ValueError("owner cannot be specified with project_name")
-            else:
-                if org_name:
-                    raise ValueError("org_name can be specified only with project_name")
-                if owner is None:
-                    user = await self._get_untrusted_user(request)
-                    owner = user.name
-                org_name = None
-                project_name = owner
-            if not project_name:
-                raise ValueError("project_name is required to search for disk by name")
             try:
                 disk = await self._service.get_disk_by_name(
-                    id_or_name, org_name, project_name
+                    namespace, id_or_name, org_name, project_name
                 )
             except DiskNotFound:
                 raise HTTPNotFound(text=f"Disk {id_or_name} not found")
@@ -212,8 +201,6 @@ class DiskApiHandler:
         user = await self._get_untrusted_user(request)
         payload = await request.json()
 
-        # TODO: remove after projects release
-        payload["project_name"] = payload.get("project_name", user.name)
         disk_request = DiskRequestSchema().load(payload)
 
         await check_permissions(
@@ -225,15 +212,21 @@ class DiskApiHandler:
             ],
         )
 
+        used_storage = await self._get_used_storage(
+            disk_request.org_name,
+            disk_request.project_name
+        )
+
         if (
-            self._config.disk.storage_limit_per_user
-            < await self._get_user_used_storage(user) + disk_request.storage
+            self._config.disk.storage_limit_per_project < (
+                used_storage + disk_request.storage
+            )
         ):
-            limit_gb = self._config.disk.storage_limit_per_user / 2**30
+            limit_gb = self._config.disk.storage_limit_per_project / 2**30
             return json_response(
                 {
                     "code": "over_limit",
-                    "description": f"User exceeded storage size limit {limit_gb} GB",
+                    "description": f"Project exceeded storage size limit {limit_gb} GB",
                 },
                 status=HTTPForbidden.status_code,
             )
@@ -260,7 +253,7 @@ class DiskApiHandler:
             {
                 "owner": fields.String(required=False),
                 "org_name": fields.String(required=False),
-                "project_name": fields.String(required=False),
+                "project_name": fields.String(required=True),
             }
         )
     )
@@ -277,8 +270,8 @@ class DiskApiHandler:
         tree = await self._auth_client.get_permissions_tree(
             username, self._disk_cluster_uri
         )
-        org_name = request.query.get("org_name")
-        project_name = request.query.get("project_name")
+        org_name = request.query.get("org_name") or NO_ORG
+        project_name = request.query["project_name"]
         disks = [
             disk
             for disk in await self._service.get_all_disks(
@@ -304,14 +297,14 @@ class DiskApiHandler:
             {
                 "owner": fields.String(required=False),
                 "org_name": fields.String(required=False),
-                "project_name": fields.String(required=False),
+                "project_name": fields.String(required=True),
             }
         )
     )
     async def handle_delete_disk(self, request: Request) -> Response:
         disk = await self._resolve_disk(request)
         await check_permissions(request, [self._get_disk_write_perm(disk)])
-        await self._service.remove_disk(disk.id)
+        await self._service.remove_disk(disk)
         raise HTTPNoContent
 
 

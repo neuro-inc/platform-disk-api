@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -28,7 +30,7 @@ class DiskNameUsed(Exception):
 
 logger = logging.getLogger()
 
-
+ORG_LABEL = "platform.apolo.us/org"
 USER_LABEL = "platform.neuromation.io/user"
 PROJECT_LABEL = "platform.neuromation.io/project"
 DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
@@ -41,15 +43,84 @@ DISK_API_LIFE_SPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-life-span"
 DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 
 NO_ORG = "NO_ORG"
+NO_ORG_NORMALIZED = "no-org"
+
+KUBE_NAME_LENGTH_MAX = 63
+KUBE_NAMESPACE_SEP = "--"
+KUBE_NAMESPACE_PREFIX = "platform"
+KUBE_NAMESPACE_HASH_LENGTH = 24
+
+
+def generate_namespace_name(org_name: str, project_name: str) -> str:
+    """
+    returns a Kubernetes resource name in the format
+    `platform--<org_name>--<project_name>--<hash>`,
+    ensuring that the total length does not exceed `KUBE_NAME_LENGTH_MAX` characters.
+
+    - `platform--` prefix is never truncated
+    - `<hash>` (a sha256 truncated to 24 chars), is also never truncated
+    - if the names are long, we truncate them evenly,
+      so at least some parts of both org and proj names will remain
+    """
+    if org_name == NO_ORG:
+        org_name = NO_ORG_NORMALIZED
+
+    hashable = f"{org_name}{KUBE_NAMESPACE_SEP}{project_name}"
+    name_hash = (
+        hashlib
+        .sha256(hashable.encode("utf-8"))
+        .hexdigest()
+        [:KUBE_NAMESPACE_HASH_LENGTH]
+    )
+
+    len_reserved = (
+        len(KUBE_NAMESPACE_PREFIX)
+        + (len(KUBE_NAMESPACE_SEP) * 2)
+        + KUBE_NAMESPACE_HASH_LENGTH
+    )
+    len_free = KUBE_NAME_LENGTH_MAX - len_reserved
+    if len(hashable) <= len_free:
+        return (
+            f"{KUBE_NAMESPACE_PREFIX}"
+            f"{KUBE_NAMESPACE_SEP}"
+            f"{hashable}"
+            f"{KUBE_NAMESPACE_SEP}"
+            f"{name_hash}"
+        )
+
+    # org and project names do not fit into a full length.
+    # let's figure out the full length of org and proj, and calculate a ratio
+    # between org and project, so that we'll truncate more chars from the
+    # string which actually has more chars
+    len_org, len_proj = len(org_name), len(project_name)
+    len_org_proj = len_org + len_proj + len(KUBE_NAMESPACE_SEP)
+    exceeds = len_org_proj - len_free
+
+    # ratio calculation. for proj can be derived via an org ratio
+    remove_from_org = math.ceil((len_org / len_org_proj) * exceeds)
+    remove_from_proj = exceeds - remove_from_org
+
+    new_org_name = org_name[: max(1, len_org - remove_from_org)]
+    new_project_name = project_name[: max(1, len_proj - remove_from_proj)]
+
+    return (
+        f"{KUBE_NAMESPACE_PREFIX}"
+        f"{KUBE_NAMESPACE_SEP}"
+        f"{new_org_name}"
+        f"{KUBE_NAMESPACE_SEP}"
+        f"{new_project_name}"
+        f"{KUBE_NAMESPACE_SEP}"
+        f"{name_hash}"
+    )
 
 
 @dataclass(frozen=True)
 class DiskRequest:
     storage: int  # In bytes
+    org_name: str
     project_name: str
     life_span: Optional[timedelta] = None
     name: Optional[str] = None
-    org_name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -59,7 +130,7 @@ class Disk:
     owner: str
     project_name: str
     name: Optional[str]
-    org_name: Optional[str]
+    org_name: str
     status: "Disk.Status"
     created_at: datetime
     last_usage: Optional[datetime]
@@ -74,29 +145,25 @@ class Disk:
         def __str__(self) -> str:
             return str(self.value)
 
+    @property
+    def namespace(self) -> str:
+        return generate_namespace_name(self.org_name, self.project_name)
+
 
 class Service:
     def __init__(self, kube_client: KubeClient, storage_class_name: str) -> None:
         self._kube_client = kube_client
         self._storage_class_name = storage_class_name
 
+    @staticmethod
     def _get_disk_naming_name(
-        self,
         name: str,
-        owner: Optional[str],
-        org_name: Optional[str],
+        org_name: str,
         project_name: str,
     ) -> str:
-        """Get kubernetes resource name for disk naming object.
-
-        Name format for user disks: <name>--<owner>.
-        Name format for project disks without org: <name>--<project>.
-        Name format for project disks with org: <name>--<org>--<project>."""
-        if project_name != owner and org_name:
-            prefix = f"{name}--{org_name}"
-        else:
-            prefix = name
-        return f"{prefix}--{project_name.replace('/', '--')}"
+        """Get kubernetes resource name for a disk naming object.
+        """
+        return f"{name}--{org_name}--{project_name}"
 
     def _request_to_pvc(
         self, request: DiskRequest, username: str
@@ -113,9 +180,8 @@ class Service:
         labels = {
             USER_LABEL: username.replace("/", "--"),
             DISK_API_MARK_LABEL: "true",
+            DISK_API_ORG_LABEL: request.org_name,
         }
-        if request.org_name:
-            labels[DISK_API_ORG_LABEL] = request.org_name
         if request.project_name != username:
             labels[PROJECT_LABEL] = request.project_name
 
@@ -138,7 +204,7 @@ class Service:
             diff = MergeDiff.make_add_annotations_diff(
                 DISK_API_CREATED_AT_ANNOTATION, datetime_dump(utc_now())
             )
-            pvc = await self._kube_client.update_pvc(pvc.name, diff)
+            pvc = await self._kube_client.update_pvc(pvc.namespace, pvc.name, diff)
 
         _T = TypeVar("_T")
 
@@ -165,105 +231,100 @@ class Service:
             owner=username,
             project_name=pvc.labels.get(PROJECT_LABEL, username),
             name=pvc.annotations.get(DISK_API_NAME_ANNOTATION),
-            org_name=pvc.labels.get(DISK_API_ORG_LABEL),
+            org_name=pvc.labels[DISK_API_ORG_LABEL],
             created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
             last_usage=last_usage,
             life_span=life_span,
             used_bytes=used_bytes,
         )
 
+    def _get_org_project_labels(
+        self,
+        org_name: str,
+        project_name: str
+    ) -> dict[str, str]:
+        return {
+            ORG_LABEL: org_name,
+            PROJECT_LABEL: project_name,
+        }
+
+    async def get_or_create_namespace(self, org_name: str, project_name: str) -> str:
+        namespace = generate_namespace_name(org_name, project_name)
+        labels = self._get_org_project_labels(org_name, project_name)
+        try:
+            await self._kube_client.create_namespace(namespace, labels=labels)
+        except ResourceExists:
+            pass
+        return namespace
+
     async def create_disk(self, request: DiskRequest, username: str) -> Disk:
+        namespace = await self.get_or_create_namespace(
+            request.org_name, request.project_name
+        )
         pvc_write = self._request_to_pvc(request, username)
+        disk_name: Optional[str] = None
+
         if request.name:
-            disk_naming_name = self._get_disk_naming_name(
+            disk_name = self._get_disk_naming_name(
                 request.name,
-                owner=username,
                 org_name=request.org_name,
                 project_name=request.project_name,
             )
-            disk_naming = DiskNaming(name=disk_naming_name, disk_id=pvc_write.name)
+            disk_naming = DiskNaming(name=disk_name, disk_id=pvc_write.name)
             try:
-                await self._kube_client.create_disk_naming(disk_naming)
+                await self._kube_client.create_disk_naming(namespace, disk_naming)
             except ResourceExists:
                 raise DiskNameUsed(
                     f"Disk with name {request.name} already"
                     f"exists for user {username}"
                 )
         try:
-            pvc_read = await self._kube_client.create_pvc(pvc_write)
+            pvc_read = await self._kube_client.create_pvc(namespace, pvc_write)
         except Exception:
-            if request.name:
-                await self._kube_client.remove_disk_naming(disk_naming_name)
+            if disk_name:
+                await self._kube_client.remove_disk_naming(namespace, disk_name)
             raise
         return await self._pvc_to_disk(pvc_read)
 
-    async def get_disk(self, disk_id: str) -> Disk:
+    async def get_disk(self, namespace: str, disk_id: str) -> Disk:
         try:
-            pvc = await self._kube_client.get_pvc(disk_id)
+            pvc = await self._kube_client.get_pvc(namespace, disk_id)
         except ResourceNotFound:
             raise DiskNotFound
         return await self._pvc_to_disk(pvc)
 
     async def get_disk_by_name(
-        self, name: str, org_name: Optional[str], project_name: str
+        self,
+        namespace: str,
+        name: str,
+        org_name: str,
+        project_name: str
     ) -> Disk:
         try:
-            try:
-                return await self._get_disk_by_name(
-                    name,
-                    owner=None,
-                    org_name=org_name,
-                    project_name=project_name,
-                )
-            except ResourceNotFound:
-                if not org_name:
-                    raise DiskNotFound
-                # project_name could be a username if user is searching for
-                # legacy disk which don't have project. We can try to search
-                # for user disk. It is important to check that it is a legacy disk
-                # before returning it since legacy disks and project disks
-                # without org have the same name format.
-                disk = await self._get_disk_by_name(
-                    name,
-                    owner=project_name,
-                    org_name=org_name,
-                    project_name=project_name,
-                )
-                if disk.project_name != disk.owner:
-                    raise DiskNotFound
-                return disk
+            disk_naming_name = self._get_disk_naming_name(
+                name,
+                org_name=org_name,
+                project_name=project_name,
+            )
+            disk_naming = await self._kube_client.get_disk_naming(disk_naming_name)
+            pvc = await self._kube_client.get_pvc(namespace, disk_naming.disk_id)
+            return await self._pvc_to_disk(pvc)
         except ResourceNotFound:
             pass
         raise DiskNotFound
 
-    async def _get_disk_by_name(
-        self,
-        name: str,
-        owner: Optional[str],
-        org_name: Optional[str],
-        project_name: str,
-    ) -> Disk:
-        disk_naming_name = self._get_disk_naming_name(
-            name,
-            owner=owner,
-            org_name=org_name,
-            project_name=project_name,
-        )
-        disk_naming = await self._kube_client.get_disk_naming(disk_naming_name)
-        pvc = await self._kube_client.get_pvc(disk_naming.disk_id)
-        return await self._pvc_to_disk(pvc)
-
     async def get_all_disks(
-        self, org_name: Optional[str] = None, project_name: Optional[str] = None
+        self,
+        org_name: Optional[str] = None,
+        project_name: Optional[str] = None,
     ) -> list[Disk]:
-        label_selectors = []
-        if org_name and org_name.upper() == NO_ORG:
-            label_selectors += [f"!{DISK_API_ORG_LABEL}"]
-        elif org_name:
-            label_selectors += [f"{DISK_API_ORG_LABEL}={org_name}"]
-        label_selector = ",".join(label_selectors) if label_selectors else None
+        namespace = None
+        if org_name and project_name:
+            namespace = await self.get_or_create_namespace(org_name, project_name)
+
+        label_selector = f"{DISK_API_ORG_LABEL}={org_name}"
         disks = []
-        for pvc in await self._kube_client.list_pvc(label_selector):
+        for pvc in await self._kube_client.list_pvc(namespace, label_selector):
             if not pvc.labels.get(DISK_API_MARK_LABEL, False) or pvc.labels.get(
                 DISK_API_DELETED_LABEL, False
             ):
@@ -277,40 +338,50 @@ class Service:
             disks.append(await self._pvc_to_disk(pvc))
         return disks
 
-    async def remove_disk(self, disk_id: str) -> None:
+    async def remove_disk(self, disk: Disk) -> None:
+        namespace = disk.namespace
         try:
-            disk = await self.get_disk(disk_id)
             if disk.name:
                 disk_naming_name = self._get_disk_naming_name(
                     disk.name,
-                    owner=disk.owner,
                     org_name=disk.org_name,
                     project_name=disk.project_name,
                 )
                 try:
-                    await self._kube_client.remove_disk_naming(disk_naming_name)
+                    await self._kube_client.remove_disk_naming(
+                        namespace, disk_naming_name)
                 except ResourceNotFound:
                     pass  # already removed
             diff = MergeDiff.make_add_label_diff(DISK_API_DELETED_LABEL, "true")
-            await self._kube_client.update_pvc(disk_id, diff)
-            await self._kube_client.remove_pvc(disk_id)
+            await self._kube_client.update_pvc(namespace, disk.id, diff)
+            await self._kube_client.remove_pvc(namespace, disk.id)
         except ResourceNotFound:
             raise DiskNotFound
 
-    async def mark_disk_usage(self, disk_id: str, time: datetime) -> None:
+    async def mark_disk_usage(
+        self,
+        namespace: str,
+        disk_id: str,
+        time: datetime
+    ) -> None:
         diff = MergeDiff.make_add_annotations_diff(
             DISK_API_LAST_USAGE_ANNOTATION, datetime_dump(time)
         )
         try:
-            await self._kube_client.update_pvc(disk_id, diff)
+            await self._kube_client.update_pvc(namespace, disk_id, diff)
         except ResourceNotFound:
             raise DiskNotFound
 
-    async def update_disk_used_bytes(self, disk_id: str, used_bytes: int) -> None:
+    async def update_disk_used_bytes(
+        self,
+        namespace: str,
+        disk_id: str,
+        used_bytes: int
+    ) -> None:
         diff = MergeDiff.make_add_annotations_diff(
             DISK_API_USED_BYTES_ANNOTATION, str(used_bytes)
         )
         try:
-            await self._kube_client.update_pvc(disk_id, diff)
+            await self._kube_client.update_pvc(namespace, disk_id, diff)
         except ResourceNotFound:
             raise DiskNotFound
