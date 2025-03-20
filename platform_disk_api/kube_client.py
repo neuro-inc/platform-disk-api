@@ -55,17 +55,17 @@ def _storage_str_to_int(storage: str) -> int:
     # More about this format:
     # https://github.com/kubernetes/kubernetes/blob/6b963ed9c841619d511d2830719b6100d6ab1431/staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go#L30
     suffix_to_factor = {
-        "E": 10**18,
-        "P": 10**15,
-        "T": 10**12,
-        "G": 10**9,
-        "M": 10**6,
-        "k": 10**3,
-        "Ei": 1024**6,
-        "Pi": 1024**5,
-        "Ti": 1024**4,
-        "Gi": 1024**3,
-        "Mi": 1024**2,
+        "E": 10 ** 18,
+        "P": 10 ** 15,
+        "T": 10 ** 12,
+        "G": 10 ** 9,
+        "M": 10 ** 6,
+        "k": 10 ** 3,
+        "Ei": 1024 ** 6,
+        "Pi": 1024 ** 5,
+        "Ti": 1024 ** 4,
+        "Gi": 1024 ** 3,
+        "Mi": 1024 ** 2,
         "Ki": 1024,
     }
     try:
@@ -125,6 +125,7 @@ class MergeDiff:
 
 @dataclass(frozen=True)
 class PersistentVolumeClaimRead:
+    namespace: str
     name: str
     storage_class_name: str
     phase: "PersistentVolumeClaimRead.Phase"
@@ -153,6 +154,7 @@ class PersistentVolumeClaimRead:
         except KeyError:
             storage_real = None
         return cls(
+            namespace=payload["metadata"]["namespace"],
             name=payload["metadata"]["name"],
             storage_class_name=payload["spec"]["storageClassName"],
             phase=cls.Phase(payload["status"]["phase"]),
@@ -167,6 +169,7 @@ class PersistentVolumeClaimRead:
 
 @dataclass(frozen=True)
 class PodRead:
+    namespace: str
     pvc_in_use: list[str]
 
     @classmethod
@@ -176,7 +179,10 @@ class PodRead:
             pvc_data = volume.get("persistentVolumeClaim")
             if pvc_data:
                 pvc_names.append(pvc_data["claimName"])
-        return PodRead(pvc_in_use=pvc_names)
+        return PodRead(
+            namespace=payload["metadata"]["namespace"],
+            pvc_in_use=pvc_names
+        )
 
 
 @dataclass(frozen=True)
@@ -220,10 +226,11 @@ class PodWatchEvent:
             return PodWatchEvent(
                 type=event_type,
                 resource_version=payload["object"]["metadata"]["resourceVersion"],
-                pod=PodRead([]),
+                pod=PodRead(namespace='', pvc_in_use=[]),
             )
         return PodWatchEvent(
-            type=event_type, pod=PodRead.from_primitive(payload["object"])
+            type=event_type,
+            pod=PodRead.from_primitive(payload["object"])
         )
 
     @classmethod
@@ -233,6 +240,7 @@ class PodWatchEvent:
 
 @dataclass(frozen=True)
 class PVCVolumeMetrics:
+    namespace: str
     pvc_name: str
     used_bytes: int
 
@@ -377,34 +385,49 @@ class KubeClient:
     def _api_v1_url(self) -> str:
         return f"{self._base_url}/api/v1"
 
+    @property
+    def _namespaces_url(self) -> str:
+        return f"{self._api_v1_url}/namespaces"
+
     def _generate_namespace_url(self, namespace_name: Optional[str] = None) -> str:
         namespace_name = namespace_name or self._namespace
-        return f"{self._api_v1_url}/namespaces/{namespace_name}"
+        return f"{self._namespaces_url}/{namespace_name}"
 
     @property
     def _namespace_url(self) -> str:
         return self._generate_namespace_url(self._namespace)
 
     @property
-    def _pvc_url(self) -> str:
-        return f"{self._namespace_url}/persistentvolumeclaims"
-
-    def _generate_pvc_url(self, pvc_name: str) -> str:
-        return f"{self._pvc_url}/{pvc_name}"
+    def _all_pods_url(self) -> str:
+        return f"{self._api_v1_url}/pods"
 
     @property
-    def _disk_naming_url(self) -> str:
-        return (
-            f"{self._base_url}/apis/neuromation.io/v1/"
-            f"namespaces/{self._namespace}/disknamings"
-        )
+    def _all_pvc_url(self) -> str:
+        return f"{self._api_v1_url}/persistentvolumeclaims"
 
-    def _generate_disk_naming_url(self, name: str) -> str:
-        return f"{self._disk_naming_url}/{name}"
+    def _generate_pvc_url(self, namespace: str, pvc_name: Optional[str] = None) -> str:
+        url = self._generate_namespace_url(namespace)
+        url = f"{url}/persistentvolumeclaims"
+        if pvc_name:
+            url = f"{url}/{pvc_name}"
+        return url
 
-    @property
-    def _pod_url(self) -> str:
-        return f"{self._namespace_url}/pods"
+    def _generate_disk_naming_url(
+        self,
+        namespace: Optional[str] = None,
+        name: Optional[str] = None
+    ) -> str:
+        url = f"{self._base_url}/apis/neuromation.io/v1/"
+        if namespace:
+            url = f"{url}/namespaces/{namespace}"
+        url = f"{url}/disknamings"
+        if name:
+            url = f"{url}/{name}"
+        return url
+
+    def _generate_pods_url(self, namespace: str) -> str:
+        url = self._generate_namespace_url(namespace)
+        return f"{url}/pods"
 
     def _create_headers(
         self, headers: Optional[dict[str, Any]] = None
@@ -447,16 +470,23 @@ class KubeClient:
             raise KubeClientException(payload["message"])
 
     async def create_pvc(
-        self, pvc: PersistentVolumeClaimWrite
+        self,
+        namespace: str,
+        pvc: PersistentVolumeClaimWrite
     ) -> PersistentVolumeClaimRead:
-        url = self._pvc_url
+        url = self._generate_pvc_url(namespace)
         payload = await self._request(method="POST", url=url, json=pvc.to_primitive())
         return PersistentVolumeClaimRead.from_primitive(payload)
 
     async def list_pvc(
-        self, label_selector: Optional[str] = None
+        self,
+        namespace: Optional[str] = None,
+        label_selector: Optional[str] = None
     ) -> list[PersistentVolumeClaimRead]:
-        url = URL(self._pvc_url)
+        if namespace:
+            url = URL(self._generate_pvc_url(namespace))
+        else:
+            url = URL(self._all_pvc_url)
         if label_selector:
             url = url.with_query(labelSelector=label_selector)
         payload = await self._request(method="GET", url=url)
@@ -465,15 +495,18 @@ class KubeClient:
             for item in payload.get("items", [])
         ]
 
-    async def get_pvc(self, pvc_name: str) -> PersistentVolumeClaimRead:
-        url = self._generate_pvc_url(pvc_name)
+    async def get_pvc(self, namespace: str, pvc_name: str) -> PersistentVolumeClaimRead:
+        url = self._generate_pvc_url(namespace, pvc_name)
         payload = await self._request(method="GET", url=url)
         return PersistentVolumeClaimRead.from_primitive(payload)
 
     async def update_pvc(
-        self, pvc_name: str, json_diff: MergeDiff
+        self,
+        namespace: str,
+        pvc_name: str,
+        json_diff: MergeDiff
     ) -> PersistentVolumeClaimRead:
-        url = self._generate_pvc_url(pvc_name)
+        url = self._generate_pvc_url(namespace, pvc_name)
         payload = await self._request(
             method="PATCH",
             url=url,
@@ -482,22 +515,22 @@ class KubeClient:
         )
         return PersistentVolumeClaimRead.from_primitive(payload)
 
-    async def remove_pvc(self, pvc_name: str) -> None:
-        url = self._generate_pvc_url(pvc_name)
+    async def remove_pvc(self, namespace: str, pvc_name: str) -> None:
+        url = self._generate_pvc_url(namespace, pvc_name)
         await self._request(method="DELETE", url=url)
 
     async def list_pods(self) -> PodListResult:
-        url = self._pod_url
+        url = self._all_pods_url
         payload = await self._request(method="GET", url=url)
         return PodListResult.from_primitive(payload)
 
     async def watch_pods(
-        self, resource_version: Optional[str] = None
+        self,
+        resource_version: Optional[str] = None
     ) -> AsyncIterator[PodWatchEvent]:
         params = dict(watch="true", allowWatchBookmarks="true")
         if resource_version:
             params["resourceVersion"] = resource_version
-        url = self._pod_url
         assert self._client, "client is not initialized"
         timeout = ClientTimeout(
             connect=self._conn_timeout_s,
@@ -505,7 +538,7 @@ class KubeClient:
         )
         async with self._client.request(
             method="GET",
-            url=url,
+            url=self._all_pods_url,
             params=params,
             headers=self._create_headers(),
             timeout=timeout,
@@ -553,26 +586,51 @@ class KubeClient:
                 for volume in pod.get("volume", []):
                     try:
                         yield PVCVolumeMetrics(
+                            namespace=pod["podRef"]["namespace"],
                             pvc_name=volume["pvcRef"]["name"],
                             used_bytes=volume["usedBytes"],
                         )
                     except KeyError:
                         pass
 
-    async def create_disk_naming(self, disk_naming: DiskNaming) -> None:
-        url = self._disk_naming_url
+    async def create_disk_naming(
+        self,
+        namespace: str,
+        disk_naming: DiskNaming
+    ) -> None:
+        url = self._generate_disk_naming_url(namespace)
         await self._request(method="POST", url=url, json=disk_naming.to_primitive())
 
     async def list_disk_namings(self) -> list[DiskNaming]:
-        url = self._disk_naming_url
+        url = self._generate_disk_naming_url()
         payload = await self._request(method="GET", url=url)
         return [DiskNaming.from_primitive(item) for item in payload.get("items", [])]
 
     async def get_disk_naming(self, name: str) -> DiskNaming:
-        url = self._generate_disk_naming_url(name)
+        url = self._generate_disk_naming_url(name=name)
         payload = await self._request(method="GET", url=url)
         return DiskNaming.from_primitive(payload)
 
-    async def remove_disk_naming(self, name: str) -> None:
-        url = self._generate_disk_naming_url(name)
+    async def remove_disk_naming(self, namespace: str, name: str) -> None:
+        url = self._generate_disk_naming_url(namespace, name)
         await self._request(method="DELETE", url=url)
+
+    async def create_namespace(
+        self, name: str, *, labels: dict[str, str]
+    ) -> dict[str, Any]:
+        payload = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {
+                "name": name,
+                "labels": labels,
+            },
+        }
+        return await self._request(
+            method="POST", url=self._namespaces_url, json=payload
+        )
+
+    async def list_namespaces(self) -> dict[str, Any]:
+        return await self._request(
+            method="GET", url=self._namespaces_url
+        )

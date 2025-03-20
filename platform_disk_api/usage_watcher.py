@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import logging
 from collections.abc import Iterable
 from datetime import datetime
@@ -31,11 +32,11 @@ logger = logging.getLogger(__name__)
 
 
 async def update_last_used(
-    service: Service, pvc_names: Iterable[str], time: datetime
+    service: Service, pvc_names: Iterable[tuple[str, str]], time: datetime
 ) -> None:
-    for pvc_name in pvc_names:
+    for namespace, pvc_name in pvc_names:
         try:
-            await service.mark_disk_usage(pvc_name, time)
+            await service.mark_disk_usage(namespace, pvc_name, time)
         except DiskNotFound:
             pass
 
@@ -48,17 +49,25 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
                 async with new_trace_cm(name="watch_disk_usage_start"):
                     list_result = await kube_client.list_pods()
                     now = utc_now()
-                    pvc_names = {
-                        pvc for pod in list_result.pods for pvc in pod.pvc_in_use
+                    namespace_pvcs = {
+                        (pod.namespace, pvc)
+                        for pod in list_result.pods
+                        for pvc in pod.pvc_in_use
                     }
-                    await update_last_used(service, pvc_names, now)
+                    await update_last_used(service, namespace_pvcs, now)
                     resource_version = list_result.resource_version
             async for event in kube_client.watch_pods(resource_version):
                 async with new_trace_cm(name="watch_disk_usage"):
                     if event.type == PodWatchEvent.Type.BOOKMARK:
                         resource_version = event.resource_version
                     else:
-                        await update_last_used(service, event.pod.pvc_in_use, utc_now())
+                        namespace_pvcs = set(
+                            itertools.product(
+                                [event.pod.namespace],
+                                event.pod.pvc_in_use
+                            )
+                        )
+                        await update_last_used(service, namespace_pvcs, utc_now())
         except asyncio.CancelledError:
             raise
         except ResourceGone:
@@ -80,7 +89,7 @@ async def watch_used_bytes(
                 async for stat in kube_client.get_pvc_volumes_metrics():
                     try:
                         await service.update_disk_used_bytes(
-                            stat.pvc_name, stat.used_bytes
+                            stat.namespace, stat.pvc_name, stat.used_bytes
                         )
                     except DiskNotFound:
                         pass
@@ -100,7 +109,7 @@ async def watch_lifespan_ended(service: Service, check_interval: float = 600) ->
                         continue
                     lifespan_start = disk.last_usage or disk.created_at
                     if lifespan_start + disk.life_span < utc_now():
-                        await service.remove_disk(disk.id)
+                        await service.remove_disk(disk)
             await asyncio.sleep(check_interval)
         except asyncio.CancelledError:
             raise

@@ -2,7 +2,7 @@ from typing import Any
 
 from marshmallow import Schema, fields, post_load, validate
 
-from platform_disk_api.service import Disk, DiskRequest
+from platform_disk_api.service import Disk, DiskRequest, NO_ORG
 
 
 class DiskRequestSchema(Schema):
@@ -24,6 +24,7 @@ class DiskRequestSchema(Schema):
 
     @post_load
     def make_request(self, data: Any, **kwargs: Any) -> DiskRequest:
+        data["org_name"] = kwargs.get("org_name") or NO_ORG
         return DiskRequest(**data)
 
 
