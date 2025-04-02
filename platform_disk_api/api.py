@@ -32,6 +32,8 @@ from aiohttp_apispec import (
     setup_aiohttp_apispec,
 )
 from aiohttp_security import check_authorized
+from apolo_kube_client.apolo import NO_ORG, generate_namespace_name, normalize_name
+from apolo_kube_client.config import KubeConfig
 from marshmallow import Schema, fields
 from neuro_auth_client import (
     AuthClient,
@@ -51,12 +53,12 @@ from neuro_logging import (
     setup_zipkin_tracer,
 )
 
-from .config import Config, CORSConfig, KubeConfig
+from .config import Config, CORSConfig
 from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
-from .service import Disk, DiskNotFound, Service, NO_ORG
+from .service import Disk, DiskNotFound, Service
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +137,7 @@ class DiskApiHandler:
         return f"{base}/{project_name}"
 
     def _get_disk_or_project_uri(self, disk: Disk) -> str:
-        if disk.org_name:
+        if disk.has_org:
             base = self._get_org_disks_uri(disk.org_name)
         else:
             base = self._disk_cluster_uri
@@ -168,9 +170,9 @@ class DiskApiHandler:
 
     async def _resolve_disk(self, request: Request) -> Disk:
         id_or_name = request.match_info["disk_id_or_name"]
-        org_name = request.query.get("org_name") or NO_ORG
+        org_name = request.query.get("org_name") or normalize_name(NO_ORG)
         project_name = request.query["project_name"]
-        namespace = await self._service.get_or_create_namespace(org_name, project_name)
+        namespace = generate_namespace_name(org_name, project_name)
         try:
             disk = await self._service.get_disk(namespace, id_or_name)
         except DiskNotFound:
@@ -212,8 +214,10 @@ class DiskApiHandler:
             ],
         )
 
+        org_name = disk_request.org_name or normalize_name(NO_ORG)
+
         used_storage = await self._get_used_storage(
-            disk_request.org_name,
+            org_name,
             disk_request.project_name
         )
 
@@ -230,7 +234,7 @@ class DiskApiHandler:
                 },
                 status=HTTPForbidden.status_code,
             )
-        disk = await self._service.create_disk(disk_request, user.name)
+        disk = await self._service.create_disk(disk_request, org_name, user.name)
         resp_payload = DiskSchema().dump(disk)
         return json_response(resp_payload, status=HTTPCreated.status_code)
 
@@ -270,7 +274,7 @@ class DiskApiHandler:
         tree = await self._auth_client.get_permissions_tree(
             username, self._disk_cluster_uri
         )
-        org_name = request.query.get("org_name") or NO_ORG
+        org_name = request.query.get("org_name") or normalize_name(NO_ORG)
         project_name = request.query["project_name"]
         disks = [
             disk

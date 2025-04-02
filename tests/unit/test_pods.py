@@ -10,7 +10,10 @@ class TestPodSerialization:
         result: dict[str, Any] = {
             "kind": "Pod",
             "apiVersion": "v1",
-            "metadata": {"name": "boo"},
+            "metadata": {
+                "namespace": "default",
+                "name": "boo"
+            },
             "spec": {
                 "automountServiceAccountToken": False,
                 "containers": [

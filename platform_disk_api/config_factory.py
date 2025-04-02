@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
+from apolo_kube_client.config import KubeConfig, KubeClientAuthType
 from yarl import URL
 
 from .config import (
@@ -12,8 +13,6 @@ from .config import (
     CORSConfig,
     DiskConfig,
     DiskUsageWatcherConfig,
-    KubeClientAuthType,
-    KubeConfig,
     SentryConfig,
     ServerConfig,
     ZipkinConfig,

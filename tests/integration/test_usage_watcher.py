@@ -2,8 +2,10 @@ import asyncio
 from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
+from apolo_kube_client.apolo import generate_namespace_name
 
 from platform_disk_api.config import KubeConfig
 from platform_disk_api.kube_client import KubeClient
@@ -59,22 +61,27 @@ class TestUsageWatcher:
         kube_client: KubeClientForTest,
         service: Service,
     ) -> None:
+        org, project = uuid4().hex, uuid4().hex
+        namespace_name = generate_namespace_name(org, project)
+
         async def wait_for_last_usage(disk_id: str) -> None:
             while True:
-                disk = await service.get_disk(disk_id)
+                disk = await service.get_disk(namespace_name, disk_id)
                 if disk.last_usage is not None:
                     break
                 await asyncio.sleep(0.1)
 
         for _ in range(10):
             disk = await service.create_disk(
-                DiskRequest(1024**2, project_name="test-project"), "user"
+                DiskRequest(1024**2, project_name=project),
+                org,
+                "user"
             )
             before_start = utc_now()
-            async with kube_client.run_pod([disk.id]):
+            async with kube_client.run_pod(namespace_name, [disk.id]):
                 await asyncio.wait_for(wait_for_last_usage(disk.id), timeout=10)
 
-            disk = await service.get_disk(disk.id)
+            disk = await service.get_disk(namespace_name, disk.id)
             assert disk.last_usage
             assert before_start < disk.last_usage
 
@@ -83,35 +90,40 @@ class TestUsageWatcher:
         cleanup_task: None,
         service: Service,
     ) -> None:
+        namespace_name = generate_namespace_name("no-org", "test-project")
         disk = await service.create_disk(
             DiskRequest(
                 storage=1000,
                 life_span=timedelta(seconds=1),
                 project_name="test-project",
             ),
+            "no-org",
             "user",
         )
         await asyncio.sleep(1.5)
         with pytest.raises(DiskNotFound):
-            await service.get_disk(disk.id)
+            await service.get_disk(namespace_name, disk.id)
 
-    async def test_task_cleanuped_with_usage(
+    async def test_task_cleaned_up_with_usage(
         self,
         cleanup_task: None,
         service: Service,
     ) -> None:
+        org, project = uuid4().hex, uuid4().hex
+        namespace_name = generate_namespace_name(org, project)
         disk = await service.create_disk(
             DiskRequest(
                 storage=1000,
                 life_span=timedelta(seconds=2),
-                project_name="test-project",
+                project_name=project,
             ),
+            org,
             "user",
         )
         await asyncio.sleep(1.33)
-        await service.mark_disk_usage(disk.id, utc_now())
+        await service.mark_disk_usage(namespace_name, disk.id, utc_now())
         await asyncio.sleep(1.33)
-        assert await service.get_disk(disk.id)
+        assert await service.get_disk(namespace_name, disk.id)
         await asyncio.sleep(1.33)
         with pytest.raises(DiskNotFound):
-            await service.get_disk(disk.id)
+            await service.get_disk(namespace_name, disk.id)

@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import pytest
+from apolo_kube_client.config import KubeConfig, KubeClientAuthType
+from apolo_kube_client.errors import ResourceNotFound
 
-from platform_disk_api.config import KubeClientAuthType, KubeConfig
-from platform_disk_api.kube_client import KubeClient, PodRead, ResourceNotFound
+from platform_disk_api.kube_client import KubeClient, PodRead
 
 
 @pytest.fixture(scope="session")
@@ -69,11 +70,18 @@ async def kube_config(
 
 class KubeClientForTest(KubeClient):
     @asynccontextmanager
-    async def run_pod(self, pvc_names: list[str]) -> AsyncIterator[PodRead]:
+    async def run_pod(
+        self,
+        namespace: str,
+        pvc_names: list[str]
+    ) -> AsyncIterator[PodRead]:
         json = {
             "kind": "Pod",
             "apiVersion": "v1",
-            "metadata": {"name": str(uuid.uuid4())},
+            "metadata": {
+                "name": str(uuid.uuid4()),
+                "namespace": namespace,
+            },
             "spec": {
                 "automountServiceAccountToken": False,
                 "containers": [
@@ -89,11 +97,11 @@ class KubeClientForTest(KubeClient):
                 ],
             },
         }
-        url = self._pod_url
-        payload = await self._request(method="POST", url=url, json=json)
+        url = self._generate_pods_url(namespace)
+        payload = await self.post(url=url, json=json)
         self._raise_for_status(payload)
         yield PodRead.from_primitive(payload)
-        await self._request(method="DELETE", url=f"{url}/{payload['metadata']['name']}")
+        await self.delete(url=f"{url}/{payload['metadata']['name']}")
 
 
 @pytest.fixture
@@ -126,11 +134,13 @@ async def kube_client(
     async def _clean_k8s(kube_client: KubeClient) -> None:
         for pvc in await kube_client.list_pvc():
             try:
-                await kube_client.remove_pvc(pvc.name)
+                await kube_client.remove_pvc(pvc.namespace, pvc.name)
             except ResourceNotFound:
                 pass
         for disk_naming in await kube_client.list_disk_namings():
-            await kube_client.remove_disk_naming(disk_naming.name)
+            await kube_client.remove_disk_naming(
+                disk_naming.namespace, disk_naming.name
+            )
 
     async with client:
         await _clean_k8s(client)
