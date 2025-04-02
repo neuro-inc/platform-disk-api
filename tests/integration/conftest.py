@@ -7,19 +7,23 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
+from uuid import uuid4
 
 import aiohttp
 import aiohttp.web
 import pytest
+from apolo_kube_client.apolo import create_namespace
+from apolo_kube_client.config import KubeConfig
+from apolo_kube_client.namespace import NamespaceApi, Namespace
 
 from platform_disk_api.config import (
     AuthConfig,
     Config,
     CORSConfig,
     DiskConfig,
-    KubeConfig,
     ServerConfig,
 )
+from platform_disk_api.kube_client import KubeClient
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +80,7 @@ def config_factory(
             cluster_name=cluster_name,
             disk=DiskConfig(
                 k8s_storage_class=k8s_storage_class,
-                storage_limit_per_user=1024 * 1024 * 20,  # 20mb
+                storage_limit_per_project=1024 * 1024 * 20,  # 20mb
             ),
             cors=CORSConfig(allowed_origins=["https://neu.ro"]),
         )
@@ -145,3 +149,16 @@ def get_service_url(service_name: str, namespace: str = "default") -> str:
 @pytest.fixture
 def cluster_name() -> str:
     return "test-cluster"
+
+
+@pytest.fixture
+async def scoped_namespace(
+    kube_client: KubeClient
+) -> AsyncIterator[tuple[Namespace, str, str]]:
+    org, project = uuid4().hex, uuid4().hex
+    namespace = await create_namespace(kube_client, org, project)
+    try:
+        yield namespace, org, project
+    finally:
+        namespace_api = NamespaceApi(kube_client)
+        await namespace_api.delete_namespace(namespace.name)

@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Optional
 
 import aiohttp
+from apolo_kube_client.errors import ResourceGone, KubeClientUnauthorized, \
+    KubeClientExpired
 from neuro_logging import (
     init_logging,
     make_sentry_trace_config,
@@ -20,10 +22,7 @@ from platform_disk_api.config import DiskUsageWatcherConfig
 from platform_disk_api.config_factory import EnvironConfigFactory
 from platform_disk_api.kube_client import (
     KubeClient,
-    KubeClientExpired,
-    KubeClientUnauthorized,
     PodWatchEvent,
-    ResourceGone,
 )
 from platform_disk_api.service import DiskNotFound, Service
 from platform_disk_api.utils import utc_now
