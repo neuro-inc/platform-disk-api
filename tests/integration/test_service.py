@@ -28,8 +28,12 @@ class TestService:
 
     async def test_create_disk(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
-        request = DiskRequest(storage=1024 * 1024, project_name=project_name)
-        disk = await service.create_disk(request, org_name, "testuser")
+        request = DiskRequest(
+            storage=1024 * 1024,
+            project_name=project_name,
+            org_name=org_name,
+        )
+        disk = await service.create_disk(request, "testuser")
         assert disk.storage >= request.storage
         assert disk.owner == "testuser"
         assert disk.project_name == project_name
@@ -42,7 +46,7 @@ class TestService:
         request = DiskRequest(
             storage=1024 * 1024, org_name=org_name, project_name=project_name
         )
-        disk = await service.create_disk(request, org_name, "testuser")
+        disk = await service.create_disk(request, "testuser")
         assert disk.org_name == org_name
         disks = await service.get_all_disks(org_name, project_name)
         assert len(disks) == 1
@@ -51,37 +55,51 @@ class TestService:
     async def test_create_disk_with_same_name_fail(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
         request = DiskRequest(
-            storage=1024 * 1024, name="test", project_name=project_name
+            storage=1024 * 1024,
+            name="test",
+            project_name=project_name,
+            org_name=org_name,
         )
-        await service.create_disk(request, org_name, "testuser")
+        await service.create_disk(request, "testuser")
         with pytest.raises(DiskNameUsed):
-            await service.create_disk(request, org_name, "testuser")
+            await service.create_disk(request, "testuser")
 
     async def test_can_create_disk_with_same_name_after_delete(
         self, service: Service
     ) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
         request = DiskRequest(
-            storage=1024 * 1024, name="test", project_name=project_name
+            storage=1024 * 1024,
+            name="test",
+            project_name=project_name,
+            org_name=org_name,
         )
-        disk = await service.create_disk(request, org_name, "testuser")
+        disk = await service.create_disk(request, "testuser")
         await service.remove_disk(disk)
-        await service.create_disk(request, org_name, "testuser")
+        await service.create_disk(request, "testuser")
 
     # As pvc deletion is async, we should check that user will never
     # see deleted disk, so next test is executed multiple times
     @pytest.mark.parametrize("execution_number", range(10))
     async def test_remove_disk(self, execution_number: int, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
-        request = DiskRequest(storage=1024 * 1024, project_name=project_name)
-        disk = await service.create_disk(request, org_name, "testuser")
+        request = DiskRequest(
+            storage=1024 * 1024,
+            project_name=project_name,
+            org_name=org_name,
+        )
+        disk = await service.create_disk(request, "testuser")
         await service.remove_disk(disk)
         assert await service.get_all_disks() == []
 
     async def test_get_disk(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
-        request = DiskRequest(storage=1024 * 1024, project_name=project_name)
-        disk_created = await service.create_disk(request, org_name, "testuser")
+        request = DiskRequest(
+            storage=1024 * 1024,
+            project_name=project_name,
+            org_name=org_name,
+        )
+        disk_created = await service.create_disk(request, "testuser")
         disk_get = await service.get_disk(disk_created.namespace, disk_created.id)
         assert disk_get.id == disk_created.id
         assert disk_get.owner == disk_created.owner
@@ -91,9 +109,12 @@ class TestService:
     async def test_get_disk_by_name(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
         request = DiskRequest(
-            storage=1024 * 1024, name="test-name", project_name=project_name
+            storage=1024 * 1024,
+            name="test-name",
+            project_name=project_name,
+            org_name=org_name,
         )
-        disk_created = await service.create_disk(request, org_name, "testuser")
+        disk_created = await service.create_disk(request, "testuser")
         disk_get = await service.get_disk_by_name(
             disk_created.namespace, "test-name", org_name, project_name)
         assert disk_get.id == disk_created.id
@@ -105,9 +126,12 @@ class TestService:
     ) -> None:
         project_name = uuid4().hex
         request = DiskRequest(
-            storage=1024 * 1024, name="test-name", project_name=project_name
+            storage=1024 * 1024,
+            name="test-name",
+            project_name=project_name,
+            org_name="any",
         )
-        disk_created = await service.create_disk(request, "any", project_name)
+        disk_created = await service.create_disk(request, project_name)
 
         disk_get = await service.get_disk_by_name(
             disk_created.namespace, "test-name", "any", project_name)
@@ -149,8 +173,12 @@ class TestService:
                 name="outer-pvc", storage_class_name="no-way", storage=200
             )
         )
-        request = DiskRequest(storage=1024 * 1024, project_name=project)
-        disk_created = await service.create_disk(request, org, "testuser")
+        request = DiskRequest(
+            storage=1024 * 1024,
+            project_name=project,
+            org_name=org,
+        )
+        disk_created = await service.create_disk(request, "testuser")
         all_disks = await service.get_all_disks(org, project)
         assert len(all_disks) == 1
         assert all_disks[0].id == disk_created.id
@@ -168,10 +196,18 @@ class TestService:
                 name="outer-pvc", storage_class_name="no-way", storage=200
             )
         )
-        request = DiskRequest(storage=1024 * 1024, project_name="other-test-project")
-        await service.create_disk(request, "other-org", "testuser")
-        request = DiskRequest(storage=1024 * 1024, project_name=project)
-        disk_created = await service.create_disk(request, org, "testuser")
+        request = DiskRequest(
+            storage=1024 * 1024,
+            project_name="other-test-project",
+            org_name="other-org",
+        )
+        await service.create_disk(request, "testuser")
+        request = DiskRequest(
+            storage=1024 * 1024,
+            project_name=project,
+            org_name=org,
+        )
+        disk_created = await service.create_disk(request, "testuser")
         project_disks = await service.get_all_disks(
             org_name=org, project_name=project)
         assert len(project_disks) == 1
@@ -182,25 +218,36 @@ class TestService:
         namespace = generate_namespace_name(org_name, project_name)
         life_span = timedelta(days=7)
         request = DiskRequest(
-            storage=1024 * 1024, life_span=life_span, project_name=project_name
+            storage=1024 * 1024,
+            life_span=life_span,
+            project_name=project_name,
+            org_name=org_name,
         )
-        disk = await service.create_disk(request, org_name, "testuser")
+        disk = await service.create_disk(request, "testuser")
         disk = await service.get_disk(namespace, disk.id)
         assert disk.life_span == life_span
 
     async def test_no_life_span_stored(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
         namespace = generate_namespace_name(org_name, project_name)
-        request = DiskRequest(storage=1024 * 1024, project_name=project_name)
-        disk = await service.create_disk(request, org_name, "testuser")
+        request = DiskRequest(
+            storage=1024 * 1024,
+            project_name=project_name,
+            org_name=org_name,
+        )
+        disk = await service.create_disk(request, "testuser")
         disk = await service.get_disk(namespace, disk.id)
         assert disk.life_span is None
 
     async def test_update_last_usage(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
         namespace = generate_namespace_name(org_name, project_name)
-        request = DiskRequest(storage=1024 * 1024, project_name=project_name)
-        disk = await service.create_disk(request, org_name, "testuser")
+        request = DiskRequest(
+            storage=1024 * 1024,
+            project_name=project_name,
+            org_name=org_name,
+        )
+        disk = await service.create_disk(request, "testuser")
         assert disk.last_usage is None
         last_usage_time = utc_now()
         await service.mark_disk_usage(namespace, disk.id, last_usage_time)

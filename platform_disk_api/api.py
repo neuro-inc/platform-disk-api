@@ -58,7 +58,7 @@ from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
-from .service import Disk, DiskNotFound, Service
+from .service import Disk, DiskNotFound, Service, DiskRequest, is_no_org
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +126,9 @@ class DiskApiHandler:
         return f"{self._disk_cluster_uri}/{org_name}"
 
     def _get_user_disk_or_project_uri(
-        self, user: User, org_name: Optional[str], project_name: str
+        self, user: User, org_name: str, project_name: str
     ) -> str:
-        if org_name:
+        if not is_no_org(org_name):
             base = self._get_org_disks_uri(org_name)
         else:
             base = self._disk_cluster_uri
@@ -152,7 +152,7 @@ class DiskApiHandler:
         return Permission(self._get_disk_or_project_uri(disk), "write")
 
     def _get_disks_write_perm(
-        self, user: User, org_name: Optional[str], project_name: str
+        self, user: User, org_name: str, project_name: str
     ) -> Permission:
         return Permission(
             self._get_user_disk_or_project_uri(user, org_name, project_name),
@@ -161,11 +161,13 @@ class DiskApiHandler:
 
     async def _get_used_storage(
         self,
-        org_name: str,
-        project_name: str
+        disk_request: DiskRequest,
     ) -> int:
         return sum([
-            d.storage for d in await self._service.get_all_disks(org_name, project_name)
+            d.storage for d in await self._service.get_all_disks(
+                disk_request.org_name,
+                disk_request.project_name
+            )
         ])
 
     async def _resolve_disk(self, request: Request) -> Disk:
@@ -204,7 +206,6 @@ class DiskApiHandler:
         payload = await request.json()
 
         disk_request = DiskRequestSchema().load(payload)
-
         await check_permissions(
             request,
             [
@@ -214,12 +215,7 @@ class DiskApiHandler:
             ],
         )
 
-        org_name = disk_request.org_name or normalize_name(NO_ORG)
-
-        used_storage = await self._get_used_storage(
-            org_name,
-            disk_request.project_name
-        )
+        used_storage = await self._get_used_storage(disk_request)
 
         if (
             self._config.disk.storage_limit_per_project < (
@@ -234,7 +230,7 @@ class DiskApiHandler:
                 },
                 status=HTTPForbidden.status_code,
             )
-        disk = await self._service.create_disk(disk_request, org_name, user.name)
+        disk = await self._service.create_disk(disk_request, user.name)
         resp_payload = DiskSchema().dump(disk)
         return json_response(resp_payload, status=HTTPCreated.status_code)
 
