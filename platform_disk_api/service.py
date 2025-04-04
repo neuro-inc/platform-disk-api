@@ -43,13 +43,21 @@ DISK_API_LIFE_SPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-life-span"
 DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 
 
+def is_no_org(org_name: Optional[str]) -> bool:
+    return (
+        org_name is None
+        or org_name == NO_ORG
+        or org_name == normalize_name(NO_ORG)
+    )
+
+
 @dataclass(frozen=True)
 class DiskRequest:
     storage: int  # In bytes
+    org_name: str
     project_name: str
     life_span: Optional[timedelta] = None
     name: Optional[str] = None
-    org_name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -80,11 +88,7 @@ class Disk:
 
     @property
     def has_org(self) -> bool:
-        return (
-            self.org_name is not None
-            and self.org_name != NO_ORG
-            and self.org_name != normalize_name(NO_ORG)
-        )
+        return not is_no_org(self.org_name)
 
 
 class Service:
@@ -105,7 +109,6 @@ class Service:
     def _request_to_pvc(
         self,
         request: DiskRequest,
-        org_name: str,
         username: str
     ) -> PersistentVolumeClaimWrite:
         annotations = {
@@ -120,10 +123,9 @@ class Service:
         labels = {
             USER_LABEL: username.replace("/", "--"),
             DISK_API_MARK_LABEL: "true",
-            DISK_API_ORG_LABEL: org_name,
+            DISK_API_ORG_LABEL: request.org_name,
+            PROJECT_LABEL: request.project_name,
         }
-        if request.project_name != username:
-            labels[PROJECT_LABEL] = request.project_name
 
         return PersistentVolumeClaimWrite(
             name=f"disk-{uuid4()}",
@@ -176,34 +178,23 @@ class Service:
             used_bytes=used_bytes,
         )
 
-    def _get_org_project_labels(
-        self,
-        org_name: str,
-        project_name: str
-    ) -> dict[str, str]:
-        return {
-            ORG_LABEL: org_name,
-            PROJECT_LABEL: project_name,
-        }
-
     async def create_disk(
         self,
         request: DiskRequest,
-        org_name: str,
         username: str,
     ) -> Disk:
         namespace = await create_namespace(
             self._kube_client,
-            org_name,
+            request.org_name,
             request.project_name,
         )
-        pvc_write = self._request_to_pvc(request, org_name, username)
+        pvc_write = self._request_to_pvc(request, username)
         disk_name: Optional[str] = None
 
         if request.name:
             disk_name = self._get_disk_naming_name(
                 request.name,
-                org_name=org_name,
+                org_name=request.org_name,
                 project_name=request.project_name,
             )
             disk_naming = DiskNaming(
@@ -244,12 +235,13 @@ class Service:
                 project_name=project_name,
             )
             disk_naming = await self._kube_client.get_disk_naming(
-                namespace, disk_naming_name)
-            pvc = await self._kube_client.get_pvc(namespace, disk_naming.disk_id)
-            return await self._pvc_to_disk(pvc)
-        except ResourceNotFound:
-            pass
-        raise DiskNotFound
+                namespace=namespace,
+                name=disk_naming_name,
+            )
+            return await self.get_disk(namespace, disk_naming.disk_id)
+        except Exception:
+            logger.exception("get_disk_by_name: unhandled error")
+            raise DiskNotFound
 
     async def get_all_disks(
         self,
@@ -257,30 +249,25 @@ class Service:
         project_name: Optional[str] = None,
     ) -> list[Disk]:
         namespace = None
-        org_name = org_name or normalize_name(NO_ORG)
-        if org_name and project_name:
-            namespace = generate_namespace_name(org_name, project_name)
-
         label_selectors = [
-            f"{DISK_API_MARK_LABEL}=true"
+            f"{DISK_API_MARK_LABEL}=true",  # is apolo disk
+            f"!{DISK_API_DELETED_LABEL}",  # not deleted
         ]
-        if org_name and org_name != NO_ORG and org_name != normalize_name(NO_ORG):
-            label_selectors.append(f"{DISK_API_ORG_LABEL}={org_name}")
+        if project_name:
+            # request is in the scope of org/project.
+            # let's figure out the org and enrich with labels and namespace
+            org_name = org_name or normalize_name(NO_ORG)
+            if not is_no_org(org_name):
+                # real org. let's filter by label
+                label_selectors.append(f"{DISK_API_ORG_LABEL}={org_name}")
+
+            label_selectors.append(f"{PROJECT_LABEL}={project_name}")
+            namespace = generate_namespace_name(org_name, project_name)
 
         label_selector = ",".join(label_selectors)
 
         disks = []
         for pvc in await self._kube_client.list_pvc(namespace, label_selector):
-            if pvc.labels.get(DISK_API_DELETED_LABEL, False):
-                # already deleted
-                continue
-
-            if project_name:
-                disk_project_name = pvc.labels.get(PROJECT_LABEL) or pvc.labels[
-                    USER_LABEL
-                ].replace("--", "/")
-                if project_name != disk_project_name:
-                    continue
             disks.append(await self._pvc_to_disk(pvc))
         return disks
 

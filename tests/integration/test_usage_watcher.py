@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
 from datetime import timedelta
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -35,6 +36,7 @@ class TestUsageWatcher:
     ) -> AsyncIterator[None]:
         kube_config = replace(kube_config, client_watch_timeout_s=1)  # Force reloads
         async with kube_client_factory(kube_config) as kube_client:
+            kube_client = cast(KubeClient, kube_client)
             task = asyncio.create_task(watch_disk_usage(kube_client, service))
             await asyncio.sleep(0)  # Allow task to start
             yield
@@ -73,8 +75,11 @@ class TestUsageWatcher:
 
         for _ in range(10):
             disk = await service.create_disk(
-                DiskRequest(1024**2, project_name=project),
-                org,
+                DiskRequest(
+                    1024**2,
+                    project_name=project,
+                    org_name=org,
+                ),
                 "user"
             )
             before_start = utc_now()
@@ -96,8 +101,8 @@ class TestUsageWatcher:
                 storage=1000,
                 life_span=timedelta(seconds=1),
                 project_name="test-project",
+                org_name="no-org",
             ),
-            "no-org",
             "user",
         )
         await asyncio.sleep(1.5)
@@ -116,8 +121,8 @@ class TestUsageWatcher:
                 storage=1000,
                 life_span=timedelta(seconds=2),
                 project_name=project,
+                org_name=org,
             ),
-            org,
             "user",
         )
         await asyncio.sleep(1.33)
