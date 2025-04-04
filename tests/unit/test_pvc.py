@@ -74,7 +74,7 @@ class TestPVCSerialization:
             {
                 "apiVersion": "v1",
                 "kind": "PersistentVolumeClaim",
-                "metadata": {"name": name},
+                "metadata": {"name": name, "namespace": "default"},
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],
                     "volumeMode": "Filesystem",
@@ -85,6 +85,7 @@ class TestPVCSerialization:
             }
         )
         assert pvc == PersistentVolumeClaimRead(
+            namespace="default",
             name=name,
             storage_class_name=storage_class,
             phase=PersistentVolumeClaimRead.Phase.PENDING,
@@ -120,7 +121,7 @@ class TestPVCSerialization:
             {
                 "apiVersion": "v1",
                 "kind": "PersistentVolumeClaim",
-                "metadata": {"name": "test"},
+                "metadata": {"name": "test", "namespace": "default"},
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],
                     "volumeMode": "Filesystem",
@@ -141,7 +142,7 @@ class TestPVCSerialization:
             {
                 "apiVersion": "v1",
                 "kind": "PersistentVolumeClaim",
-                "metadata": {"name": name},
+                "metadata": {"name": name, "namespace": "default"},
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],
                     "volumeMode": "Filesystem",
@@ -152,6 +153,7 @@ class TestPVCSerialization:
             }
         )
         assert pvc == PersistentVolumeClaimRead(
+            namespace="default",
             name=name,
             storage_class_name=storage_class,
             phase=PersistentVolumeClaimRead.Phase.BOUND,
@@ -169,7 +171,11 @@ class TestPVCSerialization:
             {
                 "apiVersion": "v1",
                 "kind": "PersistentVolumeClaim",
-                "metadata": {"name": name, "labels": {"foo": "bar"}},
+                "metadata": {
+                    "name": name,
+                    "namespace": "default",
+                    "labels": {"foo": "bar"}
+                },
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],
                     "volumeMode": "Filesystem",
@@ -180,6 +186,7 @@ class TestPVCSerialization:
             }
         )
         assert pvc == PersistentVolumeClaimRead(
+            namespace="default",
             name=name,
             storage_class_name=storage_class,
             phase=PersistentVolumeClaimRead.Phase.BOUND,
@@ -197,7 +204,11 @@ class TestPVCSerialization:
             {
                 "apiVersion": "v1",
                 "kind": "PersistentVolumeClaim",
-                "metadata": {"name": name, "annotations": {"foo": "bar"}},
+                "metadata": {
+                    "name": name,
+                    "namespace": "default",
+                    "annotations": {"foo": "bar"}
+                },
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],
                     "volumeMode": "Filesystem",
@@ -208,6 +219,7 @@ class TestPVCSerialization:
             }
         )
         assert pvc == PersistentVolumeClaimRead(
+            namespace="default",
             name=name,
             storage_class_name=storage_class,
             phase=PersistentVolumeClaimRead.Phase.BOUND,
