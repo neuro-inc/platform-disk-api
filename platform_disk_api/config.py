@@ -64,3 +64,8 @@ class DiskUsageWatcherConfig:
     kube: KubeConfig
     zipkin: Optional[ZipkinConfig] = None
     sentry: Optional[SentryConfig] = None
+
+
+@dataclass(frozen=True)
+class JobMigrateProjectNamespaceConfig:
+    kube: KubeConfig

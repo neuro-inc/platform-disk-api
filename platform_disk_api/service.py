@@ -30,7 +30,8 @@ class DiskNameUsed(Exception):
 
 logger = logging.getLogger()
 
-ORG_LABEL = "platform.apolo.us/org"
+APOLO_ORG_LABEL = "platform.apolo.us/org"
+APOLO_PROJECT_LABEL = "platform.apolo.us/project"
 USER_LABEL = "platform.neuromation.io/user"
 PROJECT_LABEL = "platform.neuromation.io/project"
 DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"

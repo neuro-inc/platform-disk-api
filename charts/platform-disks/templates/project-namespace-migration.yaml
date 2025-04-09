@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "platformDisks.fullname" . }}-project-namespace-migration
+  labels:
+    {{ include "platformDisks.labels.standard" . | nindent 4 }}
+    service: {{ include "platformDisks.fullname" . }}-project-namespace-migration
+spec:
+  schedule: {{ .Values.jobProjectNamespaceMigration.schedule | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ .Values.jobProjectNamespaceMigration.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ .Values.jobProjectNamespaceMigration.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.jobProjectNamespaceMigration.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: migrate
+              image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+              command:
+                - platform-disk-project-namespace-migration-job
+              resources: {{ toYaml .Values.jobProjectNamespaceMigration.resources | nindent 16 }}
+              volumeMounts:
+                - mountPath: {{ include "platformDisks.kubeAuthMountRoot" . }}
+                  name: kube-api-data
+                  readOnly: true
+              env:
+                - name: NP_DISK_API_K8S_API_URL
+                  value: https://kubernetes.default:443
+                - name: NP_DISK_API_K8S_AUTH_TYPE
+                  value: token
+                - name: NP_DISK_API_K8S_CA_PATH
+                  value: {{ include "platformDisks.kubeAuthMountRoot" . }}/ca.crt
+                - name: NP_DISK_API_K8S_TOKEN_PATH
+                  value: {{ include "platformDisks.kubeAuthMountRoot" . }}/token
+                - name: NP_DISK_API_K8S_NS
+                  value: {{ .Values.disks.namespace | default "default" | quote }}
+          volumes:
+            - name: kube-api-data
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      expirationSeconds: 3600
+                      path: token
+                  - configMap:
+                      name: kube-root-ca.crt
+                      items:
+                        - key: ca.crt
+                          path: ca.crt
