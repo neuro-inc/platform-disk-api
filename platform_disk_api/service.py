@@ -260,7 +260,6 @@ class Service:
                     f"Disk with name {request.name} already"
                     f"exists for user {username}"
                 )
-            # todo: new disks should've both new and old labels
         try:
             pvc_read = await self._kube_client.create_pvc(namespace.name, pvc_write)
         except Exception:
