@@ -156,9 +156,11 @@ class Service:
 
         return Disk(
             id=pvc.name,
-            storage=pvc.storage_real
-            if pvc.storage_real is not None
-            else pvc.storage_requested,
+            storage=(
+                pvc.storage_real
+                if pvc.storage_real is not None
+                else pvc.storage_requested
+            ),
             status=status_map[pvc.phase],
             owner=username,
             project_name=pvc.labels.get(PROJECT_LABEL, username),

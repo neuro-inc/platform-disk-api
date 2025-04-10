@@ -52,7 +52,7 @@ class TestPVCSerialization:
             name=name,
             storage_class_name=storage_class,
             storage=storage,
-            labels=dict(foo="bar"),
+            labels={"foo": "bar"},
         )
         assert pvc.to_primitive() == {
             "apiVersion": "v1",
@@ -90,8 +90,8 @@ class TestPVCSerialization:
             phase=PersistentVolumeClaimRead.Phase.PENDING,
             storage_requested=storage,
             storage_real=None,
-            labels=dict(),
-            annotations=dict(),
+            labels={},
+            annotations={},
         )
 
     @pytest.mark.parametrize(
@@ -157,8 +157,8 @@ class TestPVCSerialization:
             phase=PersistentVolumeClaimRead.Phase.BOUND,
             storage_requested=storage,
             storage_real=2 * storage,
-            labels=dict(),
-            annotations=dict(),
+            labels={},
+            annotations={},
         )
 
     @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
@@ -185,8 +185,8 @@ class TestPVCSerialization:
             phase=PersistentVolumeClaimRead.Phase.BOUND,
             storage_requested=storage,
             storage_real=2 * storage,
-            labels=dict(foo="bar"),
-            annotations=dict(),
+            labels={"foo": "bar"},
+            annotations={},
         )
 
     @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
@@ -213,6 +213,6 @@ class TestPVCSerialization:
             phase=PersistentVolumeClaimRead.Phase.BOUND,
             storage_requested=storage,
             storage_real=2 * storage,
-            labels=dict(),
-            annotations=dict(foo="bar"),
+            labels={},
+            annotations={"foo": "bar"},
         )
