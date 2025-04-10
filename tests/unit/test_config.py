@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from apolo_kube_client.config import KubeConfig, KubeClientAuthType
 from yarl import URL
 
 from platform_disk_api.config import (
@@ -10,8 +11,6 @@ from platform_disk_api.config import (
     CORSConfig,
     DiskConfig,
     DiskUsageWatcherConfig,
-    KubeClientAuthType,
-    KubeConfig,
     SentryConfig,
     ServerConfig,
     ZipkinConfig,
@@ -41,7 +40,7 @@ def test_create_default() -> None:
         "NP_DISK_API_PLATFORM_AUTH_URL": "-",
         "NP_DISK_API_PLATFORM_AUTH_TOKEN": "platform-auth-token",
         "NP_DISK_API_K8S_API_URL": "https://localhost:8443",
-        "NP_DISK_API_STORAGE_LIMIT_PER_USER": "444",
+        "NP_DISK_API_STORAGE_LIMIT_PER_PROJECT": "444",
         "NP_CLUSTER_NAME": "default",
     }
     config = EnvironConfigFactory(environ).create()
@@ -49,7 +48,7 @@ def test_create_default() -> None:
         server=ServerConfig(),
         platform_auth=AuthConfig(url=None, token="platform-auth-token"),
         kube=KubeConfig(endpoint_url="https://localhost:8443"),
-        disk=DiskConfig(storage_limit_per_user=444),
+        disk=DiskConfig(storage_limit_per_project=444),
         cluster_name="default",
         cors=CORSConfig(),
     )
@@ -74,7 +73,7 @@ def test_create_custom(cert_authority_path: str, token_path: str) -> None:
         "NP_DISK_API_K8S_CLIENT_CONN_POOL_SIZE": "333",
         "NP_DISK_API_K8S_STORAGE_CLASS": "some-class",
         "NP_DISK_API_ENABLE_DOCS": "true",
-        "NP_DISK_API_STORAGE_LIMIT_PER_USER": "444",
+        "NP_DISK_API_STORAGE_LIMIT_PER_PROJECT": "444",
         "NP_CLUSTER_NAME": "default",
         "NP_CORS_ORIGINS": "https://domain1.com,http://do.main",
         "NP_ZIPKIN_URL": "https://zipkin:9411",
@@ -101,7 +100,7 @@ def test_create_custom(cert_authority_path: str, token_path: str) -> None:
             client_watch_timeout_s=555,
             client_conn_pool_size=333,
         ),
-        disk=DiskConfig(k8s_storage_class="some-class", storage_limit_per_user=444),
+        disk=DiskConfig(k8s_storage_class="some-class", storage_limit_per_project=444),
         cluster_name="default",
         cors=CORSConfig(["https://domain1.com", "http://do.main"]),
         enable_docs=True,
