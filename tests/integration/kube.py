@@ -40,7 +40,7 @@ def kube_config_user_payload(kube_config_payload: dict[str, Any]) -> Any:
 
 @pytest.fixture(scope="session")
 def cert_authority_data_pem(
-    kube_config_cluster_payload: dict[str, Any]
+    kube_config_cluster_payload: dict[str, Any],
 ) -> Optional[str]:
     ca_path = kube_config_cluster_payload["certificate-authority"]
     if ca_path:
