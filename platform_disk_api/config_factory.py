@@ -15,7 +15,7 @@ from .config import (
     DiskUsageWatcherConfig,
     SentryConfig,
     ServerConfig,
-    ZipkinConfig,
+    ZipkinConfig, JobMigrateProjectNamespaceConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,11 @@ class EnvironConfigFactory:
             kube=self.create_kube(),
             zipkin=self.create_zipkin("platform-disks-usage-watcher"),
             sentry=self.create_sentry("platform-disks-usage-watcher"),
+        )
+
+    def create_job_migrate_project(self) -> JobMigrateProjectNamespaceConfig:
+        return JobMigrateProjectNamespaceConfig(
+            kube=self.create_kube()
         )
 
     def _create_server(self) -> ServerConfig:
