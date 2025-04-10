@@ -69,17 +69,17 @@ def config_factory(
     kube_client: None,  # Force cleanup
 ) -> Callable[..., Config]:
     def _f(**kwargs: Any) -> Config:
-        defaults = dict(
-            server=ServerConfig(host="0.0.0.0", port=8080),
-            platform_auth=auth_config,
-            kube=kube_config,
-            cluster_name=cluster_name,
-            disk=DiskConfig(
+        defaults = {
+            "server": ServerConfig(host="0.0.0.0", port=8080),
+            "platform_auth": auth_config,
+            "kube": kube_config,
+            "cluster_name": cluster_name,
+            "disk": DiskConfig(
                 k8s_storage_class=k8s_storage_class,
                 storage_limit_per_user=1024 * 1024 * 20,  # 20mb
             ),
-            cors=CORSConfig(allowed_origins=["https://neu.ro"]),
-        )
+            "cors": CORSConfig(allowed_origins=["https://neu.ro"]),
+        }
         kwargs = {**defaults, **kwargs}
         return Config(**kwargs)
 
