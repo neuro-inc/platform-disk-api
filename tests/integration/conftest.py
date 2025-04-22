@@ -1,9 +1,8 @@
-import asyncio
 import logging
 import secrets
 import subprocess
 import time
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -33,20 +32,6 @@ pytest_plugins = [
 
 def random_name(length: int = 8) -> str:
     return secrets.token_hex(length // 2 + length % 2)[:length]
-
-
-@pytest.fixture(scope="session")
-def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
-    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    loop.set_debug(True)
-
-    watcher = asyncio.SafeChildWatcher()
-    watcher.attach_loop(loop)
-    asyncio.get_event_loop_policy().set_child_watcher(watcher)
-
-    yield loop
-    loop.close()
 
 
 @pytest.fixture
