@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
+from apolo_kube_client.config import KubeConfig, KubeClientAuthType
 from yarl import URL
 
 from .config import (
@@ -12,8 +13,6 @@ from .config import (
     CORSConfig,
     DiskConfig,
     DiskUsageWatcherConfig,
-    KubeClientAuthType,
-    KubeConfig,
     SentryConfig,
     ServerConfig,
     ZipkinConfig,
@@ -109,9 +108,9 @@ class EnvironConfigFactory:
             k8s_storage_class=self._environ.get(
                 "NP_DISK_API_K8S_STORAGE_CLASS", DiskConfig.k8s_storage_class
             ),
-            storage_limit_per_user=int(
-                self._environ["NP_DISK_API_STORAGE_LIMIT_PER_USER"]
-            ),
+            storage_limit_per_project=int(
+                self._environ["NP_DISK_API_STORAGE_LIMIT_PER_PROJECT"]
+            )
         )
 
     def create_cors(self) -> CORSConfig:
