@@ -20,7 +20,8 @@ from platform_disk_api.kube_client import KubeClient, DiskNaming
 from platform_disk_api.service import DISK_API_MARK_LABEL, USER_LABEL, PROJECT_LABEL, \
     DISK_API_ORG_LABEL, DISK_API_USED_BYTES_ANNOTATION, DISK_API_NAME_ANNOTATION, \
     DISK_API_LIFE_SPAN_ANNOTATION, DISK_API_CREATED_AT_ANNOTATION, APOLO_ORG_LABEL, \
-    APOLO_PROJECT_LABEL, DISK_API_LAST_USAGE_ANNOTATION
+    APOLO_PROJECT_LABEL, DISK_API_LAST_USAGE_ANNOTATION, APOLO_MARK_LABEL, \
+    APOLO_USER_LABEL
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,10 @@ async def migrate_disk(
 
     current_meta = pvc["metadata"]
     org_name = current_meta["labels"].get(DISK_API_ORG_LABEL) or normalize_name(NO_ORG)
-    project_name = current_meta["labels"][PROJECT_LABEL]
+    project_name = current_meta["labels"].get(PROJECT_LABEL)
+    if not project_name:
+        user_label = current_meta["labels"][USER_LABEL]
+        project_name, *_ = user_label.split("--")
 
     # create a new namespace
     new_namespace = await create_namespace(client, org_name, project_name)
@@ -302,7 +306,13 @@ async def create_pvc(
         DISK_API_USED_BYTES_ANNOTATION,
     ):
         if annotation_key in old_metadata["annotations"]:
-            annotations[annotation_key] = old_metadata["annotations"][annotation_key]
+            annotation_value = old_metadata["annotations"][annotation_key]
+            apolo_annotation_key = annotation_key.replace(
+                "platform.neuromation.io",
+                "platform.apolo.us"
+            )
+            annotations[annotation_key] = annotation_value
+            annotations[apolo_annotation_key] = annotation_value
 
     spec = {
         "accessModes": old_spec.get("accessModes", []),
@@ -326,8 +336,10 @@ async def create_pvc(
                 APOLO_PROJECT_LABEL: project_name,
                 DISK_API_ORG_LABEL: org_name,
                 DISK_API_MARK_LABEL: "true",
+                APOLO_MARK_LABEL: "true",
                 PROJECT_LABEL: project_name,
                 USER_LABEL: old_metadata["labels"][USER_LABEL],
+                APOLO_USER_LABEL: old_metadata["labels"][USER_LABEL],
             },
             "annotations": annotations,
         },
@@ -342,14 +354,7 @@ def main() -> None:  # pragma: no coverage
     init_logging()
     config = EnvironConfigFactory().create_job_migrate_project()
     logging.info("Loaded config: %r", config)
-    asyncio.run(
-        migration_loop(
-            config,
-            disk_ids_filter={
-                'disk-b1c46bc6-9fa5-4026-b440-c24faa798fd0',
-            },
-        )
-    )
+    asyncio.run(migration_loop(config))
 
 
 if __name__ == '__main__':
