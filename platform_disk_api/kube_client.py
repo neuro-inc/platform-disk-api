@@ -80,12 +80,12 @@ class MergeDiff:
         return json.dumps(self._diff)
 
     @classmethod
-    def make_add_label_diff(cls, label_key: str, value: str) -> "MergeDiff":
-        return cls({"metadata": {"labels": {label_key: value}}})
+    def make_add_label_diff(cls, labels: dict[str, str]) -> "MergeDiff":
+        return cls({"metadata": {"labels": labels}})
 
     @classmethod
-    def make_add_annotations_diff(cls, annotation_key: str, value: str) -> "MergeDiff":
-        return cls({"metadata": {"annotations": {annotation_key: value}}})
+    def make_add_annotations_diff(cls, annotations: dict[str, str]) -> "MergeDiff":
+        return cls({"metadata": {"annotations": annotations}})
 
 
 @dataclass(frozen=True)

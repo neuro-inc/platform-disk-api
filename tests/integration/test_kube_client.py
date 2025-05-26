@@ -70,7 +70,7 @@ class TestKubeClient:
                 storage=10 * 1024 * 1024,  # 10 mb
             )
         )
-        diff = MergeDiff.make_add_label_diff("hello/world", "value")
+        diff = MergeDiff.make_add_label_diff({"hello/world": "value"})
         await kube_client.update_pvc(namespace.name, pvc.name, diff)
         pvc = await kube_client.get_pvc(namespace.name, pvc.name)
         assert pvc.labels == {"hello/world": "value"}
@@ -90,7 +90,7 @@ class TestKubeClient:
                 storage=10 * 1024 * 1024,  # 10 mb
             )
         )
-        diff = MergeDiff.make_add_annotations_diff("hello/world", "value")
+        diff = MergeDiff.make_add_annotations_diff({"hello/world": "value"})
         await kube_client.update_pvc(namespace.name, pvc.name, diff)
         pvc = await kube_client.get_pvc(namespace.name, pvc.name)
         assert pvc.annotations.get("hello/world") == "value"
