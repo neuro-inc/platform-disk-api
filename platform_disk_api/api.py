@@ -32,7 +32,7 @@ from aiohttp_apispec import (
     setup_aiohttp_apispec,
 )
 from aiohttp_security import check_authorized
-from apolo_kube_client.apolo import NO_ORG, generate_namespace_name, normalize_name
+from apolo_kube_client.apolo import NO_ORG, normalize_name
 from apolo_kube_client.config import KubeConfig
 from marshmallow import Schema, fields
 from neuro_auth_client import (
@@ -174,13 +174,12 @@ class DiskApiHandler:
         id_or_name = request.match_info["disk_id_or_name"]
         org_name = request.query.get("org_name") or normalize_name(NO_ORG)
         project_name = request.query["project_name"]
-        namespace = generate_namespace_name(org_name, project_name)
         try:
-            disk = await self._service.get_disk(namespace, id_or_name)
+            disk = await self._service.get_disk(org_name, project_name, id_or_name)
         except DiskNotFound:
             try:
                 disk = await self._service.get_disk_by_name(
-                    namespace, id_or_name, org_name, project_name
+                    id_or_name, org_name, project_name
                 )
             except DiskNotFound:
                 raise HTTPNotFound(text=f"Disk {id_or_name} not found")

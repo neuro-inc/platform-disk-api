@@ -100,7 +100,8 @@ class TestService:
             org_name=org_name,
         )
         disk_created = await service.create_disk(request, "testuser")
-        disk_get = await service.get_disk(disk_created.namespace, disk_created.id)
+        disk_get = await service.get_disk(
+            disk_created.org_name, disk_created.project_name, disk_created.id)
         assert disk_get.id == disk_created.id
         assert disk_get.owner == disk_created.owner
         assert disk_get.storage >= disk_created.storage
@@ -115,8 +116,7 @@ class TestService:
             org_name=org_name,
         )
         disk_created = await service.create_disk(request, "testuser")
-        disk_get = await service.get_disk_by_name(
-            disk_created.namespace, "test-name", org_name, project_name)
+        disk_get = await service.get_disk_by_name("test-name", org_name, project_name)
         assert disk_get.id == disk_created.id
         assert disk_get.owner == disk_created.owner
         assert disk_get.storage >= disk_created.storage
@@ -133,15 +133,14 @@ class TestService:
         )
         disk_created = await service.create_disk(request, project_name)
 
-        disk_get = await service.get_disk_by_name(
-            disk_created.namespace, "test-name", "any", project_name)
+        disk_get = await service.get_disk_by_name("test-name", "any", project_name)
         assert disk_get.id == disk_created.id
         assert disk_get.owner == disk_created.owner
         assert disk_get.storage >= disk_created.storage
 
     async def test_get_non_existing_disk(self, service: Service) -> None:
         with pytest.raises(DiskNotFound):
-            await service.get_disk("any", "no-disk-for-this-name")
+            await service.get_disk("not-found", "not-found", "no-disk-for-this-name")
 
     async def test_remove_non_existing_disk(self, service: Service) -> None:
         disk = Disk(
@@ -215,7 +214,6 @@ class TestService:
 
     async def test_life_span_stored(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
-        namespace = generate_namespace_name(org_name, project_name)
         life_span = timedelta(days=7)
         request = DiskRequest(
             storage=1024 * 1024,
@@ -224,19 +222,18 @@ class TestService:
             org_name=org_name,
         )
         disk = await service.create_disk(request, "testuser")
-        disk = await service.get_disk(namespace, disk.id)
+        disk = await service.get_disk(disk.org_name, disk.project_name, disk.id)
         assert disk.life_span == life_span
 
     async def test_no_life_span_stored(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
-        namespace = generate_namespace_name(org_name, project_name)
         request = DiskRequest(
             storage=1024 * 1024,
             project_name=project_name,
             org_name=org_name,
         )
         disk = await service.create_disk(request, "testuser")
-        disk = await service.get_disk(namespace, disk.id)
+        disk = await service.get_disk(disk.org_name, disk.project_name, disk.id)
         assert disk.life_span is None
 
     async def test_update_last_usage(self, service: Service) -> None:
@@ -251,5 +248,5 @@ class TestService:
         assert disk.last_usage is None
         last_usage_time = utc_now()
         await service.mark_disk_usage(namespace, disk.id, last_usage_time)
-        disk = await service.get_disk(namespace, disk.id)
+        disk = await service.get_disk(disk.org_name, disk.project_name, disk.id)
         assert disk.last_usage == last_usage_time

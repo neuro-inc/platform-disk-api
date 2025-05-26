@@ -68,7 +68,7 @@ class TestUsageWatcher:
 
         async def wait_for_last_usage(disk_id: str) -> None:
             while True:
-                disk = await service.get_disk(namespace_name, disk_id)
+                disk = await service.get_disk(org, project, disk_id)
                 if disk.last_usage is not None:
                     break
                 await asyncio.sleep(0.1)
@@ -86,7 +86,7 @@ class TestUsageWatcher:
             async with kube_client.run_pod(namespace_name, [disk.id]):
                 await asyncio.wait_for(wait_for_last_usage(disk.id), timeout=10)
 
-            disk = await service.get_disk(namespace_name, disk.id)
+            disk = await service.get_disk(disk.org_name, disk.project_name, disk.id)
             assert disk.last_usage
             assert before_start < disk.last_usage
 
@@ -95,7 +95,6 @@ class TestUsageWatcher:
         cleanup_task: None,
         service: Service,
     ) -> None:
-        namespace_name = generate_namespace_name("no-org", "test-project")
         disk = await service.create_disk(
             DiskRequest(
                 storage=1000,
@@ -107,7 +106,7 @@ class TestUsageWatcher:
         )
         await asyncio.sleep(1.5)
         with pytest.raises(DiskNotFound):
-            await service.get_disk(namespace_name, disk.id)
+            await service.get_disk(disk.org_name, disk.project_name, disk.id)
 
     async def test_task_cleaned_up_with_usage(
         self,
@@ -128,7 +127,7 @@ class TestUsageWatcher:
         await asyncio.sleep(1.33)
         await service.mark_disk_usage(namespace_name, disk.id, utc_now())
         await asyncio.sleep(1.33)
-        assert await service.get_disk(namespace_name, disk.id)
+        assert await service.get_disk(disk.org_name, disk.project_name, disk.id)
         await asyncio.sleep(1.33)
         with pytest.raises(DiskNotFound):
-            await service.get_disk(namespace_name, disk.id)
+            await service.get_disk(disk.org_name, disk.project_name, disk.id)
