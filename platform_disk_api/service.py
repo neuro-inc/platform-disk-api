@@ -32,7 +32,7 @@ logger = logging.getLogger()
 
 DISK_API_ORG_LABEL = "platform.neuromation.io/disk-api-org-name"
 APOLO_ORG_LABEL = "platform.apolo.us/org"
-PROJECT_LABEL = "platform.neuromation.io/project"
+DISK_API_PROJECT_LABEL = "platform.neuromation.io/project"
 APOLO_PROJECT_LABEL = "platform.apolo.us/project"
 USER_LABEL = "platform.neuromation.io/user"
 APOLO_USER_LABEL = "platform.apolo.us/user"
@@ -141,7 +141,7 @@ class Service:
             APOLO_DISK_API_MARK_LABEL: "true",
             DISK_API_ORG_LABEL: request.org_name,
             APOLO_ORG_LABEL: request.org_name,
-            PROJECT_LABEL: request.project_name,
+            DISK_API_PROJECT_LABEL: request.project_name,
             APOLO_PROJECT_LABEL: request.project_name,
         }
 
@@ -204,7 +204,7 @@ class Service:
         org_name = pvc.labels.get(APOLO_ORG_LABEL, pvc.labels[DISK_API_ORG_LABEL])
         project_name = pvc.labels.get(
             APOLO_PROJECT_LABEL,
-            pvc.labels.get(PROJECT_LABEL, username)
+            pvc.labels.get(DISK_API_PROJECT_LABEL, username)
         )
         disk_name = pvc.annotations.get(
             APOLO_DISK_API_NAME_ANNOTATION,
@@ -262,7 +262,6 @@ class Service:
                     f"Disk with name {request.name} already"
                     f"exists for user {username}"
                 )
-            # todo: new disks should've both new and old labels
         try:
             pvc_read = await self._kube_client.create_pvc(namespace.name, pvc_write)
         except Exception:
