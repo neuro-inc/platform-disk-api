@@ -58,7 +58,7 @@ from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
-from .service import Disk, DiskNotFound, Service, DiskRequest, is_no_org
+from .service import Disk, DiskNotFound, DiskRequest, Service, is_no_org
 
 logger = logging.getLogger(__name__)
 
@@ -163,12 +163,14 @@ class DiskApiHandler:
         self,
         disk_request: DiskRequest,
     ) -> int:
-        return sum([
-            d.storage for d in await self._service.get_all_disks(
-                disk_request.org_name,
-                disk_request.project_name
-            )
-        ])
+        return sum(
+            [
+                d.storage
+                for d in await self._service.get_all_disks(
+                    disk_request.org_name, disk_request.project_name
+                )
+            ]
+        )
 
     async def _resolve_disk(self, request: Request) -> Disk:
         id_or_name = request.match_info["disk_id_or_name"]
@@ -216,10 +218,8 @@ class DiskApiHandler:
 
         used_storage = await self._get_used_storage(disk_request)
 
-        if (
-            self._config.disk.storage_limit_per_project < (
-                used_storage + disk_request.storage
-            )
+        if self._config.disk.storage_limit_per_project < (
+            used_storage + disk_request.storage
         ):
             limit_gb = self._config.disk.storage_limit_per_project / 2**30
             return json_response(

@@ -8,8 +8,11 @@ from apolo_kube_client.namespace import Namespace
 
 from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
 from platform_disk_api.service import (
-    DiskNameUsed, DiskNotFound, DiskRequest, Service,
-    Disk
+    Disk,
+    DiskNameUsed,
+    DiskNotFound,
+    DiskRequest,
+    Service,
 )
 from platform_disk_api.utils import utc_now
 
@@ -101,7 +104,8 @@ class TestService:
         )
         disk_created = await service.create_disk(request, "testuser")
         disk_get = await service.get_disk(
-            disk_created.org_name, disk_created.project_name, disk_created.id)
+            disk_created.org_name, disk_created.project_name, disk_created.id
+        )
         assert disk_get.id == disk_created.id
         assert disk_get.owner == disk_created.owner
         assert disk_get.storage >= disk_created.storage
@@ -170,7 +174,7 @@ class TestService:
             namespace.name,
             PersistentVolumeClaimWrite(
                 name="outer-pvc", storage_class_name="no-way", storage=200
-            )
+            ),
         )
         request = DiskRequest(
             storage=1024 * 1024,
@@ -193,7 +197,7 @@ class TestService:
             namespace.name,
             PersistentVolumeClaimWrite(
                 name="outer-pvc", storage_class_name="no-way", storage=200
-            )
+            ),
         )
         request = DiskRequest(
             storage=1024 * 1024,
@@ -207,8 +211,7 @@ class TestService:
             org_name=org,
         )
         disk_created = await service.create_disk(request, "testuser")
-        project_disks = await service.get_all_disks(
-            org_name=org, project_name=project)
+        project_disks = await service.get_all_disks(org_name=org, project_name=project)
         assert len(project_disks) == 1
         assert project_disks[0].id == disk_created.id
 

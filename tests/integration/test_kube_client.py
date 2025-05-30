@@ -4,7 +4,7 @@ import asyncio
 from uuid import uuid4
 
 import pytest
-from apolo_kube_client.errors import ResourceNotFound, ResourceExists
+from apolo_kube_client.errors import ResourceExists, ResourceNotFound
 from apolo_kube_client.namespace import Namespace
 
 from platform_disk_api.kube_client import (
@@ -13,6 +13,7 @@ from platform_disk_api.kube_client import (
     MergeDiff,
     PersistentVolumeClaimWrite,
 )
+
 from .kube import KubeClientForTest
 
 
@@ -31,7 +32,7 @@ class TestKubeClient:
                 name=str(uuid4()),
                 storage_class_name=k8s_storage_class,
                 storage=10 * 1024 * 1024,  # 10 mb
-            )
+            ),
         )
         pvcs = await kube_client.list_pvc(namespace=namespace.name)
         assert len(pvcs) == 1
@@ -48,7 +49,7 @@ class TestKubeClient:
             PersistentVolumeClaimWrite(
                 name=str(uuid4()),
                 storage=10 * 1024 * 1024,  # 10 mb
-            )
+            ),
         )
         pvcs = await kube_client.list_pvc(namespace=namespace.name)
         assert len(pvcs) == 1
@@ -68,7 +69,7 @@ class TestKubeClient:
                 name=str(uuid4()),
                 storage_class_name=k8s_storage_class,
                 storage=10 * 1024 * 1024,  # 10 mb
-            )
+            ),
         )
         diff = MergeDiff.make_add_label_diff({"hello/world": "value"})
         await kube_client.update_pvc(namespace.name, pvc.name, diff)
@@ -88,7 +89,7 @@ class TestKubeClient:
                 name=str(uuid4()),
                 storage_class_name=k8s_storage_class,
                 storage=10 * 1024 * 1024,  # 10 mb
-            )
+            ),
         )
         diff = MergeDiff.make_add_annotations_diff({"hello/world": "value"})
         await kube_client.update_pvc(namespace.name, pvc.name, diff)
@@ -110,7 +111,7 @@ class TestKubeClient:
                 name=str(uuid4()),
                 storage_class_name=k8s_storage_class,
                 storage=storage_to_request,
-            )
+            ),
         )
         assert pvc.storage_requested == storage_to_request
 
@@ -128,7 +129,7 @@ class TestKubeClient:
                 name=str(uuid4()),
                 storage_class_name=k8s_storage_class,
                 storage=storage_to_request,
-            )
+            ),
         )
 
         async def wait_for_storage() -> None:
@@ -157,7 +158,7 @@ class TestKubeClient:
                     name=name,
                     storage_class_name=k8s_storage_class,
                     storage=1 * 1024 * 1024,  # 1 mb
-                )
+                ),
             )
         pvcs = await kube_client.list_pvc(namespace=namespace.name)
         assert len(pvcs) == pvc_count
@@ -257,7 +258,7 @@ class TestKubeClient:
                 name=str(uuid4()),
                 storage_class_name=k8s_storage_class,
                 storage=storage_to_request,
-            )
+            ),
         )
         async with kube_client.run_pod(namespace.name, [pvc.name]) as created_pod:
             list_res = await kube_client.list_pods()
@@ -278,7 +279,7 @@ class TestKubeClient:
                 name=str(uuid4()),
                 storage_class_name=k8s_storage_class,
                 storage=storage_to_request,
-            )
+            ),
         )
         pvc2 = await kube_client.create_pvc(
             namespace.name,
@@ -286,7 +287,7 @@ class TestKubeClient:
                 name=str(uuid4()),
                 storage_class_name=k8s_storage_class,
                 storage=storage_to_request,
-            )
+            ),
         )
 
         seen_pvc = set()
@@ -327,13 +328,13 @@ class TestKubeClient:
         namespace, org, project = scoped_namespace
         assert await kube_client.list_disk_namings() == []
         disk_name = DiskNaming(
-            namespace=namespace.name,
-            name="owner-user",
-            disk_id="testing"
+            namespace=namespace.name, name="owner-user", disk_id="testing"
         )
         await kube_client.create_disk_naming(disk_name)
-        assert await kube_client.get_disk_naming(
-            namespace.name, disk_name.name) == disk_name
+        assert (
+            await kube_client.get_disk_naming(namespace.name, disk_name.name)
+            == disk_name
+        )
         assert await kube_client.list_disk_namings() == [disk_name]
         await kube_client.remove_disk_naming(namespace.name, disk_name.name)
         assert await kube_client.list_disk_namings() == []

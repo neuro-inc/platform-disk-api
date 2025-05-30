@@ -174,7 +174,7 @@ class TestPVCSerialization:
                 "metadata": {
                     "name": name,
                     "namespace": "default",
-                    "labels": {"foo": "bar"}
+                    "labels": {"foo": "bar"},
                 },
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],
@@ -207,7 +207,7 @@ class TestPVCSerialization:
                 "metadata": {
                     "name": name,
                     "namespace": "default",
-                    "annotations": {"foo": "bar"}
+                    "annotations": {"foo": "bar"},
                 },
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],

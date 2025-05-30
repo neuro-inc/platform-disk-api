@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from typing import Any, Literal, Optional
 
 import async_timeout
-from apolo_kube_client.apolo import create_namespace, normalize_name, NO_ORG
+from apolo_kube_client.apolo import NO_ORG, create_namespace, normalize_name
 from apolo_kube_client.errors import ResourceNotFound
 from neuro_logging import (
     init_logging,
@@ -16,13 +16,21 @@ from yarl import URL
 from platform_disk_api.api import create_kube_client
 from platform_disk_api.config import JobMigrateProjectNamespaceConfig
 from platform_disk_api.config_factory import EnvironConfigFactory
-from platform_disk_api.kube_client import KubeClient, DiskNaming
+from platform_disk_api.kube_client import DiskNaming, KubeClient
 from platform_disk_api.service import (
-    DISK_API_MARK_LABEL, USER_LABEL, DISK_API_PROJECT_LABEL,
-    DISK_API_ORG_LABEL, DISK_API_USED_BYTES_ANNOTATION, DISK_API_NAME_ANNOTATION,
-    DISK_API_LIFE_SPAN_ANNOTATION, DISK_API_CREATED_AT_ANNOTATION, APOLO_ORG_LABEL,
-    APOLO_PROJECT_LABEL, DISK_API_LAST_USAGE_ANNOTATION, APOLO_DISK_API_MARK_LABEL,
-    APOLO_USER_LABEL
+    APOLO_DISK_API_MARK_LABEL,
+    APOLO_ORG_LABEL,
+    APOLO_PROJECT_LABEL,
+    APOLO_USER_LABEL,
+    DISK_API_CREATED_AT_ANNOTATION,
+    DISK_API_LAST_USAGE_ANNOTATION,
+    DISK_API_LIFE_SPAN_ANNOTATION,
+    DISK_API_MARK_LABEL,
+    DISK_API_NAME_ANNOTATION,
+    DISK_API_ORG_LABEL,
+    DISK_API_PROJECT_LABEL,
+    DISK_API_USED_BYTES_ANNOTATION,
+    USER_LABEL,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,11 +40,11 @@ CURRENT_NAMESPACE = "platform-jobs"
 
 
 class DiskMigrationError(Exception):
-    ...
+    pass
 
 
 class PvcInUseError(DiskMigrationError):
-    ...
+    pass
 
 
 async def migration_loop(
@@ -53,19 +61,15 @@ async def migration_loop(
     async with create_kube_client(config.kube) as kube_client:
         # get all disk namings
         disk_namings = await kube_client.list_disk_namings()
-        pvc_to_disk_naming = {
-            dn.disk_id: dn for dn in disk_namings
-        }
+        pvc_to_disk_naming = {dn.disk_id: dn for dn in disk_namings}
 
         # get all the PVCs which are apolo disks
         pvc_url = URL(
             kube_client._generate_pvc_url(namespace=CURRENT_NAMESPACE)
-        ).with_query(
-            labelSelector=f"{DISK_API_MARK_LABEL}=true"
-        )
+        ).with_query(labelSelector=f"{DISK_API_MARK_LABEL}=true")
         all_pvc = await kube_client.get(pvc_url)
 
-        for pvc in all_pvc['items']:
+        for pvc in all_pvc["items"]:
             pvc_name = pvc["metadata"]["name"]
             if disk_ids_filter and pvc_name not in disk_ids_filter:
                 continue
@@ -79,9 +83,7 @@ async def migration_loop(
             if not disk_naming:
                 logger.error(
                     "PVC does not have a disk naming. Skipping",
-                    extra={
-                        "pvc_name": pvc_name
-                    }
+                    extra={"pvc_name": pvc_name},
                 )
                 continue
 
@@ -99,16 +101,16 @@ async def migration_loop(
                     extra={
                         "pv_name": pv_name,
                         "pvc_name": pvc_name,
-                    }
+                    },
                 )
 
 
 async def migrate_disk(
-        client: KubeClient,
-        pvc_name: str,
-        pvc: dict[str, Any],
-        disk_naming: DiskNaming,
-        pv_name: Optional[str] = None,
+    client: KubeClient,
+    pvc_name: str,
+    pvc: dict[str, Any],
+    disk_naming: DiskNaming,
+    pv_name: Optional[str] = None,
 ) -> None:
     """
     an entry-point for a single disk migration.
@@ -191,15 +193,13 @@ async def _waiter() -> AsyncIterator[None]:
 
 
 async def update_reclaim_policy(
-        client: KubeClient,
-        pv_name: str,
-        policy: Literal["Retain", "Delete"]
+    client: KubeClient, pv_name: str, policy: Literal["Retain", "Delete"]
 ) -> None:
     """
     Updates PV reclaim policy
     """
     logger.info("updating reclaim policy: %s", pv_name)
-    pv_url = f'{client.api_v1_url}/persistentvolumes/{pv_name}'
+    pv_url = f"{client.api_v1_url}/persistentvolumes/{pv_name}"
     await client.patch(
         pv_url,
         headers={"Content-Type": "application/merge-patch+json"},
@@ -207,15 +207,15 @@ async def update_reclaim_policy(
             "spec": {
                 "persistentVolumeReclaimPolicy": policy,
             }
-        }
+        },
     )
     logger.info("updated reclaim policy: %s", pv_name)
 
 
 async def delete_pvc(
-        client: KubeClient,
-        namespace: str,
-        pvc_name: str,
+    client: KubeClient,
+    namespace: str,
+    pvc_name: str,
 ) -> None:
     logger.info("deleting pvc: %s", pvc_name)
     url = client._generate_pvc_url(namespace=namespace, pvc_name=pvc_name)
@@ -225,8 +225,8 @@ async def delete_pvc(
 
 
 async def ensure_pvc_deletable(
-        client: KubeClient,
-        pvc_name: str,
+    client: KubeClient,
+    pvc_name: str,
 ) -> None:
     """
     Checks if any of PODs is using this PVC as a volume
@@ -237,11 +237,7 @@ async def ensure_pvc_deletable(
             raise PvcInUseError()
 
 
-async def wait_pvc_deleted(
-        client: KubeClient,
-        namespace: str,
-        pvc_name: str
-) -> None:
+async def wait_pvc_deleted(client: KubeClient, namespace: str, pvc_name: str) -> None:
     logger.info("waiting for pvc deletion: %s", pvc_name)
     url = client._generate_pvc_url(namespace=namespace, pvc_name=pvc_name)
     async for _ in _waiter():
@@ -252,27 +248,23 @@ async def wait_pvc_deleted(
 
 
 async def remove_claim_ref(
-        client: KubeClient,
-        pv_name: str,
+    client: KubeClient,
+    pv_name: str,
 ) -> None:
     logger.info("removing claim ref: %s", pv_name)
     url = f"{client.api_v1_url}/persistentvolumes/{pv_name}"
     await client.patch(
         url,
         headers={"Content-Type": "application/merge-patch+json"},
-        json={
-            "spec": {
-                "claimRef": None
-            }
-        }
+        json={"spec": {"claimRef": None}},
     )
     logger.info("claim ref removed: %s", pv_name)
 
 
 async def wait_claim_ref_set(
-        client: KubeClient,
-        pv_name: str,
-        pvc_name: str,
+    client: KubeClient,
+    pv_name: str,
+    pvc_name: str,
 ) -> None:
     logger.info("Waiting for claim ref to be set: %s; pv=%s", pvc_name, pv_name)
     url = f"{client.api_v1_url}/persistentvolumes/{pv_name}"
@@ -283,17 +275,21 @@ async def wait_claim_ref_set(
 
 
 async def create_pvc(
-        client: KubeClient,
-        pvc_name: str,
-        old_pvc: dict[str, Any],
-        namespace: str,
-        org_name: str,
-        project_name: str,
-        pv_name: Optional[str] = None,
+    client: KubeClient,
+    pvc_name: str,
+    old_pvc: dict[str, Any],
+    namespace: str,
+    org_name: str,
+    project_name: str,
+    pv_name: Optional[str] = None,
 ) -> None:
     logger.info(
         "creating a new PVC: %s; namespace=%s; org_name=%s; project_name=%s; pv=%s",
-        pvc_name, namespace, org_name, project_name, pv_name
+        pvc_name,
+        namespace,
+        org_name,
+        project_name,
+        pv_name,
     )
     old_spec = old_pvc["spec"]
     old_metadata = old_pvc["metadata"]
@@ -310,8 +306,7 @@ async def create_pvc(
         if annotation_key in old_metadata["annotations"]:
             annotation_value = old_metadata["annotations"][annotation_key]
             apolo_annotation_key = annotation_key.replace(
-                "platform.neuromation.io",
-                "platform.apolo.us"
+                "platform.neuromation.io", "platform.apolo.us"
             )
             annotations[annotation_key] = annotation_value
             annotations[apolo_annotation_key] = annotation_value
@@ -320,7 +315,7 @@ async def create_pvc(
         "accessModes": old_spec.get("accessModes", []),
         "resources": old_spec.get("resources", {}),
         "storageClassName": old_spec["storageClassName"],
-        "volumeMode": old_spec.get("volumeMode", "Filesystem")
+        "volumeMode": old_spec.get("volumeMode", "Filesystem"),
     }
 
     if pv_name:
@@ -359,5 +354,5 @@ def main() -> None:  # pragma: no coverage
     asyncio.run(migration_loop(config))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

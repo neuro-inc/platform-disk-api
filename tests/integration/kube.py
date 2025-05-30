@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import pytest
-from apolo_kube_client.config import KubeConfig, KubeClientAuthType
+from apolo_kube_client.config import KubeClientAuthType, KubeConfig
 from apolo_kube_client.errors import ResourceNotFound
 
 from platform_disk_api.kube_client import KubeClient, PodRead
@@ -71,9 +71,7 @@ async def kube_config(
 class KubeClientForTest(KubeClient):
     @asynccontextmanager
     async def run_pod(
-        self,
-        namespace: str,
-        pvc_names: list[str]
+        self, namespace: str, pvc_names: list[str]
     ) -> AsyncIterator[PodRead]:
         json = {
             "kind": "Pod",

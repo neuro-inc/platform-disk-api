@@ -6,8 +6,11 @@ from datetime import datetime
 from typing import Optional
 
 import aiohttp
-from apolo_kube_client.errors import ResourceGone, KubeClientUnauthorized, \
-    KubeClientExpired
+from apolo_kube_client.errors import (
+    KubeClientExpired,
+    KubeClientUnauthorized,
+    ResourceGone,
+)
 from neuro_logging import (
     init_logging,
     make_sentry_trace_config,
@@ -62,8 +65,7 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
                     else:
                         namespace_pvcs = set(
                             itertools.product(
-                                [event.pod.namespace],
-                                event.pod.pvc_in_use
+                                [event.pod.namespace], event.pod.pvc_in_use
                             )
                         )
                         await update_last_used(service, namespace_pvcs, utc_now())

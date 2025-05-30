@@ -14,7 +14,7 @@ import aiohttp.web
 import pytest
 from apolo_kube_client.apolo import create_namespace
 from apolo_kube_client.config import KubeConfig
-from apolo_kube_client.namespace import NamespaceApi, Namespace
+from apolo_kube_client.namespace import Namespace, NamespaceApi
 
 from platform_disk_api.config import (
     AuthConfig,
@@ -153,7 +153,7 @@ def cluster_name() -> str:
 
 @pytest.fixture
 async def scoped_namespace(
-    kube_client: KubeClient
+    kube_client: KubeClient,
 ) -> AsyncIterator[tuple[Namespace, str, str]]:
     org, project = uuid4().hex, uuid4().hex
     namespace = await create_namespace(kube_client, org, project)

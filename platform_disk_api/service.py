@@ -6,8 +6,12 @@ from enum import Enum
 from typing import Optional, TypeVar
 from uuid import uuid4
 
-from apolo_kube_client.apolo import create_namespace, generate_namespace_name, NO_ORG, \
-    normalize_name
+from apolo_kube_client.apolo import (
+    NO_ORG,
+    create_namespace,
+    generate_namespace_name,
+    normalize_name,
+)
 from apolo_kube_client.errors import ResourceExists, ResourceNotFound
 
 from .kube_client import (
@@ -53,11 +57,7 @@ APOLO_DISK_API_USED_BYTES_ANNOTATION = "platform.apolo.us/disk-api-used-bytes"
 
 
 def is_no_org(org_name: Optional[str]) -> bool:
-    return (
-        org_name is None
-        or org_name == NO_ORG
-        or org_name == normalize_name(NO_ORG)
-    )
+    return org_name is None or org_name == NO_ORG or org_name == normalize_name(NO_ORG)
 
 
 @dataclass(frozen=True)
@@ -111,14 +111,11 @@ class Service:
         org_name: str,
         project_name: str,
     ) -> str:
-        """Get kubernetes resource name for a disk naming object.
-        """
+        """Get kubernetes resource name for a disk naming object."""
         return f"{name}--{org_name}--{project_name}"
 
     def _request_to_pvc(
-        self,
-        request: DiskRequest,
-        username: str
+        self, request: DiskRequest, username: str
     ) -> PersistentVolumeClaimWrite:
         now = datetime_dump(utc_now())
         annotations = {
@@ -162,18 +159,18 @@ class Service:
         if DISK_API_CREATED_AT_ANNOTATION not in pvc.annotations:
             now = datetime_dump(utc_now())
             # This is old pvc, created before we added created_at field.
-            diff = MergeDiff.make_add_annotations_diff({
-                DISK_API_CREATED_AT_ANNOTATION: now,
-                APOLO_DISK_API_CREATED_AT_ANNOTATION: now,
-            })
+            diff = MergeDiff.make_add_annotations_diff(
+                {
+                    DISK_API_CREATED_AT_ANNOTATION: now,
+                    APOLO_DISK_API_CREATED_AT_ANNOTATION: now,
+                }
+            )
             pvc = await self._kube_client.update_pvc(pvc.namespace, pvc.name, diff)
 
         _T = TypeVar("_T")
 
         def _get_if_present(
-            new_annotation: str,
-            old_annotation: str,
-            mapper: Callable[[str], _T]
+            new_annotation: str, old_annotation: str, mapper: Callable[[str], _T]
         ) -> Optional[_T]:
             if new_annotation in pvc.annotations:
                 return mapper(pvc.annotations[new_annotation])
@@ -181,34 +178,30 @@ class Service:
                 return mapper(pvc.annotations[old_annotation])
             return None
 
-        username = pvc.labels.get(
-            APOLO_USER_LABEL,
-            pvc.labels[USER_LABEL]
-        ).replace("--", "/")
+        username = pvc.labels.get(APOLO_USER_LABEL, pvc.labels[USER_LABEL]).replace(
+            "--", "/"
+        )
         last_usage = _get_if_present(
             APOLO_DISK_API_LAST_USAGE_ANNOTATION,
             DISK_API_LAST_USAGE_ANNOTATION,
-            datetime_load
+            datetime_load,
         )
         life_span = _get_if_present(
             APOLO_DISK_API_LIFE_SPAN_ANNOTATION,
             DISK_API_LIFE_SPAN_ANNOTATION,
-            timedelta_load
+            timedelta_load,
         )
         used_bytes = _get_if_present(
-            APOLO_DISK_API_USED_BYTES_ANNOTATION,
-            DISK_API_USED_BYTES_ANNOTATION,
-            int
+            APOLO_DISK_API_USED_BYTES_ANNOTATION, DISK_API_USED_BYTES_ANNOTATION, int
         )
 
         org_name = pvc.labels.get(APOLO_ORG_LABEL, pvc.labels[DISK_API_ORG_LABEL])
         project_name = pvc.labels.get(
-            APOLO_PROJECT_LABEL,
-            pvc.labels.get(DISK_API_PROJECT_LABEL, username)
+            APOLO_PROJECT_LABEL, pvc.labels.get(DISK_API_PROJECT_LABEL, username)
         )
         disk_name = pvc.annotations.get(
             APOLO_DISK_API_NAME_ANNOTATION,
-            pvc.annotations.get(DISK_API_NAME_ANNOTATION)
+            pvc.annotations.get(DISK_API_NAME_ANNOTATION),
         )
         created_at = datetime_load(
             pvc.annotations.get(
@@ -254,7 +247,8 @@ class Service:
                 project_name=request.project_name,
             )
             disk_naming = DiskNaming(
-                namespace.name, name=disk_name, disk_id=pvc_write.name)
+                namespace.name, name=disk_name, disk_id=pvc_write.name
+            )
             try:
                 await self._kube_client.create_disk_naming(disk_naming)
             except ResourceExists:
@@ -279,10 +273,7 @@ class Service:
         return await self._pvc_to_disk(pvc)
 
     async def get_disk_by_name(
-        self,
-        name: str,
-        org_name: str,
-        project_name: str
+        self, name: str, org_name: str, project_name: str
     ) -> Disk:
         try:
             disk_naming_name = self._get_disk_naming_name(
@@ -334,45 +325,44 @@ class Service:
                 )
                 try:
                     await self._kube_client.remove_disk_naming(
-                        namespace, disk_naming_name)
+                        namespace, disk_naming_name
+                    )
                 except ResourceNotFound:
                     pass  # already removed
-            diff = MergeDiff.make_add_label_diff({
-                DISK_API_DELETED_LABEL: "true", APOLO_DISK_API_DELETED_LABEL: "true"
-            })
+            diff = MergeDiff.make_add_label_diff(
+                {DISK_API_DELETED_LABEL: "true", APOLO_DISK_API_DELETED_LABEL: "true"}
+            )
             await self._kube_client.update_pvc(namespace, disk.id, diff)
             await self._kube_client.remove_pvc(namespace, disk.id)
         except ResourceNotFound:
             raise DiskNotFound
 
     async def mark_disk_usage(
-        self,
-        namespace: str,
-        disk_id: str,
-        time: datetime
+        self, namespace: str, disk_id: str, time: datetime
     ) -> None:
         time_dump = datetime_dump(time)
-        diff = MergeDiff.make_add_annotations_diff({
-            DISK_API_LAST_USAGE_ANNOTATION: time_dump,
-            APOLO_DISK_API_LAST_USAGE_ANNOTATION: time_dump,
-        })
+        diff = MergeDiff.make_add_annotations_diff(
+            {
+                DISK_API_LAST_USAGE_ANNOTATION: time_dump,
+                APOLO_DISK_API_LAST_USAGE_ANNOTATION: time_dump,
+            }
+        )
         try:
             await self._kube_client.update_pvc(namespace, disk_id, diff)
         except ResourceNotFound:
             raise DiskNotFound
 
     async def update_disk_used_bytes(
-        self,
-        namespace: str,
-        disk_id: str,
-        used_bytes: int
+        self, namespace: str, disk_id: str, used_bytes: int
     ) -> None:
         used_bytes_dump = str(used_bytes)
 
-        diff = MergeDiff.make_add_annotations_diff({
-            DISK_API_USED_BYTES_ANNOTATION: used_bytes_dump,
-            APOLO_DISK_API_USED_BYTES_ANNOTATION: used_bytes_dump,
-        })
+        diff = MergeDiff.make_add_annotations_diff(
+            {
+                DISK_API_USED_BYTES_ANNOTATION: used_bytes_dump,
+                APOLO_DISK_API_USED_BYTES_ANNOTATION: used_bytes_dump,
+            }
+        )
         try:
             await self._kube_client.update_pvc(namespace, disk_id, diff)
         except ResourceNotFound:

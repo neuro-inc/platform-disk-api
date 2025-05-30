@@ -18,6 +18,7 @@ from platform_disk_api.api import create_app
 from platform_disk_api.config import Config
 from platform_disk_api.schema import DiskSchema
 from platform_disk_api.service import Disk
+
 from .auth import _User
 from .conftest import ApiAddress, create_local_app_server
 
@@ -322,7 +323,7 @@ class TestApi:
         async with client.get(
             disk_api.disk_url,
             headers=user.headers,
-            params={"project_name": "test-project"}
+            params={"project_name": "test-project"},
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
@@ -418,7 +419,6 @@ class TestApi:
             disk_api.disk_url,
             headers=user1.headers,
             params={"project_name": "test-project1"},
-
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
@@ -537,7 +537,7 @@ class TestApi:
         async with client.get(
             disk_api.project_disk_url("test-project"),
             headers=user.headers,
-            params={"org_name": "test-org"}
+            params={"org_name": "test-org"},
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
@@ -568,8 +568,7 @@ class TestApi:
             assert disks[0].id == disk.id
 
         async with client.get(
-            disk_api.project_disk_url(user.name),
-            headers=user.headers
+            disk_api.project_disk_url(user.name), headers=user.headers
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks = DiskSchema(many=True).load(await resp.json())
@@ -627,7 +626,7 @@ class TestApi:
         async with await client.delete(
             disk_api.single_disk_url(disk.id),
             headers=user2.headers,
-            params={"project_name": user1.name}
+            params={"project_name": user1.name},
         ) as resp:
             assert resp.status == HTTPForbidden.status_code
         async with await client.get(
@@ -658,7 +657,7 @@ class TestApi:
         async with await client.delete(
             disk_api.single_disk_url(disk.id),
             headers=user2.headers,
-            params={"project_name": "test-project1"}
+            params={"project_name": "test-project1"},
         ) as resp:
             assert resp.status == HTTPForbidden.status_code
         async with await client.get(
@@ -688,7 +687,7 @@ class TestApi:
         async with await client.get(
             disk_api.single_disk_url(disk.id),
             headers=user.headers,
-            params={"project_name": "test-project"}
+            params={"project_name": "test-project"},
         ) as resp:
             assert resp.status == HTTPOk.status_code
             disk_got = DiskSchema().load(await resp.json())
@@ -740,7 +739,7 @@ class TestApi:
         async with await client.get(
             disk_api.single_disk_url(disk.name),
             headers=user.headers,
-            params={"project_name": user.name}
+            params={"project_name": user.name},
         ) as resp:
             assert resp.status == HTTPOk.status_code
             disk_got = DiskSchema().load(await resp.json())
@@ -756,7 +755,7 @@ class TestApi:
         async with await client.delete(
             disk_api.single_disk_url(disk.name),
             headers=user.headers,
-            params={"project_name": user.name}
+            params={"project_name": user.name},
         ) as resp:
             assert resp.status == HTTPNoContent.status_code
 
@@ -802,7 +801,7 @@ class TestApi:
         async with await client.get(
             disk_api.single_disk_url("wrong-id"),
             headers=user.headers,
-            params={"project_name": "test-project"}
+            params={"project_name": "test-project"},
         ) as resp:
             assert resp.status == HTTPNotFound.status_code
 
@@ -816,6 +815,6 @@ class TestApi:
         async with await client.delete(
             disk_api.single_disk_url("wrong-id"),
             headers=user.headers,
-            params={"project_name": "test-project"}
+            params={"project_name": "test-project"},
         ) as resp:
             assert resp.status == HTTPNotFound.status_code

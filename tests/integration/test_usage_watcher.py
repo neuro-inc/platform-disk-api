@@ -80,7 +80,7 @@ class TestUsageWatcher:
                     project_name=project,
                     org_name=org,
                 ),
-                "user"
+                "user",
             )
             before_start = utc_now()
             async with kube_client.run_pod(namespace_name, [disk.id]):

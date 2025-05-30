@@ -20,17 +20,17 @@ def _storage_str_to_int(storage: str) -> int:
     # More about this format:
     # https://github.com/kubernetes/kubernetes/blob/6b963ed9c841619d511d2830719b6100d6ab1431/staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go#L30
     suffix_to_factor = {
-        "E": 10 ** 18,
-        "P": 10 ** 15,
-        "T": 10 ** 12,
-        "G": 10 ** 9,
-        "M": 10 ** 6,
-        "k": 10 ** 3,
-        "Ei": 1024 ** 6,
-        "Pi": 1024 ** 5,
-        "Ti": 1024 ** 4,
-        "Gi": 1024 ** 3,
-        "Mi": 1024 ** 2,
+        "E": 10**18,
+        "P": 10**15,
+        "T": 10**12,
+        "G": 10**9,
+        "M": 10**6,
+        "k": 10**3,
+        "Ei": 1024**6,
+        "Pi": 1024**5,
+        "Ti": 1024**4,
+        "Gi": 1024**3,
+        "Mi": 1024**2,
         "Ki": 1024,
     }
     try:
@@ -144,10 +144,7 @@ class PodRead:
             pvc_data = volume.get("persistentVolumeClaim")
             if pvc_data:
                 pvc_names.append(pvc_data["claimName"])
-        return PodRead(
-            namespace=payload["metadata"]["namespace"],
-            pvc_in_use=pvc_names
-        )
+        return PodRead(namespace=payload["metadata"]["namespace"], pvc_in_use=pvc_names)
 
 
 @dataclass(frozen=True)
@@ -191,11 +188,10 @@ class PodWatchEvent:
             return PodWatchEvent(
                 type=event_type,
                 resource_version=payload["object"]["metadata"]["resourceVersion"],
-                pod=PodRead(namespace='', pvc_in_use=[]),
+                pod=PodRead(namespace="", pvc_in_use=[]),
             )
         return PodWatchEvent(
-            type=event_type,
-            pod=PodRead.from_primitive(payload["object"])
+            type=event_type, pod=PodRead.from_primitive(payload["object"])
         )
 
     @classmethod
@@ -256,9 +252,7 @@ class KubeClient(ApoloKubeClient):
         return url
 
     def _generate_disk_naming_url(
-        self,
-        namespace: Optional[str] = None,
-        name: Optional[str] = None
+        self, namespace: Optional[str] = None, name: Optional[str] = None
     ) -> str:
         url = f"{self._base_url}/apis/neuromation.io/v1"
         if namespace:
@@ -281,18 +275,14 @@ class KubeClient(ApoloKubeClient):
         return headers
 
     async def create_pvc(
-        self,
-        namespace: str,
-        pvc: PersistentVolumeClaimWrite
+        self, namespace: str, pvc: PersistentVolumeClaimWrite
     ) -> PersistentVolumeClaimRead:
         url = self._generate_pvc_url(namespace)
         payload = await self.post(url=url, json=pvc.to_primitive())
         return PersistentVolumeClaimRead.from_primitive(payload)
 
     async def list_pvc(
-        self,
-        namespace: Optional[str] = None,
-        label_selector: Optional[str] = None
+        self, namespace: Optional[str] = None, label_selector: Optional[str] = None
     ) -> list[PersistentVolumeClaimRead]:
         if namespace:
             url = URL(self._generate_pvc_url(namespace))
@@ -312,10 +302,7 @@ class KubeClient(ApoloKubeClient):
         return PersistentVolumeClaimRead.from_primitive(payload)
 
     async def update_pvc(
-        self,
-        namespace: str,
-        pvc_name: str,
-        json_diff: MergeDiff
+        self, namespace: str, pvc_name: str, json_diff: MergeDiff
     ) -> PersistentVolumeClaimRead:
         url = self._generate_pvc_url(namespace, pvc_name)
         payload = await self.patch(
@@ -335,8 +322,7 @@ class KubeClient(ApoloKubeClient):
         return PodListResult.from_primitive(payload)
 
     async def watch_pods(
-        self,
-        resource_version: Optional[str] = None
+        self, resource_version: Optional[str] = None
     ) -> AsyncIterator[PodWatchEvent]:
         params = {"watch": "true", "allowWatchBookmarks": "true"}
         if resource_version:
@@ -403,10 +389,7 @@ class KubeClient(ApoloKubeClient):
                     except KeyError:
                         pass
 
-    async def create_disk_naming(
-        self,
-        disk_naming: DiskNaming
-    ) -> None:
+    async def create_disk_naming(self, disk_naming: DiskNaming) -> None:
         url = self._generate_disk_naming_url(disk_naming.namespace)
         await self.post(url=url, json=disk_naming.to_primitive())
 

@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
-from apolo_kube_client.config import KubeConfig, KubeClientAuthType
+from apolo_kube_client.config import KubeClientAuthType, KubeConfig
 from yarl import URL
 
 from .config import (
@@ -13,9 +13,10 @@ from .config import (
     CORSConfig,
     DiskConfig,
     DiskUsageWatcherConfig,
+    JobMigrateProjectNamespaceConfig,
     SentryConfig,
     ServerConfig,
-    ZipkinConfig, JobMigrateProjectNamespaceConfig,
+    ZipkinConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,9 +57,7 @@ class EnvironConfigFactory:
         )
 
     def create_job_migrate_project(self) -> JobMigrateProjectNamespaceConfig:
-        return JobMigrateProjectNamespaceConfig(
-            kube=self.create_kube()
-        )
+        return JobMigrateProjectNamespaceConfig(kube=self.create_kube())
 
     def _create_server(self) -> ServerConfig:
         host = self._environ.get("NP_DISK_API_HOST", ServerConfig.host)
@@ -115,7 +114,7 @@ class EnvironConfigFactory:
             ),
             storage_limit_per_project=int(
                 self._environ["NP_DISK_API_STORAGE_LIMIT_PER_PROJECT"]
-            )
+            ),
         )
 
     def create_cors(self) -> CORSConfig:
