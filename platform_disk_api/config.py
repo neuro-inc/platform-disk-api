@@ -1,8 +1,8 @@
-import enum
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Optional
 
+from apolo_kube_client.config import KubeConfig
 from yarl import URL
 
 
@@ -18,37 +18,14 @@ class AuthConfig:
     token: str = field(repr=False)
 
 
-class KubeClientAuthType(str, enum.Enum):
-    NONE = "none"
-    TOKEN = "token"
-    CERTIFICATE = "certificate"
-
-
 @dataclass(frozen=True)
 class CORSConfig:
     allowed_origins: Sequence[str] = ()
 
 
 @dataclass(frozen=True)
-class KubeConfig:
-    endpoint_url: str
-    cert_authority_data_pem: Optional[str] = field(repr=False, default=None)
-    cert_authority_path: Optional[str] = None
-    auth_type: KubeClientAuthType = KubeClientAuthType.NONE
-    auth_cert_path: Optional[str] = None
-    auth_cert_key_path: Optional[str] = None
-    token: Optional[str] = field(repr=False, default=None)
-    token_path: Optional[str] = None
-    namespace: str = "default"
-    client_conn_timeout_s: int = 300
-    client_read_timeout_s: int = 300
-    client_watch_timeout_s: int = 1800
-    client_conn_pool_size: int = 100
-
-
-@dataclass(frozen=True)
 class DiskConfig:
-    storage_limit_per_user: int
+    storage_limit_per_project: int
     k8s_storage_class: str = ""  # default k8s storage class
 
 
@@ -87,3 +64,8 @@ class DiskUsageWatcherConfig:
     kube: KubeConfig
     zipkin: Optional[ZipkinConfig] = None
     sentry: Optional[SentryConfig] = None
+
+
+@dataclass(frozen=True)
+class JobMigrateProjectNamespaceConfig:
+    kube: KubeConfig

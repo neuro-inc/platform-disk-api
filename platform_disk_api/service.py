@@ -6,14 +6,20 @@ from enum import Enum
 from typing import Optional, TypeVar
 from uuid import uuid4
 
+from apolo_kube_client.apolo import (
+    NO_ORG,
+    create_namespace,
+    generate_namespace_name,
+    normalize_name,
+)
+from apolo_kube_client.errors import ResourceExists, ResourceNotFound
+
 from .kube_client import (
     DiskNaming,
     KubeClient,
     MergeDiff,
     PersistentVolumeClaimRead,
     PersistentVolumeClaimWrite,
-    ResourceExists,
-    ResourceNotFound,
 )
 from .utils import datetime_dump, datetime_load, timedelta_dump, timedelta_load, utc_now
 
@@ -28,28 +34,39 @@ class DiskNameUsed(Exception):
 
 logger = logging.getLogger()
 
-
-USER_LABEL = "platform.neuromation.io/user"
-PROJECT_LABEL = "platform.neuromation.io/project"
-DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
-DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
 DISK_API_ORG_LABEL = "platform.neuromation.io/disk-api-org-name"
+APOLO_ORG_LABEL = "platform.apolo.us/org"
+DISK_API_PROJECT_LABEL = "platform.neuromation.io/project"
+APOLO_PROJECT_LABEL = "platform.apolo.us/project"
+USER_LABEL = "platform.neuromation.io/user"
+APOLO_USER_LABEL = "platform.apolo.us/user"
+DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
+APOLO_DISK_API_MARK_LABEL = "platform.apolo.us/disk-api-pvc"
+DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
+APOLO_DISK_API_DELETED_LABEL = "platform.apolo.us/disk-api-pvc-deleted"
 DISK_API_NAME_ANNOTATION = "platform.neuromation.io/disk-api-pvc-name"
+APOLO_DISK_API_NAME_ANNOTATION = "platform.apolo.us/disk-api-pvc-name"
 DISK_API_CREATED_AT_ANNOTATION = "platform.neuromation.io/disk-api-pvc-created-at"
+APOLO_DISK_API_CREATED_AT_ANNOTATION = "platform.apolo.us/disk-api-pvc-created-at"
 DISK_API_LAST_USAGE_ANNOTATION = "platform.neuromation.io/disk-api-pvc-last-usage"
+APOLO_DISK_API_LAST_USAGE_ANNOTATION = "platform.apolo.us/disk-api-pvc-last-usage"
 DISK_API_LIFE_SPAN_ANNOTATION = "platform.neuromation.io/disk-api-pvc-life-span"
+APOLO_DISK_API_LIFE_SPAN_ANNOTATION = "platform.apolo.us/disk-api-pvc-life-span"
 DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
+APOLO_DISK_API_USED_BYTES_ANNOTATION = "platform.apolo.us/disk-api-used-bytes"
 
-NO_ORG = "NO_ORG"
+
+def is_no_org(org_name: Optional[str]) -> bool:
+    return org_name is None or org_name == NO_ORG or org_name == normalize_name(NO_ORG)
 
 
 @dataclass(frozen=True)
 class DiskRequest:
     storage: int  # In bytes
+    org_name: str
     project_name: str
     life_span: Optional[timedelta] = None
     name: Optional[str] = None
-    org_name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -59,7 +76,7 @@ class Disk:
     owner: str
     project_name: str
     name: Optional[str]
-    org_name: Optional[str]
+    org_name: str
     status: "Disk.Status"
     created_at: datetime
     last_usage: Optional[datetime]
@@ -74,50 +91,56 @@ class Disk:
         def __str__(self) -> str:
             return str(self.value)
 
+    @property
+    def namespace(self) -> str:
+        return generate_namespace_name(self.org_name, self.project_name)
+
+    @property
+    def has_org(self) -> bool:
+        return not is_no_org(self.org_name)
+
 
 class Service:
     def __init__(self, kube_client: KubeClient, storage_class_name: str) -> None:
         self._kube_client = kube_client
         self._storage_class_name = storage_class_name
 
+    @staticmethod
     def _get_disk_naming_name(
-        self,
         name: str,
-        owner: Optional[str],
-        org_name: Optional[str],
+        org_name: str,
         project_name: str,
     ) -> str:
-        """Get kubernetes resource name for disk naming object.
-
-        Name format for user disks: <name>--<owner>.
-        Name format for project disks without org: <name>--<project>.
-        Name format for project disks with org: <name>--<org>--<project>."""
-        if project_name != owner and org_name:
-            prefix = f"{name}--{org_name}"
-        else:
-            prefix = name
-        return f"{prefix}--{project_name.replace('/', '--')}"
+        """Get kubernetes resource name for a disk naming object."""
+        return f"{name}--{org_name}--{project_name}"
 
     def _request_to_pvc(
         self, request: DiskRequest, username: str
     ) -> PersistentVolumeClaimWrite:
+        now = datetime_dump(utc_now())
         annotations = {
-            DISK_API_CREATED_AT_ANNOTATION: datetime_dump(utc_now()),
+            DISK_API_CREATED_AT_ANNOTATION: now,
+            APOLO_DISK_API_CREATED_AT_ANNOTATION: now,
         }
         if request.life_span:
-            annotations[DISK_API_LIFE_SPAN_ANNOTATION] = timedelta_dump(
-                request.life_span
-            )
+            lifespan = timedelta_dump(request.life_span)
+            annotations[DISK_API_LIFE_SPAN_ANNOTATION] = lifespan
+            annotations[APOLO_DISK_API_LIFE_SPAN_ANNOTATION] = lifespan
         if request.name:
             annotations[DISK_API_NAME_ANNOTATION] = request.name
+            annotations[APOLO_DISK_API_NAME_ANNOTATION] = request.name
+
+        kube_valid_username = username.replace("/", "--")
         labels = {
-            USER_LABEL: username.replace("/", "--"),
+            USER_LABEL: kube_valid_username,
+            APOLO_USER_LABEL: kube_valid_username,
             DISK_API_MARK_LABEL: "true",
+            APOLO_DISK_API_MARK_LABEL: "true",
+            DISK_API_ORG_LABEL: request.org_name,
+            APOLO_ORG_LABEL: request.org_name,
+            DISK_API_PROJECT_LABEL: request.project_name,
+            APOLO_PROJECT_LABEL: request.project_name,
         }
-        if request.org_name:
-            labels[DISK_API_ORG_LABEL] = request.org_name
-        if request.project_name != username:
-            labels[PROJECT_LABEL] = request.project_name
 
         return PersistentVolumeClaimWrite(
             name=f"disk-{uuid4()}",
@@ -134,26 +157,58 @@ class Service:
             PersistentVolumeClaimRead.Phase.LOST: Disk.Status.BROKEN,
         }
         if DISK_API_CREATED_AT_ANNOTATION not in pvc.annotations:
+            now = datetime_dump(utc_now())
             # This is old pvc, created before we added created_at field.
             diff = MergeDiff.make_add_annotations_diff(
-                DISK_API_CREATED_AT_ANNOTATION, datetime_dump(utc_now())
+                {
+                    DISK_API_CREATED_AT_ANNOTATION: now,
+                    APOLO_DISK_API_CREATED_AT_ANNOTATION: now,
+                }
             )
-            pvc = await self._kube_client.update_pvc(pvc.name, diff)
+            pvc = await self._kube_client.update_pvc(pvc.namespace, pvc.name, diff)
 
         _T = TypeVar("_T")
 
         def _get_if_present(
-            annotation: str, mapper: Callable[[str], _T]
+            new_annotation: str, old_annotation: str, mapper: Callable[[str], _T]
         ) -> Optional[_T]:
-            if annotation in pvc.annotations:
-                return mapper(pvc.annotations[annotation])
+            if new_annotation in pvc.annotations:
+                return mapper(pvc.annotations[new_annotation])
+            if old_annotation in pvc.annotations:
+                return mapper(pvc.annotations[old_annotation])
             return None
 
-        username = pvc.labels[USER_LABEL].replace("--", "/")
-        last_usage = _get_if_present(DISK_API_LAST_USAGE_ANNOTATION, datetime_load)
-        life_span = _get_if_present(DISK_API_LIFE_SPAN_ANNOTATION, timedelta_load)
-        used_bytes = _get_if_present(DISK_API_USED_BYTES_ANNOTATION, int)
+        username = pvc.labels.get(APOLO_USER_LABEL, pvc.labels[USER_LABEL]).replace(
+            "--", "/"
+        )
+        last_usage = _get_if_present(
+            APOLO_DISK_API_LAST_USAGE_ANNOTATION,
+            DISK_API_LAST_USAGE_ANNOTATION,
+            datetime_load,
+        )
+        life_span = _get_if_present(
+            APOLO_DISK_API_LIFE_SPAN_ANNOTATION,
+            DISK_API_LIFE_SPAN_ANNOTATION,
+            timedelta_load,
+        )
+        used_bytes = _get_if_present(
+            APOLO_DISK_API_USED_BYTES_ANNOTATION, DISK_API_USED_BYTES_ANNOTATION, int
+        )
 
+        org_name = pvc.labels.get(APOLO_ORG_LABEL, pvc.labels[DISK_API_ORG_LABEL])
+        project_name = pvc.labels.get(
+            APOLO_PROJECT_LABEL, pvc.labels.get(DISK_API_PROJECT_LABEL, username)
+        )
+        disk_name = pvc.annotations.get(
+            APOLO_DISK_API_NAME_ANNOTATION,
+            pvc.annotations.get(DISK_API_NAME_ANNOTATION),
+        )
+        created_at = datetime_load(
+            pvc.annotations.get(
+                APOLO_DISK_API_CREATED_AT_ANNOTATION,
+                pvc.annotations[DISK_API_CREATED_AT_ANNOTATION],
+            )
+        )
         return Disk(
             id=pvc.name,
             storage=(
@@ -163,25 +218,37 @@ class Service:
             ),
             status=status_map[pvc.phase],
             owner=username,
-            project_name=pvc.labels.get(PROJECT_LABEL, username),
-            name=pvc.annotations.get(DISK_API_NAME_ANNOTATION),
-            org_name=pvc.labels.get(DISK_API_ORG_LABEL),
-            created_at=datetime_load(pvc.annotations[DISK_API_CREATED_AT_ANNOTATION]),
+            project_name=project_name,
+            name=disk_name,
+            org_name=org_name,
+            created_at=created_at,
             last_usage=last_usage,
             life_span=life_span,
             used_bytes=used_bytes,
         )
 
-    async def create_disk(self, request: DiskRequest, username: str) -> Disk:
+    async def create_disk(
+        self,
+        request: DiskRequest,
+        username: str,
+    ) -> Disk:
+        namespace = await create_namespace(
+            self._kube_client,
+            request.org_name,
+            request.project_name,
+        )
         pvc_write = self._request_to_pvc(request, username)
+        disk_name: Optional[str] = None
+
         if request.name:
-            disk_naming_name = self._get_disk_naming_name(
+            disk_name = self._get_disk_naming_name(
                 request.name,
-                owner=username,
                 org_name=request.org_name,
                 project_name=request.project_name,
             )
-            disk_naming = DiskNaming(name=disk_naming_name, disk_id=pvc_write.name)
+            disk_naming = DiskNaming(
+                namespace.name, name=disk_name, disk_id=pvc_write.name
+            )
             try:
                 await self._kube_client.create_disk_naming(disk_naming)
             except ResourceExists:
@@ -190,127 +257,113 @@ class Service:
                     f"exists for user {username}"
                 )
         try:
-            pvc_read = await self._kube_client.create_pvc(pvc_write)
+            pvc_read = await self._kube_client.create_pvc(namespace.name, pvc_write)
         except Exception:
-            if request.name:
-                await self._kube_client.remove_disk_naming(disk_naming_name)
+            if disk_name:
+                await self._kube_client.remove_disk_naming(namespace.name, disk_name)
             raise
         return await self._pvc_to_disk(pvc_read)
 
-    async def get_disk(self, disk_id: str) -> Disk:
+    async def get_disk(self, org_name: str, project_name: str, disk_id: str) -> Disk:
+        namespace = generate_namespace_name(org_name, project_name)
         try:
-            pvc = await self._kube_client.get_pvc(disk_id)
+            pvc = await self._kube_client.get_pvc(namespace, disk_id)
         except ResourceNotFound:
             raise DiskNotFound
         return await self._pvc_to_disk(pvc)
 
     async def get_disk_by_name(
-        self, name: str, org_name: Optional[str], project_name: str
+        self, name: str, org_name: str, project_name: str
     ) -> Disk:
         try:
-            try:
-                return await self._get_disk_by_name(
-                    name,
-                    owner=None,
-                    org_name=org_name,
-                    project_name=project_name,
-                )
-            except ResourceNotFound:
-                if not org_name:
-                    raise DiskNotFound
-                # project_name could be a username if user is searching for
-                # legacy disk which don't have project. We can try to search
-                # for user disk. It is important to check that it is a legacy disk
-                # before returning it since legacy disks and project disks
-                # without org have the same name format.
-                disk = await self._get_disk_by_name(
-                    name,
-                    owner=project_name,
-                    org_name=org_name,
-                    project_name=project_name,
-                )
-                if disk.project_name != disk.owner:
-                    raise DiskNotFound
-                return disk
+            disk_naming_name = self._get_disk_naming_name(
+                name,
+                org_name=org_name,
+                project_name=project_name,
+            )
+            namespace = generate_namespace_name(org_name, project_name)
+            disk_naming = await self._kube_client.get_disk_naming(
+                namespace=namespace,
+                name=disk_naming_name,
+            )
+            return await self.get_disk(org_name, project_name, disk_naming.disk_id)
         except ResourceNotFound:
-            pass
-        raise DiskNotFound
-
-    async def _get_disk_by_name(
-        self,
-        name: str,
-        owner: Optional[str],
-        org_name: Optional[str],
-        project_name: str,
-    ) -> Disk:
-        disk_naming_name = self._get_disk_naming_name(
-            name,
-            owner=owner,
-            org_name=org_name,
-            project_name=project_name,
-        )
-        disk_naming = await self._kube_client.get_disk_naming(disk_naming_name)
-        pvc = await self._kube_client.get_pvc(disk_naming.disk_id)
-        return await self._pvc_to_disk(pvc)
+            logger.exception("get_disk_by_name: unhandled error")
+            raise DiskNotFound
 
     async def get_all_disks(
-        self, org_name: Optional[str] = None, project_name: Optional[str] = None
+        self,
+        org_name: Optional[str] = None,
+        project_name: Optional[str] = None,
     ) -> list[Disk]:
-        label_selectors = []
-        if org_name and org_name.upper() == NO_ORG:
-            label_selectors += [f"!{DISK_API_ORG_LABEL}"]
-        elif org_name:
-            label_selectors += [f"{DISK_API_ORG_LABEL}={org_name}"]
-        label_selector = ",".join(label_selectors) if label_selectors else None
+        namespace = None
+        label_selectors = [
+            f"{DISK_API_MARK_LABEL}=true",  # is apolo disk
+            f"!{DISK_API_DELETED_LABEL}",  # not deleted
+        ]
+        if project_name:
+            # request is in the scope of org/project.
+            # let's figure out the org and enrich with labels and namespace
+            org_name = org_name or normalize_name(NO_ORG)
+            namespace = generate_namespace_name(org_name, project_name)
+
+        label_selector = ",".join(label_selectors)
+
         disks = []
-        for pvc in await self._kube_client.list_pvc(label_selector):
-            if not pvc.labels.get(DISK_API_MARK_LABEL, False) or pvc.labels.get(
-                DISK_API_DELETED_LABEL, False
-            ):
-                continue
-            if project_name:
-                disk_project_name = pvc.labels.get(PROJECT_LABEL) or pvc.labels[
-                    USER_LABEL
-                ].replace("--", "/")
-                if project_name != disk_project_name:
-                    continue
+        for pvc in await self._kube_client.list_pvc(namespace, label_selector):
             disks.append(await self._pvc_to_disk(pvc))
         return disks
 
-    async def remove_disk(self, disk_id: str) -> None:
+    async def remove_disk(self, disk: Disk) -> None:
+        namespace = disk.namespace
         try:
-            disk = await self.get_disk(disk_id)
             if disk.name:
                 disk_naming_name = self._get_disk_naming_name(
                     disk.name,
-                    owner=disk.owner,
                     org_name=disk.org_name,
                     project_name=disk.project_name,
                 )
                 try:
-                    await self._kube_client.remove_disk_naming(disk_naming_name)
+                    await self._kube_client.remove_disk_naming(
+                        namespace, disk_naming_name
+                    )
                 except ResourceNotFound:
                     pass  # already removed
-            diff = MergeDiff.make_add_label_diff(DISK_API_DELETED_LABEL, "true")
-            await self._kube_client.update_pvc(disk_id, diff)
-            await self._kube_client.remove_pvc(disk_id)
+            diff = MergeDiff.make_add_label_diff(
+                {DISK_API_DELETED_LABEL: "true", APOLO_DISK_API_DELETED_LABEL: "true"}
+            )
+            await self._kube_client.update_pvc(namespace, disk.id, diff)
+            await self._kube_client.remove_pvc(namespace, disk.id)
         except ResourceNotFound:
             raise DiskNotFound
 
-    async def mark_disk_usage(self, disk_id: str, time: datetime) -> None:
+    async def mark_disk_usage(
+        self, namespace: str, disk_id: str, time: datetime
+    ) -> None:
+        time_dump = datetime_dump(time)
         diff = MergeDiff.make_add_annotations_diff(
-            DISK_API_LAST_USAGE_ANNOTATION, datetime_dump(time)
+            {
+                DISK_API_LAST_USAGE_ANNOTATION: time_dump,
+                APOLO_DISK_API_LAST_USAGE_ANNOTATION: time_dump,
+            }
         )
         try:
-            await self._kube_client.update_pvc(disk_id, diff)
+            await self._kube_client.update_pvc(namespace, disk_id, diff)
         except ResourceNotFound:
             raise DiskNotFound
 
-    async def update_disk_used_bytes(self, disk_id: str, used_bytes: int) -> None:
+    async def update_disk_used_bytes(
+        self, namespace: str, disk_id: str, used_bytes: int
+    ) -> None:
+        used_bytes_dump = str(used_bytes)
+
         diff = MergeDiff.make_add_annotations_diff(
-            DISK_API_USED_BYTES_ANNOTATION, str(used_bytes)
+            {
+                DISK_API_USED_BYTES_ANNOTATION: used_bytes_dump,
+                APOLO_DISK_API_USED_BYTES_ANNOTATION: used_bytes_dump,
+            }
         )
         try:
-            await self._kube_client.update_pvc(disk_id, diff)
+            await self._kube_client.update_pvc(namespace, disk_id, diff)
         except ResourceNotFound:
             raise DiskNotFound

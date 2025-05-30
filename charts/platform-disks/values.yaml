@@ -8,7 +8,7 @@ replicas: 2
 
 disks:
   namespace: default
-  limitPerUser: "536870912000" # In bytes, 500 gb
+  limitPerProject: "536870912000" # In bytes, 500 gb
 
   # Default storage class is used if null or empty.
   storageClassName: null
@@ -47,3 +47,18 @@ zipkin: {}
 sentry: {}
 
 priorityClassName: ""
+
+
+jobProjectNamespaceMigration:
+  schedule: "*/5 * * * *" # every 5 minutes
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "200m"
+      memory: "200Mi"
