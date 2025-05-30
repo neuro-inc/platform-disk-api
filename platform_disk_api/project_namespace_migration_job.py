@@ -17,11 +17,13 @@ from platform_disk_api.api import create_kube_client
 from platform_disk_api.config import JobMigrateProjectNamespaceConfig
 from platform_disk_api.config_factory import EnvironConfigFactory
 from platform_disk_api.kube_client import KubeClient, DiskNaming
-from platform_disk_api.service import DISK_API_MARK_LABEL, USER_LABEL, PROJECT_LABEL, \
-    DISK_API_ORG_LABEL, DISK_API_USED_BYTES_ANNOTATION, DISK_API_NAME_ANNOTATION, \
-    DISK_API_LIFE_SPAN_ANNOTATION, DISK_API_CREATED_AT_ANNOTATION, APOLO_ORG_LABEL, \
-    APOLO_PROJECT_LABEL, DISK_API_LAST_USAGE_ANNOTATION, APOLO_MARK_LABEL, \
+from platform_disk_api.service import (
+    DISK_API_MARK_LABEL, USER_LABEL, DISK_API_PROJECT_LABEL,
+    DISK_API_ORG_LABEL, DISK_API_USED_BYTES_ANNOTATION, DISK_API_NAME_ANNOTATION,
+    DISK_API_LIFE_SPAN_ANNOTATION, DISK_API_CREATED_AT_ANNOTATION, APOLO_ORG_LABEL,
+    APOLO_PROJECT_LABEL, DISK_API_LAST_USAGE_ANNOTATION, APOLO_DISK_API_MARK_LABEL,
     APOLO_USER_LABEL
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +120,7 @@ async def migrate_disk(
 
     current_meta = pvc["metadata"]
     org_name = current_meta["labels"].get(DISK_API_ORG_LABEL) or normalize_name(NO_ORG)
-    project_name = current_meta["labels"].get(PROJECT_LABEL)
+    project_name = current_meta["labels"].get(DISK_API_PROJECT_LABEL)
     if not project_name:
         user_label = current_meta["labels"][USER_LABEL]
         project_name, *_ = user_label.split("--")
@@ -333,11 +335,11 @@ async def create_pvc(
             "uid": old_metadata["uid"],  # keep old UID so PV can claim the new PVC
             "labels": {
                 APOLO_ORG_LABEL: org_name,
-                APOLO_PROJECT_LABEL: project_name,
                 DISK_API_ORG_LABEL: org_name,
+                APOLO_PROJECT_LABEL: project_name,
+                DISK_API_PROJECT_LABEL: project_name,
                 DISK_API_MARK_LABEL: "true",
-                APOLO_MARK_LABEL: "true",
-                PROJECT_LABEL: project_name,
+                APOLO_DISK_API_MARK_LABEL: "true",
                 USER_LABEL: old_metadata["labels"][USER_LABEL],
                 APOLO_USER_LABEL: old_metadata["labels"][USER_LABEL],
             },
