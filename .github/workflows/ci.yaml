@@ -37,4 +37,3 @@ jobs:
       dev_workspace: ${{ vars.DEV_TFC_WORKSPACE_JSON }}
       variables: |
         platform_disks_version=${{ needs.release.outputs.version }}
-
