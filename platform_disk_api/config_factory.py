@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
+from apolo_kube_client.config import KubeClientAuthType, KubeConfig
 from yarl import URL
 
 from .config import (
@@ -12,8 +13,7 @@ from .config import (
     CORSConfig,
     DiskConfig,
     DiskUsageWatcherConfig,
-    KubeClientAuthType,
-    KubeConfig,
+    JobMigrateProjectNamespaceConfig,
     SentryConfig,
     ServerConfig,
     ZipkinConfig,
@@ -55,6 +55,9 @@ class EnvironConfigFactory:
             zipkin=self.create_zipkin("platform-disks-usage-watcher"),
             sentry=self.create_sentry("platform-disks-usage-watcher"),
         )
+
+    def create_job_migrate_project(self) -> JobMigrateProjectNamespaceConfig:
+        return JobMigrateProjectNamespaceConfig(kube=self.create_kube())
 
     def _create_server(self) -> ServerConfig:
         host = self._environ.get("NP_DISK_API_HOST", ServerConfig.host)
@@ -109,8 +112,8 @@ class EnvironConfigFactory:
             k8s_storage_class=self._environ.get(
                 "NP_DISK_API_K8S_STORAGE_CLASS", DiskConfig.k8s_storage_class
             ),
-            storage_limit_per_user=int(
-                self._environ["NP_DISK_API_STORAGE_LIMIT_PER_USER"]
+            storage_limit_per_project=int(
+                self._environ["NP_DISK_API_STORAGE_LIMIT_PER_PROJECT"]
             ),
         )
 
