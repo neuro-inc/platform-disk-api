@@ -13,13 +13,13 @@ COPY dist /tmp/dist/
 RUN pip install --user --no-cache-dir --find-links /tmp/dist platform-disk-api \
     && rm -rf /tmp/dist
 
-FROM python:${PY_VERSION}-slim-bullseye as runtime
+FROM python:${PY_VERSION}-slim-bullseye AS runtime
 LABEL org.opencontainers.image.source="https://github.com/neuro-inc/platform-disk-api"
 
 WORKDIR /app
 
 # Name of your service (folder under /home)
-ARG SERVICE_NAME="platform-disk-api
+ARG SERVICE_NAME="platform-disk-api"
 
 # Tell Python where the "user" site is
 ENV HOME=/home/${SERVICE_NAME}
