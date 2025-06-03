@@ -24,7 +24,7 @@ ARG SERVICE_NAME="platform-disk-api"
 # Tell Python where the "user" site is
 ENV HOME=/home/${SERVICE_NAME}
 ENV PYTHONUSERBASE=/home/${SERVICE_NAME}/.local
-ENV PATH=/home/${SERVICE_NAME}/.local/bin:$PATH"
+ENV PATH=/home/${SERVICE_NAME}/.local/bin:$PATH
 
 # Copy everything from the builder’s user‐site into your service’s user‐site
 COPY --from=builder /root/.local /home/${SERVICE_NAME}/.local
