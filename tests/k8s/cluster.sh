@@ -4,13 +4,6 @@ set -o errexit
 # based on
 # https://github.com/kubernetes/minikube#linux-continuous-integration-without-vm-support
 
-function k8s::install_kubectl {
-    local kubectl_version=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-    curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/${kubectl_version}/bin/linux/amd64/kubectl
-    chmod +x kubectl
-    sudo mv kubectl /usr/local/bin/
-}
-
 function k8s::install_minikube {
     local minikube_version="v1.25.2"
     sudo apt-get update
@@ -103,7 +96,6 @@ function k8s::test {
 
 case "${1:-}" in
     install)
-        k8s::install_kubectl
         k8s::install_minikube
         ;;
     start)

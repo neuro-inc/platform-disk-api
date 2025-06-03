@@ -73,8 +73,8 @@ spec:
         - name: NP_DISK_API_K8S_STORAGE_CLASS
           value: {{ .Values.disks.storageClassName }}
         {{- end }}
-        - name: NP_DISK_API_STORAGE_LIMIT_PER_USER
-          value: {{ .Values.disks.limitPerUser | quote }}
+        - name: NP_DISK_API_STORAGE_LIMIT_PER_PROJECT
+          value: {{ .Values.disks.limitPerProject | quote }}
         - name: NP_DISK_API_ENABLE_DOCS
           value: {{ .Values.docs.enabled | quote }}
         - name: NP_CLUSTER_NAME
