@@ -8,7 +8,6 @@ import aiodocker
 import pytest
 from aiohttp import ClientError
 from aiohttp.hdrs import AUTHORIZATION
-from async_timeout import timeout
 from jose import jwt
 from neuro_auth_client import AuthClient, Permission, User as AuthClientUser
 from yarl import URL
@@ -115,7 +114,7 @@ async def auth_client(auth_server: AuthConfig) -> AsyncGenerator[AuthClient, Non
 async def wait_for_auth_server(
     config: AuthConfig, timeout_s: float = 30, interval_s: float = 1
 ) -> None:
-    async with timeout(timeout_s):
+    async with asyncio.timeout(timeout_s):
         while True:
             try:
                 async with create_auth_client(config) as auth_client:
