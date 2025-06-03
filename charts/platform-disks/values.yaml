@@ -42,8 +42,6 @@ cors: {}
 
 secrets: []
 
-zipkin: {}
-
 sentry: {}
 
 priorityClassName: ""
