@@ -7,19 +7,19 @@ imagePullSecrets: []
 replicas: 2
 
 disks:
-  namespace: default
+  namespace: platform-jobs
   limitPerProject: "536870912000" # In bytes, 500 gb
 
   # Default storage class is used if null or empty.
   storageClassName: null
 
 platform:
-  clusterName:
-  authUrl:
+  clusterName: ""
+  authUrl: ""
   token: {}
 
 docs:
-  enabled: true
+  enabled: ""
 
 resources:
   requests:
@@ -44,7 +44,10 @@ secrets: []
 
 zipkin: {}
 
-sentry: {}
+sentry:
+  dsn: ""
+  clusterName: ""
+  sampleRate: 0.002
 
 priorityClassName: ""
 
