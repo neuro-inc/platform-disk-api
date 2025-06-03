@@ -1,7 +1,6 @@
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
-from importlib.metadata import version
 from typing import Optional
 
 import aiohttp
@@ -59,6 +58,7 @@ from .identity import untrusted_user
 from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
 from .service import Disk, DiskNotFound, DiskRequest, Service, is_no_org
+from platform_disk_api import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -325,11 +325,8 @@ async def handle_exceptions(
         return json_response(payload, status=HTTPInternalServerError.status_code)
 
 
-package_version = version(__package__)
-
-
 async def add_version_to_header(request: Request, response: StreamResponse) -> None:
-    response.headers["X-Service-Version"] = f"platform-disk-api/{package_version}"
+    response.headers["X-Service-Version"] = f"platform-disk-api/{__version__}"
 
 
 async def create_disk_app(config: Config) -> aiohttp.web.Application:
