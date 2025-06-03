@@ -159,7 +159,7 @@ class DiskApiHandler:
             "write",
         )
 
-    async def _get_used_storage(
+    async def _get_project_used_storage(
         self,
         disk_request: DiskRequest,
     ) -> int:
@@ -216,10 +216,10 @@ class DiskApiHandler:
             ],
         )
 
-        used_storage = await self._get_used_storage(disk_request)
+        project_used_storage = await self._get_project_used_storage(disk_request)
 
         if self._config.disk.storage_limit_per_project < (
-            used_storage + disk_request.storage
+            project_used_storage + disk_request.storage
         ):
             limit_gb = self._config.disk.storage_limit_per_project / 2**30
             return json_response(
