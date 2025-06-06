@@ -5,7 +5,6 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any, Literal, Optional
 
-import async_timeout
 from apolo_kube_client.apolo import NO_ORG, create_namespace, normalize_name
 from apolo_kube_client.errors import ResourceNotFound
 from neuro_logging import (
@@ -186,7 +185,7 @@ async def migrate_disk(
 
 async def _waiter() -> AsyncIterator[None]:
     """A wrapper which constantly yields for 60 seconds"""
-    async with async_timeout.timeout(60):
+    async with asyncio.timeout(60):
         while True:
             yield
             await asyncio.sleep(1)

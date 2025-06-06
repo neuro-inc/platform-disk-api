@@ -5,13 +5,14 @@ from dataclasses import dataclass
 from typing import Optional
 
 import aiodocker
+from aiodocker.containers import DockerContainer
 import pytest
 from aiohttp import ClientError
 from aiohttp.hdrs import AUTHORIZATION
-from async_timeout import timeout
 from jose import jwt
 from neuro_auth_client import AuthClient, Permission, User as AuthClientUser
 from yarl import URL
+from aiodocker.utils import JSONObject
 
 from platform_disk_api.config import AuthConfig
 from tests.integration.conftest import random_name
@@ -29,7 +30,7 @@ async def auth_server(
 ) -> AsyncIterator[AuthConfig]:
     image_name = auth_server_image_name
     container_name = "auth_server"
-    container_config = {
+    container_config: JSONObject = {
         "Image": image_name,
         "AttachStdout": False,
         "AttachStderr": False,
@@ -83,10 +84,13 @@ def admin_token(token_factory: Callable[[str], str]) -> str:
 
 
 async def create_auth_config(
-    container: aiodocker.containers.DockerContainer,
+    container: DockerContainer,
 ) -> AuthConfig:
     host = "0.0.0.0"
-    port = int((await container.port(8080))[0]["HostPort"])
+    port_info = await container.port(8080)
+    if not port_info:
+        raise RuntimeError("Port 8080 not mapped in the container!")
+    port = int(port_info[0]["HostPort"])
     url = URL(f"http://{host}:{port}")
     token = create_token("compute")
     return AuthConfig(
@@ -115,7 +119,7 @@ async def auth_client(auth_server: AuthConfig) -> AsyncGenerator[AuthClient, Non
 async def wait_for_auth_server(
     config: AuthConfig, timeout_s: float = 30, interval_s: float = 1
 ) -> None:
-    async with timeout(timeout_s):
+    async with asyncio.timeout(timeout_s):
         while True:
             try:
                 async with create_auth_client(config) as auth_client:
