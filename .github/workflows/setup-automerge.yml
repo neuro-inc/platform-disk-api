@@ -29,6 +29,9 @@ jobs:
       env:
         PR_URL: ${{ github.event.pull_request.html_url }}
         GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+    - name: No operation needed
+      if: always()
+      run: echo "No actions were necessary for this PR (dependabot job)."
 
   other:
     runs-on: ubuntu-latest
@@ -72,3 +75,6 @@ jobs:
       env:
         PR_URL: ${{github.event.pull_request.html_url}}
         GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+    - name: No operation needed
+      if: always()
+      run: echo "No actions were necessary for this PR (other job)."
