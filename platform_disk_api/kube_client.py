@@ -235,7 +235,6 @@ class DiskNaming:
 
 
 class KubeClient(ApoloKubeClient):
-
     @property
     def _all_pods_url(self) -> str:
         return f"{self.api_v1_url}/pods"

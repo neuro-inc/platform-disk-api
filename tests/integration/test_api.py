@@ -223,8 +223,7 @@ class TestApi:
         ) as resp:
             assert resp.status == HTTPForbidden.status_code, await resp.text()
             assert await resp.text() == (
-                "CORS preflight request failed: "
-                "origin 'http://unknown' is not allowed"
+                "CORS preflight request failed: origin 'http://unknown' is not allowed"
             )
 
     async def test_ping_options(
