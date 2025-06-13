@@ -454,6 +454,17 @@ async def create_app(config: Config) -> aiohttp.web.Application:
             },
         )
 
+    @docs(
+        tags=["ping"],
+        summary="Health ping endpoint",
+        responses={200: {"description": "Pong"}},
+    )
+    @notrace
+    async def ping(self, request: Request) -> Response:
+        return Response(text="Pong")
+
+    app.router.add_get(ping)
+
     app.on_response_prepare.append(add_version_to_header)
 
     if config.zipkin:
