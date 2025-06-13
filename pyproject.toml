@@ -111,12 +111,3 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "aiohttp_apispec"
 ignore_missing_imports = true
-
-[tool.black]
-exclude = '''
-/(
-      \.git
-    | venv
-    | __pycache__
-)/
-'''
