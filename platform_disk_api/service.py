@@ -253,8 +253,7 @@ class Service:
                 await self._kube_client.create_disk_naming(disk_naming)
             except ResourceExists:
                 raise DiskNameUsed(
-                    f"Disk with name {request.name} already"
-                    f"exists for user {username}"
+                    f"Disk with name {request.name} alreadyexists for user {username}"
                 )
         try:
             pvc_read = await self._kube_client.create_pvc(namespace.name, pvc_write)
