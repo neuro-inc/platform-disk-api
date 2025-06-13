@@ -460,7 +460,7 @@ async def create_app(config: Config) -> aiohttp.web.Application:
         responses={200: {"description": "Pong"}},
     )
     @notrace
-    async def ping(self, request: Request) -> Response:
+    async def ping(request: Request) -> Response:
         return Response(text="Pong")
 
     app.router.add_get("/ping", ping)
