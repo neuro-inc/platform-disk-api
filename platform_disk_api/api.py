@@ -463,7 +463,7 @@ async def create_app(config: Config) -> aiohttp.web.Application:
     async def ping(self, request: Request) -> Response:
         return Response(text="Pong")
 
-    app.router.add_get(ping)
+    app.router.add_get("/ping", ping)
 
     app.on_response_prepare.append(add_version_to_header)
 
