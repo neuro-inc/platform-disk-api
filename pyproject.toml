@@ -16,16 +16,16 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<4.0"
+python = ">=3.12,<4.0"
 aiohttp = "3.12.12"
 yarl = "<2"
-neuro-auth-client = "22.6.1"
+neuro-auth-client = "25.5.1"
 marshmallow = "4.0.0"
 aiohttp-apispec = "3.0.0b2"
-markupsafe = "2.1.3"
-neuro-logging = "21.12.2"
-aiohttp-cors = "0.7.0"
-apolo-kube-client = "25.6.0"
+markupsafe = "3.0.2"
+neuro-logging = "25.1.0"
+aiohttp-cors = "0.8.1"
+apolo-kube-client = "25.5.0"
 
 [tool.poetry.scripts]
 platform-disk-api = "platform_disk_api.api:main"
@@ -35,8 +35,8 @@ platform-disk-project-namespace-migration-job = "platform_disk_api.project_names
 [tool.poetry.group.dev.dependencies]
 mypy = "1.16.0"
 pre-commit = "4.2.0"
-aiodocker = "0.21.0"
-pytest = "8.3.5"
+aiodocker = "0.24.0"
+pytest = "8.4.0"
 pytest-asyncio = "1.0.0"
 pytest-cov = "6.1.1"
 
@@ -111,3 +111,12 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "aiohttp_apispec"
 ignore_missing_imports = true
+
+[tool.black]
+exclude = '''
+/(
+      \.git
+    | venv
+    | __pycache__
+)/
+'''

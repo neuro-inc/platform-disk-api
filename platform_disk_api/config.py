@@ -30,21 +30,6 @@ class DiskConfig:
 
 
 @dataclass(frozen=True)
-class ZipkinConfig:
-    url: URL
-    app_name: str
-    sample_rate: float = 0
-
-
-@dataclass(frozen=True)
-class SentryConfig:
-    dsn: URL
-    cluster_name: str
-    app_name: str
-    sample_rate: float = 0
-
-
-@dataclass(frozen=True)
 class Config:
     server: ServerConfig
     platform_auth: AuthConfig
@@ -54,16 +39,11 @@ class Config:
     cluster_name: str
     enable_docs: bool = False
 
-    zipkin: Optional[ZipkinConfig] = None
-    sentry: Optional[SentryConfig] = None
-
 
 @dataclass(frozen=True)
 class DiskUsageWatcherConfig:
     server: ServerConfig
     kube: KubeConfig
-    zipkin: Optional[ZipkinConfig] = None
-    sentry: Optional[SentryConfig] = None
 
 
 @dataclass(frozen=True)
