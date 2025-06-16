@@ -436,7 +436,6 @@ async def create_app(config: Config) -> aiohttp.web.Application:
         summary="Health ping endpoint",
         responses={200: {"description": "Pong"}},
     )
-    @notrace
     async def ping(request: Request) -> Response:
         return Response(text="Pong")
 
