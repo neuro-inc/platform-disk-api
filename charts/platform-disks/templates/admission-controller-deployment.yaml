@@ -1,0 +1,91 @@
+{{ include "admission-controller-lib.preinstallJob" . }}
+---
+{{ include "admission-controller-lib.postinstallJob" . }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platformDisks.fullname" . }}
+  labels:
+    {{- include "platformDisks.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "platformDisks.admissionController.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "platformDisks.admissionController.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: admission-controller
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - platform-disk-admission-controller
+          ports:
+            - containerPort: {{ .Values.admissionControllerService.port }}
+              name: http
+              protocol: TCP
+
+          {{- if .Values.resources }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          env:
+            - name: NP_DISK_API_TLS_CERT_PATH
+              value: "{{ include "platformDisks.admissionControllerCertMountRoot" . }}/tls.crt"
+            - name: NP_DISK_API_TLS_KEY_PATH
+              value: "{{ include "platformDisks.admissionControllerCertMountRoot" . }}/tls.key"
+            {{- include "platformDisks.env" . | nindent 12 }}
+
+          volumeMounts:
+            - mountPath: {{ include "platformDisks.admissionControllerCertMountRoot" . }}
+              readOnly: true
+              name: admission-controller-cert
+            - mountPath: {{ include "platformDisks.kubeAuthMountRoot" . }}
+              name: kube-api-data
+              readOnly: true
+
+        {{- with .Values.imagePullSecrets }}
+        imagePullSecrets:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        volumes:
+          - name: admission-controller-cert
+            secret:
+              secretName: "{{ .Values.admissionController.serviceName }}-cert"
+          - name: kube-api-data
+            projected:
+              sources:
+              - serviceAccountToken:
+                  expirationSeconds: 3600
+                  path: token
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                  - key: ca.crt
+                    path: ca.crt

@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Optional
 
 from apolo_kube_client.config import KubeConfig
 from yarl import URL
@@ -10,11 +11,13 @@ from yarl import URL
 class ServerConfig:
     host: str = "0.0.0.0"
     port: int = 8080
+    tls_cert_path: str | None = None
+    tls_key_path: str | None = None
 
 
 @dataclass(frozen=True)
 class AuthConfig:
-    url: Optional[URL]
+    url: URL | None
     token: str = field(repr=False)
 
 

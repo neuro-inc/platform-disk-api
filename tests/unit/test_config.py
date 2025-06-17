@@ -108,12 +108,19 @@ def test_create_disk_usage_watcher() -> None:
     environ: dict[str, Any] = {
         "NP_DISK_API_HOST": "127.0.0.1",
         "NP_DISK_API_PORT": 8081,
+        "NP_DISK_API_TLS_CERT_PATH": "/path/to/cert",
+        "NP_DISK_API_TLS_KEY_PATH": "/path/to/key",
         "NP_DISK_API_K8S_API_URL": "https://localhost:8443",
         "SENTRY_DSN": "https://sentry",
         "SENTRY_CLUSTER_NAME": "test",
     }
     config = EnvironConfigFactory(environ).create_disk_usage_watcher()
     assert config == DiskUsageWatcherConfig(
-        server=ServerConfig(host="127.0.0.1", port=8081),
+        server=ServerConfig(
+            host="127.0.0.1",
+            port=8081,
+            tls_cert_path="/path/to/cert",
+            tls_key_path="/path/to/key",
+        ),
         kube=KubeConfig(endpoint_url="https://localhost:8443"),
     )
