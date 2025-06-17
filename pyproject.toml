@@ -33,7 +33,7 @@ platform-disk-api-watcher = "platform_disk_api.usage_watcher:main"
 platform-disk-project-namespace-migration-job = "platform_disk_api.project_namespace_migration_job:main"
 
 [tool.poetry.group.dev.dependencies]
-mypy = "1.16.0"
+mypy = "1.16.1"
 pre-commit = "4.2.0"
 aiodocker = "0.24.0"
 pytest = "8.4.0"
