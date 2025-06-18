@@ -56,7 +56,18 @@ class EnvironConfigFactory:
     def _create_server(self) -> ServerConfig:
         host = self._environ.get("NP_DISK_API_HOST", ServerConfig.host)
         port = int(self._environ.get("NP_DISK_API_PORT", ServerConfig.port))
-        return ServerConfig(host=host, port=port)
+        tls_cert_path = self._environ.get(
+            "NP_DISK_API_TLS_CERT_PATH", ServerConfig.tls_cert_path
+        )
+        tls_key_path = self._environ.get(
+            "NP_DISK_API_TLS_KEY_PATH", ServerConfig.tls_key_path
+        )
+        return ServerConfig(
+            host=host,
+            port=port,
+            tls_cert_path=tls_cert_path,
+            tls_key_path=tls_key_path,
+        )
 
     def _create_platform_auth(self) -> AuthConfig:
         url = self._get_url("NP_DISK_API_PLATFORM_AUTH_URL")

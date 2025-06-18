@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.admissionController.serviceName }}
+  labels:
+    {{- include "platformDisks.labels.standard" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "platformDisks.admissionController.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: https
+      port: 443
+      targetPort: {{ .Values.admissionControllerService.port }}
+      protocol: TCP
