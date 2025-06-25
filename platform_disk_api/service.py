@@ -12,10 +12,9 @@ from apolo_kube_client.apolo import (
     generate_namespace_name,
     normalize_name,
 )
-from apolo_kube_client.errors import ResourceExists, ResourceNotFound
+from apolo_kube_client.errors import ResourceNotFound, ResourceExists
 
 from .kube_client import (
-    DiskNaming,
     KubeClient,
     MergeDiff,
     PersistentVolumeClaimRead,
@@ -106,7 +105,7 @@ class Service:
         self._storage_class_name = storage_class_name
 
     @staticmethod
-    def _get_disk_naming_name(
+    def get_disk_naming_name(
         name: str,
         org_name: str,
         project_name: str,
@@ -238,29 +237,13 @@ class Service:
             request.project_name,
         )
         pvc_write = self._request_to_pvc(request, username)
-        disk_name: Optional[str] = None
 
-        if request.name:
-            disk_name = self._get_disk_naming_name(
-                request.name,
-                org_name=request.org_name,
-                project_name=request.project_name,
-            )
-            disk_naming = DiskNaming(
-                namespace.name, name=disk_name, disk_id=pvc_write.name
-            )
-            try:
-                await self._kube_client.create_disk_naming(disk_naming)
-            except ResourceExists:
-                raise DiskNameUsed(
-                    f"Disk with name {request.name} alreadyexists for user {username}"
-                )
         try:
             pvc_read = await self._kube_client.create_pvc(namespace.name, pvc_write)
-        except Exception:
-            if disk_name:
-                await self._kube_client.remove_disk_naming(namespace.name, disk_name)
-            raise
+        except ResourceExists:
+            raise DiskNameUsed(
+                f"Disk with name {request.name} alreadyexists for user {username}"
+            )
         return await self._pvc_to_disk(pvc_read)
 
     async def get_disk(self, org_name: str, project_name: str, disk_id: str) -> Disk:
@@ -275,7 +258,7 @@ class Service:
         self, name: str, org_name: str, project_name: str
     ) -> Disk:
         try:
-            disk_naming_name = self._get_disk_naming_name(
+            disk_naming_name = self.get_disk_naming_name(
                 name,
                 org_name=org_name,
                 project_name=project_name,
@@ -317,7 +300,7 @@ class Service:
         namespace = disk.namespace
         try:
             if disk.name:
-                disk_naming_name = self._get_disk_naming_name(
+                disk_naming_name = self.get_disk_naming_name(
                     disk.name,
                     org_name=disk.org_name,
                     project_name=disk.project_name,

@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "admission-controller-lib-preinstall"
+spec:
+  template:
+    spec:
+      serviceAccountName: admission-controller
+      restartPolicy: Never
+      containers:
+        - name: preinstall
+          image: ghcr.io/neuro-inc/admission-controller-lib:latest
+          imagePullPolicy: Always
+          args: ["pre-install"]
+          env:
+            - name: K8S_API_URL
+              value: "https://kubernetes.default:443"
+            - name: K8S_AUTH_TYPE
+              value: "token"
+            - name: K8S_CA_PATH
+              value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+            - name: K8S_TOKEN_PATH
+              value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+            - name: K8S_NS
+              value: "default"
+            - name: SERVICE_NAME
+              value: "admission-controller"
+            - name: WEBHOOK_PATH
+              value: "/mutate"
+            - name: OBJECT_SELECTOR
+              value: "{}"
+            - name: NAMESPACE_SELECTOR
+              value: "{}"
+            - name: FAILURE_POLICY
+              value: "Fail"
+            - name: CERT_SECRET_NAME
+              value: "admission-controller-cert"

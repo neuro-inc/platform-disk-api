@@ -66,6 +66,16 @@ function k8s::apply_all_configurations {
     kubectl apply -f tests/k8s/platformapi.yml
     kubectl apply -f tests/k8s/storageclass.yml
     kubectl apply -f charts/platform-disks/templates/crd-disknaming.yaml
+    make dist
+    docker build -t admission-controller-tests:1 .
+    docker image save -o ac.tar admission-controller-tests:1
+    minikube image load ac.tar
+    kubectl apply -f tests/k8s/rbac.yaml
+    kubectl apply -f tests/k8s/preinstall-job.yaml
+    wait_job admission-controller-lib-preinstall
+    kubectl apply -f tests/k8s/admission-controller-deployment.yaml
+    kubectl apply -f tests/k8s/postinstall-job.yaml
+    wait_job admission-controller-lib-postinstall
 }
 
 
@@ -92,6 +102,24 @@ function k8s::test {
     echo "Could not complete test job"
     kubectl describe job testjob1
     exit 1
+}
+
+function wait_job() {
+  local JOB_NAME=$1
+  echo "Waiting up to 60 seconds for $JOB_NAME job to succeed..."
+  if ! kubectl wait \
+       --for=condition=complete \
+       job/$JOB_NAME \
+       --timeout="60s"
+  then
+    echo "ERROR: Job '$JOB_NAME' did not complete within 60 seconds."
+    echo "----- Displaying all Kubernetes events: -----"
+    kubectl get events --sort-by=.metadata.creationTimestamp
+    exit 1
+  fi
+
+  echo "job/$JOB_NAME succeeded"
+  kubectl logs -l app=admission-controller
 }
 
 case "${1:-}" in

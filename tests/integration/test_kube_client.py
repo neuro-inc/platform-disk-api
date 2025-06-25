@@ -13,6 +13,18 @@ from platform_disk_api.kube_client import (
     MergeDiff,
     PersistentVolumeClaimWrite,
 )
+from platform_disk_api.service import (
+    DISK_API_MARK_LABEL,
+    APOLO_DISK_API_MARK_LABEL,
+    USER_LABEL,
+    APOLO_ORG_LABEL,
+    DISK_API_ORG_LABEL,
+    DISK_API_PROJECT_LABEL,
+    APOLO_PROJECT_LABEL,
+    APOLO_USER_LABEL,
+    DISK_API_CREATED_AT_ANNOTATION,
+    APOLO_DISK_API_CREATED_AT_ANNOTATION,
+)
 
 from .kube import KubeClientForTest
 
@@ -74,7 +86,8 @@ class TestKubeClient:
         diff = MergeDiff.make_add_label_diff({"hello/world": "value"})
         await kube_client.update_pvc(namespace.name, pvc.name, diff)
         pvc = await kube_client.get_pvc(namespace.name, pvc.name)
-        assert pvc.labels == {"hello/world": "value"}
+        assert "hello/world" in pvc.labels
+        assert pvc.labels["hello/world"] == "value"
 
     async def test_add_annotations_to_pvc(
         self,
@@ -95,6 +108,37 @@ class TestKubeClient:
         await kube_client.update_pvc(namespace.name, pvc.name, diff)
         pvc = await kube_client.get_pvc(namespace.name, pvc.name)
         assert pvc.annotations.get("hello/world") == "value"
+
+    async def test_default_pvc_metadata_will_be_populated(
+        self,
+        kube_client: KubeClient,
+        k8s_storage_class: str,
+        scoped_namespace: tuple[Namespace, str, str],
+    ) -> None:
+        """
+        Ensures that admission controller will populate all the default
+        annotations and labels
+        """
+        namespace, org, project = scoped_namespace
+        pvc = await kube_client.create_pvc(
+            namespace.name,
+            PersistentVolumeClaimWrite(
+                name=str(uuid4()),
+                storage_class_name=k8s_storage_class,
+                storage=10 * 1024 * 1024,  # 10 mb
+            ),
+        )
+        pvc = await kube_client.get_pvc(namespace.name, pvc.name)
+        assert APOLO_DISK_API_CREATED_AT_ANNOTATION in pvc.annotations
+        assert DISK_API_CREATED_AT_ANNOTATION in pvc.annotations
+        assert pvc.labels[DISK_API_MARK_LABEL] == "true"
+        assert pvc.labels[APOLO_DISK_API_MARK_LABEL] == "true"
+        assert pvc.labels[DISK_API_ORG_LABEL] == org
+        assert pvc.labels[APOLO_ORG_LABEL] == org
+        assert pvc.labels[DISK_API_PROJECT_LABEL] == project
+        assert pvc.labels[APOLO_PROJECT_LABEL] == project
+        assert pvc.labels[APOLO_USER_LABEL] == project
+        assert pvc.labels[USER_LABEL] == project
 
     async def test_no_real_storage_after_created(
         self,
@@ -212,7 +256,7 @@ class TestKubeClient:
         await kube_client.create_pvc(namespace.name, pvc)
         pvcs = await kube_client.list_pvc(namespace=namespace.name)
         assert len(pvcs) == 1
-        assert pvcs[0].labels == pvc.labels
+        assert pvcs[0].labels["foo"] == pvc.labels["foo"]
 
     async def test_create_with_annotations(
         self,

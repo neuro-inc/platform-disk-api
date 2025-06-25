@@ -171,7 +171,7 @@ class TestService:
     ) -> None:
         namespace, org, project = scoped_namespace
         await kube_client.create_pvc(
-            namespace.name,
+            "default",
             PersistentVolumeClaimWrite(
                 name="outer-pvc", storage_class_name="no-way", storage=200
             ),
@@ -194,7 +194,7 @@ class TestService:
     ) -> None:
         namespace, org, project = scoped_namespace
         await kube_client.create_pvc(
-            namespace.name,
+            "default",
             PersistentVolumeClaimWrite(
                 name="outer-pvc", storage_class_name="no-way", storage=200
             ),
