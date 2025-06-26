@@ -60,3 +60,39 @@ jobProjectNamespaceMigration:
     limits:
       cpu: "200m"
       memory: "200Mi"
+
+admissionControllerDeployment:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "200m"
+      memory: "200Mi"
+
+admissionControllerService:
+  port: 8080
+
+admissionController:
+  serviceName: platform-disks-admission-controller
+  webhookPath: /mutate
+  namespaceSelector:
+    matchExpressions:
+    - key: platform.apolo.us/org
+      operator: Exists
+    - key: platform.apolo.us/project
+      operator: Exists
+  objectSelector: {}
+  rules:
+  - apiGroups: [""]
+    apiVersions: [v1]
+    operations: [CREATE, UPDATE]
+    resources: [pods]
+    scope: '*'
+  - apiGroups: [""]
+    apiVersions: [v1]
+    operations: [CREATE]
+    resources: [persistentvolumeclaims]
+    scope: '*'
+  reinvocationPolicy: IfNeeded
+  failurePolicy: Fail

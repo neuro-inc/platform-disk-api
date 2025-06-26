@@ -6,6 +6,7 @@ from typing import Optional
 import aiohttp
 import aiohttp.web
 import aiohttp_cors
+import uvloop
 from aiohttp.web import (
     HTTPBadRequest,
     HTTPInternalServerError,
@@ -44,13 +45,14 @@ from neuro_auth_client import (
 from neuro_auth_client.security import AuthScheme, setup_security
 from neuro_logging import init_logging, setup_sentry
 
+from platform_disk_api import __version__
+
 from .config import Config, CORSConfig
 from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
 from .service import Disk, DiskNotFound, DiskRequest, Service, is_no_org
-from platform_disk_api import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -448,9 +450,14 @@ async def create_app(config: Config) -> aiohttp.web.Application:
 
 def main() -> None:  # pragma: no coverage
     init_logging()
+    setup_sentry()
     config = EnvironConfigFactory().create()
     logging.info("Loaded config: %r", config)
-    setup_sentry()
+    loop = uvloop.new_event_loop()
     aiohttp.web.run_app(
-        create_app(config), host=config.server.host, port=config.server.port
+        create_app(config),
+        host=config.server.host,
+        port=config.server.port,
+        handler_cancellation=True,
+        loop=loop,
     )

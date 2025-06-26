@@ -17,7 +17,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = ">=3.12,<4.0"
-aiohttp = "3.12.13"
+aiohttp = {version = "3.12.13", extras = ["speedups"]}
 yarl = "<2"
 neuro-auth-client = "25.5.1"
 marshmallow = "4.0.0"
@@ -26,11 +26,13 @@ markupsafe = "3.0.2"
 neuro-logging = "25.6.0"
 aiohttp-cors = "0.8.1"
 apolo-kube-client = "25.5.0"
+uvloop = "^0.21.0"
 
 [tool.poetry.scripts]
 platform-disk-api = "platform_disk_api.api:main"
 platform-disk-api-watcher = "platform_disk_api.usage_watcher:main"
 platform-disk-project-namespace-migration-job = "platform_disk_api.project_namespace_migration_job:main"
+platform-disk-admission-controller = "platform_disk_api.admission_controller.__main__:main"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "1.16.1"
