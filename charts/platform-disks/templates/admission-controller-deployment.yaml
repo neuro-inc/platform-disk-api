@@ -7,7 +7,7 @@ kind: Deployment
 metadata:
   name: {{ include "platformDisks.fullname" . }}
   labels:
-    {{- include "platformDisks.labels" . | nindent 4 }}
+    {{- include "platformDisks.labels.standard" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
