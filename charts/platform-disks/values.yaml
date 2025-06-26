@@ -75,7 +75,7 @@ admissionControllerService:
 
 admissionController:
   serviceName: platform-disks-admission-controller
-  webhookPath: /admission-controller/mutate
+  webhookPath: /mutate
   namespaceSelector:
     matchExpressions:
     - key: platform.apolo.us/org
