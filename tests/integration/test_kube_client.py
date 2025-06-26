@@ -53,6 +53,7 @@ class TestKubeClient:
     async def test_create_single_pvc_with_default_storage_class(
         self,
         kube_client: KubeClient,
+        k8s_storage_class: str,
         scoped_namespace: tuple[Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
@@ -66,7 +67,7 @@ class TestKubeClient:
         pvcs = await kube_client.list_pvc(namespace=namespace.name)
         assert len(pvcs) == 1
         assert pvcs[0].name == pvc.name
-        assert pvcs[0].storage_class_name == "standard"
+        assert pvcs[0].storage_class_name == k8s_storage_class
 
     async def test_add_label_to_pvc(
         self,

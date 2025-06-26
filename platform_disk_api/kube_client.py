@@ -265,6 +265,9 @@ class KubeClient(ApoloKubeClient):
         url = self.generate_namespace_url(namespace)
         return f"{url}/pods"
 
+    def _generate_statefulsets_url(self, namespace: str) -> str:
+        return f"{self._base_url}/apis/apps/v1/namespaces/{namespace}/statefulsets"
+
     def _create_headers(
         self, headers: Optional[dict[str, Any]] = None
     ) -> dict[str, Any]:

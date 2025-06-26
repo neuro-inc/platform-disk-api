@@ -45,7 +45,7 @@ spec:
           - name: NP_DISK_API_K8S_NS
             value: "default"
           - name: NP_DISK_API_K8S_STORAGE_CLASS
-            value: "standard"
+            value: "test-storage-class"
           - name: NP_DISK_API_STORAGE_LIMIT_PER_PROJECT
             value: "536870912000" # In bytes, 500 gb
           - name: NP_DISK_API_ENABLE_DOCS

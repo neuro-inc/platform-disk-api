@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 from collections.abc import AsyncIterator
 from collections.abc import Awaitable
 from collections.abc import Callable
@@ -39,6 +40,9 @@ LOGGER = logging.getLogger(__name__)
 
 PATH_ANNOTATIONS = "/metadata/annotations"
 PATH_LABELS = "/metadata/labels"
+
+# endswith dash and number, e.g.: -0, -1, -2, etc
+RE_STATEFUL_SET_PVC_NAME_INDEX = re.compile(r"(?P<index>-\d+$)")
 
 KUBE_CLIENT_KEY = web.AppKey("kube_client", KubeClient)
 CONFIG_KEY = web.AppKey("config", Config)
@@ -195,14 +199,6 @@ class AdmissionControllerHandler:
 
         now = datetime_dump(utc_now())
 
-        # if a disk was created via an API with the name provided,
-        # it'll be stored in those annotations.
-        disk_name = (
-            pvc_annotations.get(APOLO_DISK_API_NAME_ANNOTATION)
-            or pvc_annotations.get(DISK_API_NAME_ANNOTATION)
-            or pvc_name
-        )
-
         if "annotations" not in pvc_metadata:
             LOGGER.info("PVC doesn't define any annotation. Going to create")
             admission_review.add_patch(PATH_ANNOTATIONS, value={})
@@ -215,8 +211,6 @@ class AdmissionControllerHandler:
         for annotation_key, annotation_value in (
             (APOLO_DISK_API_CREATED_AT_ANNOTATION, now),
             (DISK_API_CREATED_AT_ANNOTATION, now),
-            (APOLO_DISK_API_NAME_ANNOTATION, disk_name),
-            (DISK_API_NAME_ANNOTATION, disk_name),
         ):
             self._add_key_value_if_not_exist(
                 admission_review=admission_review,
@@ -247,22 +241,66 @@ class AdmissionControllerHandler:
 
         LOGGER.info(f"Will submit patch operations: {admission_review.patch}")
 
-        # create a disk naming
+        await self._create_disk_naming(
+            namespace=namespace,
+            org=org,
+            project=project,
+            pvc_name=pvc_name,
+            annotations=pvc_annotations,
+            admission_review=admission_review,
+        )
+
+        # set a proper storage class name
+        admission_review.add_patch("/spec/storageClassName", self._storage_class_name)
+        return admission_review.allow()
+
+    async def _create_disk_naming(
+        self,
+        namespace: str,
+        org: str,
+        project: str,
+        pvc_name: str,
+        annotations: dict[str, Any],
+        admission_review: AdmissionReviewResponse,
+    ) -> None:
+        disk_name = annotations.get(APOLO_DISK_API_NAME_ANNOTATION) or annotations.get(
+            DISK_API_NAME_ANNOTATION
+        )
+        if not disk_name:
+            LOGGER.info("disk naming was not requested")
+            return
+
+        # a special case for a statefulset.
+        # it creates a PVCs with the incremental index upfront, e.g., pvc-0, pvc-1, etc.
+        # if a statefulset wants to use disk naming feature,
+        # we'll need to parse such indexes and use them, to avoid name disk clashes,
+        # due to a disk name uniqueness property.
+        disk_name_search = re.search(RE_STATEFUL_SET_PVC_NAME_INDEX, pvc_name)
+        if disk_name_search:
+            disk_name_index = disk_name_search.group("index")
+            # append index to the original disk name, so if a requested name was a
+            # `test-disk`, the resulting name will be `test-disk-0`, `test-disk-1`, etc.
+            disk_name = f"{disk_name}{disk_name_index}"
+
+            # update disk name annotations
+            for key in (APOLO_DISK_API_NAME_ANNOTATION, DISK_API_NAME_ANNOTATION):
+                admission_review.add_patch(
+                    path=f"{PATH_ANNOTATIONS}/{escape_json_pointer(key)}",
+                    value=disk_name,
+                )
+
         disk_name = Service.get_disk_naming_name(
             disk_name,
             org_name=org,
             project_name=project,
         )
+        LOGGER.info(f"will create a disk naming {disk_name}")
         disk_naming = DiskNaming(namespace, name=disk_name, disk_id=pvc_name)
         try:
             await self._kube_client.create_disk_naming(disk_naming)
         except ResourceExists:
             # might happen on reinvocation
             pass
-
-        # set a proper storage class name
-        admission_review.add_patch("/spec/storageClassName", self._storage_class_name)
-        return admission_review.allow()
 
     @staticmethod
     def _add_key_value_if_not_exist(
