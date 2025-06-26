@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import Any
 
 from aiohttp import web
-from aiohttp.web_exceptions import HTTPConflict, HTTPBadRequest
+from aiohttp.web_exceptions import HTTPBadRequest
 from apolo_kube_client.errors import ResourceExists
 
 from ..api import create_kube_client
@@ -195,6 +195,14 @@ class AdmissionControllerHandler:
 
         now = datetime_dump(utc_now())
 
+        # if a disk was created via an API with the name provided,
+        # it'll be stored in those annotations.
+        disk_name = (
+            pvc_annotations.get(APOLO_DISK_API_NAME_ANNOTATION)
+            or pvc_annotations.get(DISK_API_NAME_ANNOTATION)
+            or pvc_name
+        )
+
         if "annotations" not in pvc_metadata:
             LOGGER.info("PVC doesn't define any annotation. Going to create")
             admission_review.add_patch(PATH_ANNOTATIONS, value={})
@@ -207,6 +215,8 @@ class AdmissionControllerHandler:
         for annotation_key, annotation_value in (
             (APOLO_DISK_API_CREATED_AT_ANNOTATION, now),
             (DISK_API_CREATED_AT_ANNOTATION, now),
+            (APOLO_DISK_API_NAME_ANNOTATION, disk_name),
+            (DISK_API_NAME_ANNOTATION, disk_name),
         ):
             self._add_key_value_if_not_exist(
                 admission_review=admission_review,
@@ -237,27 +247,18 @@ class AdmissionControllerHandler:
 
         LOGGER.info(f"Will submit patch operations: {admission_review.patch}")
 
-        # if a disk was created via an API with the name provided,
-        # it'll be stored in those annotations.
-        disk_name = pvc_annotations.get(
-            APOLO_DISK_API_NAME_ANNOTATION
-        ) or pvc_annotations.get(DISK_API_NAME_ANNOTATION)
-
         # create a disk naming
         disk_name = Service.get_disk_naming_name(
-            disk_name or pvc_name,
+            disk_name,
             org_name=org,
             project_name=project,
         )
         disk_naming = DiskNaming(namespace, name=disk_name, disk_id=pvc_name)
-
         try:
             await self._kube_client.create_disk_naming(disk_naming)
         except ResourceExists:
-            return admission_review.decline(
-                status_code=HTTPConflict.status_code,
-                message=f"Disk with name {disk_name} already exists",
-            )
+            # might happen on reinvocation
+            pass
 
         # set a proper storage class name
         admission_review.add_patch("/spec/storageClassName", self._storage_class_name)

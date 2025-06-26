@@ -67,8 +67,8 @@ function k8s::apply_all_configurations {
     kubectl apply -f tests/k8s/storageclass.yml
     kubectl apply -f charts/platform-disks/templates/crd-disknaming.yaml
     make dist
-    docker build -t admission-controller-tests:1 .
-    docker image save -o ac.tar admission-controller-tests:1
+    docker build -t admission-controller-tests:latest .
+    docker image save -o ac.tar admission-controller-tests:latest
     minikube image load ac.tar
     kubectl apply -f tests/k8s/rbac.yaml
     kubectl apply -f tests/k8s/preinstall-job.yaml

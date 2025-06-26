@@ -15,7 +15,7 @@ spec:
       serviceAccountName: admission-controller
       containers:
       - name: admission-controller
-        image: docker.io/library/admission-controller-tests:9
+        image: docker.io/library/admission-controller-tests:latest
         imagePullPolicy: "IfNotPresent"
         command:
           - platform-disk-admission-controller
