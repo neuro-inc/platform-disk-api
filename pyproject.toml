@@ -38,7 +38,7 @@ platform-disk-admission-controller = "platform_disk_api.admission_controller.__m
 mypy = "1.16.1"
 pre-commit = "4.2.0"
 aiodocker = "0.24.0"
-pytest = "8.4.0"
+pytest = "8.4.1"
 pytest-asyncio = "1.0.0"
 pytest-cov = "6.1.1"
 
