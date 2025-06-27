@@ -251,8 +251,12 @@ class AdmissionControllerHandler:
             admission_review=admission_review,
         )
 
-        # set a proper storage class name
-        admission_review.add_patch("/spec/storageClassName", self._storage_class_name)
+        # override a storage class name if it was requested.
+        if pvc["spec"].get("storageClassName"):
+            admission_review.add_patch(
+                "/spec/storageClassName",
+                self._storage_class_name or pvc["spec"]["storageClassName"],
+            )
         return admission_review.allow()
 
     async def _create_disk_naming(
