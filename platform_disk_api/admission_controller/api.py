@@ -14,7 +14,7 @@ from typing import Any
 
 from aiohttp import web
 from aiohttp.web_exceptions import HTTPBadRequest
-from apolo_kube_client.errors import ResourceExists
+from apolo_kube_client.errors import ResourceNotFound
 
 from ..api import create_kube_client
 from ..config import Config
@@ -33,6 +33,7 @@ from ..service import (
     DISK_API_CREATED_AT_ANNOTATION,
     USER_LABEL,
     APOLO_USER_LABEL,
+    DiskNameUsed,
 )
 from ..utils import datetime_dump, utc_now
 
@@ -296,11 +297,22 @@ class AdmissionControllerHandler:
         )
         LOGGER.info(f"will create a disk naming {disk_name}")
         disk_naming = DiskNaming(namespace, name=disk_name, disk_id=pvc_name)
+
         try:
+            existing_disk_naming = await self._kube_client.get_disk_naming(
+                namespace=namespace, name=disk_name
+            )
+        except ResourceNotFound:
+            # safe to create
             await self._kube_client.create_disk_naming(disk_naming)
-        except ResourceExists:
-            # might happen on reinvocation
-            pass
+        else:
+            # check whether this disk is related to this particular PVC.
+            # this might be a case on an admission controller reinvocation.
+            # disk name must be unique, so if it's linked to another PVC, we raise an error here.
+            if existing_disk_naming.disk_id != pvc_name:
+                raise DiskNameUsed(
+                    f"Disk with name {disk_name} already exists for project {project}"
+                )
 
     @staticmethod
     def _add_key_value_if_not_exist(
@@ -325,6 +337,11 @@ async def handle_exceptions(
 ) -> web.StreamResponse:
     try:
         return await handler(request)
+    except DiskNameUsed as e:
+        req_json = await request.json()
+        return AdmissionReviewResponse(uid=req_json["request"]["uid"]).decline(
+            status_code=400, message=str(e)
+        )
     except Exception as exc:
         err_message = "Unexpected error happened"
         LOGGER.exception("%s: %s", err_message, exc)

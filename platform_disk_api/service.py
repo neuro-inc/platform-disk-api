@@ -237,23 +237,6 @@ class Service:
             request.project_name,
         )
         pvc_write = self._request_to_pvc(request, username)
-
-        if request.name:
-            # ensure that disk does not yet exist
-            disk_name = self.get_disk_naming_name(
-                request.name,
-                org_name=request.org_name,
-                project_name=request.project_name,
-            )
-            try:
-                await self._kube_client.get_disk_naming(namespace.name, disk_name)
-            except ResourceNotFound:
-                pass
-            else:
-                raise DiskNameUsed(
-                    f"Disk with name {request.name} already exists for user {username}"
-                )
-
         pvc_read = await self._kube_client.create_pvc(namespace.name, pvc_write)
         return await self._pvc_to_disk(pvc_read)
 
