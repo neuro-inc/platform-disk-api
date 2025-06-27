@@ -261,6 +261,10 @@ class KubeClient(ApoloKubeClient):
             url = f"{url}/{name}"
         return url
 
+    @property
+    def _all_storage_classes_url(self) -> str:
+        return f"{self._base_url}/apis/storage.k8s.io/v1/storageclasses"
+
     def _generate_pods_url(self, namespace: str) -> str:
         url = self.generate_namespace_url(namespace)
         return f"{url}/pods"
@@ -317,6 +321,17 @@ class KubeClient(ApoloKubeClient):
     async def remove_pvc(self, namespace: str, pvc_name: str) -> None:
         url = self._generate_pvc_url(namespace, pvc_name)
         await self.delete(url=url)
+
+    async def get_default_storage_class_name(self) -> str | None:
+        response = await self.get(self._all_storage_classes_url)
+        for storage_class in response["items"]:
+            if (
+                storage_class.get("metadata", {})
+                .get("annotations", {})
+                .get("storageclass.kubernetes.io/is-default-class")
+            ) == "true":
+                return storage_class["metadata"]["name"]
+        return None
 
     async def list_pods(self) -> PodListResult:
         url = self._all_pods_url

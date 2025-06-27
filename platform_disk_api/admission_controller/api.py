@@ -116,7 +116,7 @@ class AdmissionReviewResponse:
 class AdmissionControllerHandler:
     def __init__(self, app: web.Application) -> None:
         self._app = app
-        self._storage_class_name = self._config.disk.k8s_storage_class
+        self._storage_class_name: str | None = self._config.disk.k8s_storage_class
         self._kind_handlers: dict[
             str,
             Callable[
@@ -127,12 +127,23 @@ class AdmissionControllerHandler:
             "PersistentVolumeClaim": self._handle_pvc,
         }
 
-    def register(self) -> None:
+    async def register(self) -> None:
         self._app.add_routes(
             [
                 web.get("/ping", self.handle_ping),
                 web.post("/mutate", self.handle_post_mutate),
             ]
+        )
+        self._storage_class_name = (
+            self._storage_class_name
+            or await self._kube_client.get_default_storage_class_name()
+        )
+        if not self._storage_class_name:
+            raise RuntimeError(
+                "unable to start an admission controller without a known storage class"
+            )
+        LOGGER.info(
+            f"initialized disks admission controller with the storage class `{self._storage_class_name}`"
         )
 
     @property
@@ -251,12 +262,8 @@ class AdmissionControllerHandler:
             admission_review=admission_review,
         )
 
-        # override a storage class name if it was requested.
-        if pvc["spec"].get("storageClassName"):
-            admission_review.add_patch(
-                "/spec/storageClassName",
-                self._storage_class_name or pvc["spec"]["storageClassName"],
-            )
+        # set a proper storage class name
+        admission_review.add_patch("/spec/storageClassName", self._storage_class_name)
         return admission_review.allow()
 
     async def _create_disk_naming(
@@ -370,5 +377,5 @@ async def create_app(config: Config) -> web.Application:
             yield
 
     app.cleanup_ctx.append(_init_app)
-    AdmissionControllerHandler(app=app).register()
+    await AdmissionControllerHandler(app=app).register()
     return app
