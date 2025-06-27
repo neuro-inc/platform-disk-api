@@ -3,6 +3,7 @@ import logging
 import secrets
 import subprocess
 import time
+from asyncio import timeout
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ import aiohttp.web
 import pytest
 from apolo_kube_client.apolo import create_namespace
 from apolo_kube_client.config import KubeConfig
+from apolo_kube_client.errors import ResourceNotFound
 from apolo_kube_client.namespace import Namespace, NamespaceApi
 
 from platform_disk_api.config import (
@@ -162,3 +164,13 @@ async def scoped_namespace(
     finally:
         namespace_api = NamespaceApi(kube_client)
         await namespace_api.delete_namespace(namespace.name)
+
+        # deletion of namespace also deletes all the resources in it,
+        # so we should wait until a namespace will be fully deleted
+        async with timeout(300):
+            while True:
+                try:
+                    await namespace_api.get_namespace(namespace.name)
+                except ResourceNotFound:
+                    break
+                await asyncio.sleep(1)

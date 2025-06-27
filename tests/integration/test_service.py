@@ -4,12 +4,12 @@ from uuid import uuid4
 
 import pytest
 from apolo_kube_client.apolo import generate_namespace_name
+from apolo_kube_client.errors import ResourceBadRequest
 from apolo_kube_client.namespace import Namespace
 
 from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
 from platform_disk_api.service import (
     Disk,
-    DiskNameUsed,
     DiskNotFound,
     DiskRequest,
     Service,
@@ -64,8 +64,13 @@ class TestService:
             org_name=org_name,
         )
         await service.create_disk(request, "testuser")
-        with pytest.raises(DiskNameUsed):
+        with pytest.raises(ResourceBadRequest) as e:
             await service.create_disk(request, "testuser")
+
+        expected_error_message_part = (
+            f"Disk with name test--{org_name}--{project_name} already exists"
+        )
+        assert expected_error_message_part in e.value.args[0]["message"]
 
     async def test_can_create_disk_with_same_name_after_delete(
         self, service: Service
@@ -171,7 +176,7 @@ class TestService:
     ) -> None:
         namespace, org, project = scoped_namespace
         await kube_client.create_pvc(
-            namespace.name,
+            "default",
             PersistentVolumeClaimWrite(
                 name="outer-pvc", storage_class_name="no-way", storage=200
             ),
@@ -194,7 +199,7 @@ class TestService:
     ) -> None:
         namespace, org, project = scoped_namespace
         await kube_client.create_pvc(
-            namespace.name,
+            "default",
             PersistentVolumeClaimWrite(
                 name="outer-pvc", storage_class_name="no-way", storage=200
             ),

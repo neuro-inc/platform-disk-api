@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-disk-injector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admission-controller
+  template:
+    metadata:
+      labels:
+        app: admission-controller
+    spec:
+      serviceAccountName: admission-controller
+      containers:
+      - name: admission-controller
+        image: docker.io/library/admission-controller-tests:latest
+        imagePullPolicy: "IfNotPresent"
+        command:
+          - platform-disk-admission-controller
+        ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+        env:
+          - name: NP_DISK_API_TLS_CERT_PATH
+            value: /var/run/secrets/admission-controller/cert/tls.crt
+          - name: NP_DISK_API_TLS_KEY_PATH
+            value: /var/run/secrets/admission-controller/cert/tls.key
+          - name: NP_CLUSTER_NAME
+            value: "minikube"
+          - name: NP_DISK_API_PLATFORM_AUTH_URL
+            value: "http://platformauthapi:8080"
+          - name: NP_DISK_API_PLATFORM_AUTH_TOKEN
+            value: "secret"
+          - name: NP_DISK_API_K8S_API_URL
+            value: "https://kubernetes.default:443"
+          - name: NP_DISK_API_K8S_AUTH_TYPE
+            value: "token"
+          - name: NP_DISK_API_K8S_CA_PATH
+            value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+          - name: NP_DISK_API_K8S_TOKEN_PATH
+            value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+          - name: NP_DISK_API_K8S_NS
+            value: "default"
+          - name: NP_DISK_API_K8S_STORAGE_CLASS
+            value: "test-storage-class"
+          - name: NP_DISK_API_STORAGE_LIMIT_PER_PROJECT
+            value: "536870912000" # In bytes, 500 gb
+          - name: NP_DISK_API_ENABLE_DOCS
+            value: "minikube"
+        volumeMounts:
+          - mountPath: /var/run/secrets/admission-controller/cert
+            readOnly: true
+            name: admission-controller-cert
+      volumes:
+        - name: admission-controller-cert
+          secret:
+            secretName: admission-controller-cert
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: admission-controller
+spec:
+  selector:
+    app: admission-controller
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8080
+      protocol: TCP
