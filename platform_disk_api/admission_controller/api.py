@@ -14,7 +14,7 @@ from typing import Any
 
 from aiohttp import web
 from aiohttp.web_exceptions import HTTPBadRequest
-from apolo_kube_client.errors import ResourceNotFound
+from apolo_kube_client.errors import ResourceExists
 
 from ..api import create_kube_client
 from ..config import Config
@@ -299,13 +299,11 @@ class AdmissionControllerHandler:
         disk_naming = DiskNaming(namespace, name=disk_name, disk_id=pvc_name)
 
         try:
+            await self._kube_client.create_disk_naming(disk_naming)
+        except ResourceExists:
             existing_disk_naming = await self._kube_client.get_disk_naming(
                 namespace=namespace, name=disk_name
             )
-        except ResourceNotFound:
-            # safe to create
-            await self._kube_client.create_disk_naming(disk_naming)
-        else:
             # check whether this disk is related to this particular PVC.
             # this might be a case on an admission controller reinvocation.
             # disk name must be unique, so if it's linked to another PVC, we raise an error here.
