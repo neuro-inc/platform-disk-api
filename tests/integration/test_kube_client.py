@@ -385,3 +385,10 @@ class TestKubeClient:
         assert await kube_client.list_disk_namings() == []
         with pytest.raises(ResourceNotFound):
             await kube_client.get_disk_naming(namespace.name, disk_name.name)
+
+    async def test__get_default_storage_class(
+        self,
+        kube_client: KubeClient,
+    ) -> None:
+        default_storage_class_name = await kube_client.get_default_storage_class_name()
+        assert default_storage_class_name == "standard"
