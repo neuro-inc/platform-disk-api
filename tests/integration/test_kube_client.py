@@ -389,6 +389,6 @@ class TestKubeClient:
     async def test__get_default_storage_class(
         self,
         kube_client: KubeClient,
-    ):
+    ) -> None:
         default_storage_class_name = await kube_client.get_default_storage_class_name()
         assert default_storage_class_name == "standard"
