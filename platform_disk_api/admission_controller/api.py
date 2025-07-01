@@ -135,7 +135,7 @@ class AdmissionControllerHandler:
             ]
         )
 
-    async def init(self):
+    async def init(self) -> None:
         self._storage_class_name = (
             self._storage_class_name
             or await self._kube_client.get_default_storage_class_name()
