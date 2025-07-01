@@ -127,13 +127,15 @@ class AdmissionControllerHandler:
             "PersistentVolumeClaim": self._handle_pvc,
         }
 
-    async def register(self) -> None:
+    def register(self) -> None:
         self._app.add_routes(
             [
                 web.get("/ping", self.handle_ping),
                 web.post("/mutate", self.handle_post_mutate),
             ]
         )
+
+    async def init(self) -> None:
         self._storage_class_name = (
             self._storage_class_name
             or await self._kube_client.get_default_storage_class_name()
@@ -366,6 +368,8 @@ async def create_app(config: Config) -> web.Application:
         ]
     )
     app[CONFIG_KEY] = config
+    handler = AdmissionControllerHandler(app=app)
+    handler.register()
 
     async def _init_app(app: web.Application) -> AsyncIterator[None]:
         async with AsyncExitStack() as exit_stack:
@@ -374,8 +378,8 @@ async def create_app(config: Config) -> web.Application:
                 create_kube_client(config.kube)
             )
             app[KUBE_CLIENT_KEY] = kube_client
+            await handler.init()
             yield
 
     app.cleanup_ctx.append(_init_app)
-    await AdmissionControllerHandler(app=app).register()
     return app
