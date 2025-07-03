@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 from apolo_kube_client.apolo import generate_namespace_name
-from apolo_kube_client.errors import ResourceBadRequest
+from apolo_kube_client.errors import ResourceExists
 from apolo_kube_client.namespace import Namespace
 
 from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
@@ -64,7 +64,7 @@ class TestService:
             org_name=org_name,
         )
         await service.create_disk(request, "testuser")
-        with pytest.raises(ResourceBadRequest) as e:
+        with pytest.raises(ResourceExists) as e:
             await service.create_disk(request, "testuser")
 
         expected_error_message_part = (
