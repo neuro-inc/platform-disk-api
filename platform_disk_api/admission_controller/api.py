@@ -11,11 +11,19 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+from uuid import uuid4
 
 from aiohttp import web
-from aiohttp.web_exceptions import HTTPBadRequest
+from aiohttp.web_exceptions import (
+    HTTPBadRequest,
+    HTTPConflict,
+    HTTPNotFound,
+    HTTPForbidden,
+    HTTPUnprocessableEntity,
+)
 from apolo_kube_client.errors import ResourceExists
 
+from .schema import InjectionSchema, MountMode
 from ..api import create_kube_client
 from ..config import Config
 from ..kube_client import KubeClient, DiskNaming
@@ -34,10 +42,22 @@ from ..service import (
     USER_LABEL,
     APOLO_USER_LABEL,
     DiskNameUsed,
+    DiskNotFound,
+    DiskConflict,
+    DiskServiceError,
+    DiskAlreadyInUse,
 )
 from ..utils import datetime_dump, utc_now
 
 LOGGER = logging.getLogger(__name__)
+
+ANNOTATION_APOLO_INJECT_DISK = "platform.apolo.us/inject-disk"
+
+LABEL_APOLO_ORG_NAME = "platform.apolo.us/org"
+LABEL_APOLO_PROJECT_NAME = "platform.apolo.us/project"
+
+INJECTED_VOLUME_NAME_PREFIX = "disk-auto-injected-volume"
+
 
 PATH_ANNOTATIONS = "/metadata/annotations"
 PATH_LABELS = "/metadata/labels"
@@ -47,6 +67,30 @@ RE_STATEFUL_SET_PVC_NAME_INDEX = re.compile(r"(?P<index>-\d+$)")
 
 KUBE_CLIENT_KEY = web.AppKey("kube_client", KubeClient)
 CONFIG_KEY = web.AppKey("config", Config)
+
+
+ERROR_TO_HTTP_CODE = {
+    DiskServiceError: HTTPNotFound.status_code,
+    DiskNotFound: HTTPNotFound.status_code,
+    DiskConflict: HTTPConflict.status_code,
+    DiskNameUsed: HTTPConflict.status_code,
+    DiskAlreadyInUse: HTTPConflict.status_code,
+}
+
+
+class AdmissionControllerApiError(Exception):
+    def __init__(
+        self,
+        message: str,
+        status_code: int,
+    ):
+        self.message = message
+        self.status_code = status_code
+
+
+def create_injection_volume_name() -> str:
+    """Creates a random volume name"""
+    return f"{INJECTED_VOLUME_NAME_PREFIX}-{str(uuid4())[:8]}"
 
 
 def escape_json_pointer(path: str) -> str:
@@ -76,9 +120,11 @@ class AdmissionReviewResponse:
         )
 
     def allow(self) -> web.Response:
+        LOGGER.info("allowing mutation")
         return web.json_response(self._to_primitive(allowed=True))
 
     def decline(self, status_code: int, message: str) -> web.Response:
+        LOGGER.info("declining mutation")
         return web.json_response(
             self._to_primitive(allowed=False, status_code=status_code, message=message)
         )
@@ -115,12 +161,14 @@ class AdmissionReviewResponse:
 
 class AdmissionControllerHandler:
     def __init__(self, app: web.Application) -> None:
+        self._disk_service: Service
         self._app = app
         self._storage_class_name: str | None = self._config.disk.k8s_storage_class
         self._kind_handlers: dict[
             str,
             Callable[
-                [dict[str, Any], str, AdmissionReviewResponse], Awaitable[web.Response]
+                [dict[str, Any], str, str, str, AdmissionReviewResponse],
+                Awaitable[web.Response],
             ],
         ] = {
             "Pod": self._handle_pod,
@@ -146,6 +194,9 @@ class AdmissionControllerHandler:
             )
         LOGGER.info(
             f"initialized disks admission controller with the storage class `{self._storage_class_name}`"
+        )
+        self._disk_service = Service(
+            kube_client=self._kube_client, storage_class_name=self._storage_class_name
         )
 
     @property
@@ -175,22 +226,130 @@ class AdmissionControllerHandler:
             return admission_review.allow()
 
         namespace = payload["request"]["namespace"]
-        LOGGER.info(f"going to mutate {kind} in a namespace {namespace}")
-        return await handler(obj, namespace, admission_review)
+        LOGGER.info(f"trying to mutate {kind} in a namespace {namespace}")
+        namespace_org, namespace_project = await self._get_namespace_org_project(
+            namespace
+        )
+        return await handler(
+            obj,
+            namespace,
+            namespace_org,
+            namespace_project,
+            admission_review,
+        )
 
     async def _handle_pod(
         self,
         pod: dict[str, Any],
         namespace: str,
+        namespace_org: str,
+        namespace_project: str,
         admission_review: AdmissionReviewResponse,
     ) -> web.Response:
-        # todo: ... TBD ...
+        spec = pod["spec"]
+        containers = spec.get("containers") or []
+        if not containers:
+            LOGGER.info("POD won't be mutated because doesnt define containers")
+            return admission_review.allow()
+
+        pod_metadata = pod["metadata"]
+        pod_annotations = pod_metadata.get("annotations", {}) or {}
+
+        if ANNOTATION_APOLO_INJECT_DISK not in pod_annotations:
+            return admission_review.allow()
+
+        pod_labels = pod_metadata.get("labels", {}) or {}
+
+        # check for org/proj labels on the pod.
+        # allow if there is no such to give a chance for metadata injector to reinvoke
+        if LABEL_APOLO_ORG_NAME not in pod_labels:
+            LOGGER.info("Pod is not ready, missing label %s", LABEL_APOLO_ORG_NAME)
+            return admission_review.allow()
+        if LABEL_APOLO_PROJECT_NAME not in pod_labels:
+            LOGGER.info("Pod is not ready, missing label %s", LABEL_APOLO_PROJECT_NAME)
+            return admission_review.allow()
+
+        raw_injection_spec = pod_annotations[ANNOTATION_APOLO_INJECT_DISK]
+
+        try:
+            injection_spec = InjectionSchema.validate_json(raw_injection_spec)
+        except Exception as e:
+            error_message = "injection spec is invalid"
+            LOGGER.exception(error_message)
+            raise AdmissionControllerApiError(
+                message=error_message, status_code=HTTPUnprocessableEntity.status_code
+            ) from e
+
+        # ensure disk URIs, namespace labels and the pod labels are same in terms of org/project values
+        for injection_schema in injection_spec:
+            for comparable in (
+                {injection_schema.org, namespace_org, pod_labels[APOLO_ORG_LABEL]},
+                {
+                    injection_schema.project,
+                    namespace_project,
+                    pod_labels[APOLO_PROJECT_LABEL],
+                },
+            ):
+                if len(comparable) != 1:
+                    error_message = "metadata value mismatch"
+                    LOGGER.error("%s: %s", error_message, comparable)
+                    raise AdmissionControllerApiError(
+                        message=error_message,
+                        status_code=HTTPForbidden.status_code,
+                    )
+
+        LOGGER.info("All checks passed. Going to inject disks")
+
+        # ensure POD has volumes
+        self._add_key_value_if_not_exist(
+            admission_review=admission_review,
+            collection=spec,
+            collection_path="/spec",
+            key="volumes",
+            value=[],
+        )
+
+        # add claims
+        for injection_schema in injection_spec:
+            future_volume_name = create_injection_volume_name()
+            disk = await self._disk_service.resolve_disk(
+                disk_id_or_name=injection_schema.disk_id_or_name,
+                org_name=injection_schema.org,
+                project_name=injection_schema.project,
+            )
+
+            admission_review.add_patch(
+                path="/spec/volumes/-",
+                value={
+                    "name": future_volume_name,
+                    "persistentVolumeClaim": {
+                        "claimName": disk.id,
+                    },
+                },
+            )
+
+            # add a volumeMount with mount path for all the POD containers
+            for container_idx in range(len(containers)):
+                patch_value: dict[str, str | bool] = {
+                    "name": future_volume_name,
+                    "mountPath": injection_schema.mount_path,
+                }
+                if injection_schema.mount_mode is MountMode.READ_ONLY:
+                    patch_value["readOnly"] = True
+
+                admission_review.add_patch(
+                    path=f"/spec/containers/{container_idx}/volumeMounts/-",
+                    value=patch_value,
+                )
+
         return admission_review.allow()
 
     async def _handle_pvc(
         self,
         pvc: dict[str, Any],
         namespace: str,
+        namespace_org: str,
+        namespace_project: str,
         admission_review: AdmissionReviewResponse,
     ) -> web.Response:
         pvc_metadata = pvc["metadata"]
@@ -198,28 +357,16 @@ class AdmissionControllerHandler:
         pvc_annotations = pvc_metadata.get("annotations", {}) or {}
         pvc_name = pvc_metadata["name"]
 
-        namespace_obj = await self._kube_client.get(
-            self._kube_client.generate_namespace_url(namespace)
-        )
-        try:
-            namespace_labels = namespace_obj["metadata"]["labels"]
-            org = namespace_labels[APOLO_ORG_LABEL]
-            project = namespace_labels[APOLO_PROJECT_LABEL]
-        except KeyError:
-            return admission_review.decline(
-                status_code=HTTPBadRequest.status_code,
-                message="Namespace lacks required org / project labels",
-            )
-
         now = datetime_dump(utc_now())
 
-        if "annotations" not in pvc_metadata:
-            LOGGER.info("PVC doesn't define any annotation. Going to create")
-            admission_review.add_patch(PATH_ANNOTATIONS, value={})
-
-        if "labels" not in pvc_metadata:
-            LOGGER.info("PVC doesn't define any label. Going to create")
-            admission_review.add_patch(PATH_LABELS, value={})
+        for key in ("labels", "annotations"):
+            self._add_key_value_if_not_exist(
+                admission_review,
+                collection=pvc_metadata,
+                collection_path="/metadata",
+                key=key,
+                value={},
+            )
 
         # populate necessary disk annotations
         for annotation_key, annotation_value in (
@@ -238,12 +385,12 @@ class AdmissionControllerHandler:
         for label_key, label_value in (
             (DISK_API_MARK_LABEL, "true"),
             (APOLO_DISK_API_MARK_LABEL, "true"),
-            (DISK_API_ORG_LABEL, org),
-            (APOLO_ORG_LABEL, org),
-            (DISK_API_PROJECT_LABEL, project),
-            (APOLO_PROJECT_LABEL, project),
-            (APOLO_USER_LABEL, project),
-            (USER_LABEL, project),
+            (DISK_API_ORG_LABEL, namespace_org),
+            (APOLO_ORG_LABEL, namespace_org),
+            (DISK_API_PROJECT_LABEL, namespace_project),
+            (APOLO_PROJECT_LABEL, namespace_project),
+            (APOLO_USER_LABEL, namespace_project),
+            (USER_LABEL, namespace_project),
         ):
             self._add_key_value_if_not_exist(
                 admission_review=admission_review,
@@ -257,8 +404,8 @@ class AdmissionControllerHandler:
 
         await self._create_disk_naming(
             namespace=namespace,
-            org=org,
-            project=project,
+            org=namespace_org,
+            project=namespace_project,
             pvc_name=pvc_name,
             annotations=pvc_annotations,
             admission_review=admission_review,
@@ -287,7 +434,7 @@ class AdmissionControllerHandler:
         # a special case for a statefulset.
         # it creates a PVCs with the incremental index upfront, e.g., pvc-0, pvc-1, etc.
         # if a statefulset wants to use disk naming feature,
-        # we'll need to parse such indexes and use them, to avoid name disk clashes,
+        # we'll need to parse such indexes and use them, to avoid name clashes,
         # due to a disk name uniqueness property.
         disk_name_search = re.search(RE_STATEFUL_SET_PVC_NAME_INDEX, pvc_name)
         if disk_name_search:
@@ -331,7 +478,7 @@ class AdmissionControllerHandler:
         collection: dict[str, str],
         collection_path: str,
         key: str,
-        value: str,
+        value: Any,
     ) -> None:
         """Adds a patch add op if key doesn't exist in an original collection"""
         if key in collection:
@@ -339,6 +486,21 @@ class AdmissionControllerHandler:
         admission_review.add_patch(
             path=f"{collection_path}/{escape_json_pointer(key)}", value=value
         )
+
+    async def _get_namespace_org_project(self, namespace: str) -> tuple[str, str]:
+        namespace_obj = await self._kube_client.get(
+            self._kube_client.generate_namespace_url(namespace)
+        )
+        try:
+            namespace_labels = namespace_obj["metadata"]["labels"]
+            org = namespace_labels[APOLO_ORG_LABEL]
+            project = namespace_labels[APOLO_PROJECT_LABEL]
+        except KeyError:
+            raise AdmissionControllerApiError(
+                status_code=HTTPBadRequest.status_code,
+                message="Namespace lacks required org / project labels",
+            )
+        return org, project
 
 
 @web.middleware
@@ -348,17 +510,27 @@ async def handle_exceptions(
 ) -> web.StreamResponse:
     try:
         return await handler(request)
-    except DiskNameUsed as e:
+    except DiskServiceError as e:
         req_json = await request.json()
-        return AdmissionReviewResponse(uid=req_json["request"]["uid"]).decline(
-            status_code=400, message=str(e)
+        uid = req_json["request"]["uid"]
+        status_code = ERROR_TO_HTTP_CODE.get(type(e), HTTPBadRequest.status_code)
+        return AdmissionReviewResponse(uid=uid).decline(
+            status_code=status_code, message=str(e)
+        )
+    except AdmissionControllerApiError as e:
+        req_json = await request.json()
+        uid = req_json["request"]["uid"]
+        return AdmissionReviewResponse(uid=uid).decline(
+            status_code=e.status_code, message=e.message
         )
     except Exception as exc:
         err_message = "Unexpected error happened"
         LOGGER.exception("%s: %s", err_message, exc)
         req_json = await request.json()
         admission_response = AdmissionReviewResponse(uid=req_json["request"]["uid"])
-        return admission_response.decline(status_code=400, message=err_message)
+        return admission_response.decline(
+            status_code=HTTPBadRequest.status_code, message=err_message
+        )
 
 
 async def create_app(config: Config) -> web.Application:

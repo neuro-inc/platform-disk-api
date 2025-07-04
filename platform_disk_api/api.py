@@ -164,20 +164,18 @@ class DiskApiHandler:
             ]
         )
 
-    async def _resolve_disk(self, request: Request) -> Disk:
+    async def _resolve_disk_from_request(self, request: Request) -> Disk:
         id_or_name = request.match_info["disk_id_or_name"]
         org_name = request.query.get("org_name") or normalize_name(NO_ORG)
         project_name = request.query["project_name"]
         try:
-            disk = await self._service.get_disk(org_name, project_name, id_or_name)
+            return await self._service.resolve_disk(
+                disk_id_or_name=id_or_name,
+                org_name=org_name,
+                project_name=project_name,
+            )
         except DiskNotFound:
-            try:
-                disk = await self._service.get_disk_by_name(
-                    id_or_name, org_name, project_name
-                )
-            except DiskNotFound:
-                raise HTTPNotFound(text=f"Disk {id_or_name} not found")
-        return disk
+            raise HTTPNotFound(text=f"Disk {id_or_name} not found")
 
     @docs(
         tags=["disks"],
@@ -249,7 +247,7 @@ class DiskApiHandler:
         )
     )
     async def handle_get_disk(self, request: Request) -> Response:
-        disk = await self._resolve_disk(request)
+        disk = await self._resolve_disk_from_request(request)
         await check_permissions(request, [self._get_disk_read_perm(disk)])
         resp_payload = DiskSchema().dump(disk)
         return json_response(resp_payload, status=HTTPOk.status_code)
@@ -293,7 +291,7 @@ class DiskApiHandler:
         )
     )
     async def handle_delete_disk(self, request: Request) -> Response:
-        disk = await self._resolve_disk(request)
+        disk = await self._resolve_disk_from_request(request)
         await check_permissions(request, [self._get_disk_write_perm(disk)])
         await self._service.remove_disk(disk)
         raise HTTPNoContent
