@@ -1,0 +1,9 @@
+dependencies:
+- name: k8s-resources
+  repository: https://neuro-inc.github.io/helm-charts
+  version: 1.0.1
+- name: admission-controller-lib
+  repository: https://neuro-inc.github.io/helm-charts
+  version: 0.1.14
+digest: sha256:5bd8855e063185242f297c8b88920cf0b5833ecf803b25e0ff0526f1aabf2e0b
+generated: "2025-07-07T14:08:22.15185+03:00"

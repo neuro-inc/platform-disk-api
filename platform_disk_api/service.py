@@ -23,11 +23,23 @@ from .kube_client import (
 from .utils import datetime_dump, datetime_load, timedelta_dump, timedelta_load, utc_now
 
 
-class DiskNotFound(Exception):
+class DiskServiceError(Exception):
     pass
 
 
-class DiskNameUsed(Exception):
+class DiskNotFound(DiskServiceError):
+    pass
+
+
+class DiskConflict(DiskServiceError):
+    pass
+
+
+class DiskNameUsed(DiskConflict):
+    pass
+
+
+class DiskAlreadyInUse(DiskConflict):
     pass
 
 
@@ -148,6 +160,22 @@ class Service:
             labels=labels,
             annotations=annotations,
         )
+
+    async def resolve_disk(
+        self, disk_id_or_name: str, org_name: str, project_name: str
+    ) -> Disk:
+        try:
+            return await self.get_disk(
+                org_name=org_name,
+                project_name=project_name,
+                disk_id=disk_id_or_name,
+            )
+        except DiskNotFound:
+            return await self.get_disk_by_name(
+                name=disk_id_or_name,
+                org_name=org_name,
+                project_name=project_name,
+            )
 
     async def _pvc_to_disk(self, pvc: PersistentVolumeClaimRead) -> Disk:
         status_map = {
