@@ -415,6 +415,7 @@ class TestAdmissionController:
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
+                    ANNOTATION_APOLO_INJECT_DISK: "true",
                 },
                 annotations={ANNOTATION_APOLO_INJECT_DISK: "invalid"},
             ):
@@ -436,6 +437,7 @@ class TestAdmissionController:
                 labels={
                     LABEL_APOLO_ORG_NAME: "invalid org",
                     LABEL_APOLO_PROJECT_NAME: project,
+                    ANNOTATION_APOLO_INJECT_DISK: "true",
                 },
                 annotations={
                     ANNOTATION_APOLO_INJECT_DISK: json.dumps(
@@ -466,6 +468,7 @@ class TestAdmissionController:
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: "invalid project",
+                    ANNOTATION_APOLO_INJECT_DISK: "true",
                 },
                 annotations={
                     ANNOTATION_APOLO_INJECT_DISK: json.dumps(
@@ -496,6 +499,7 @@ class TestAdmissionController:
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
+                    ANNOTATION_APOLO_INJECT_DISK: "true",
                 },
                 annotations={
                     ANNOTATION_APOLO_INJECT_DISK: json.dumps(
@@ -526,6 +530,7 @@ class TestAdmissionController:
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
+                    ANNOTATION_APOLO_INJECT_DISK: "true",
                 },
                 annotations={
                     ANNOTATION_APOLO_INJECT_DISK: json.dumps(
@@ -568,6 +573,7 @@ class TestAdmissionController:
             labels={
                 LABEL_APOLO_ORG_NAME: org,
                 LABEL_APOLO_PROJECT_NAME: project,
+                ANNOTATION_APOLO_INJECT_DISK: "true",
             },
         ) as response:
             spec = response["spec"]
@@ -628,6 +634,7 @@ class TestAdmissionController:
             labels={
                 LABEL_APOLO_ORG_NAME: org,
                 LABEL_APOLO_PROJECT_NAME: project,
+                ANNOTATION_APOLO_INJECT_DISK: "true",
             },
         ) as response:
             spec = response["spec"]
@@ -679,6 +686,7 @@ class TestAdmissionController:
             labels={
                 LABEL_APOLO_ORG_NAME: org,
                 LABEL_APOLO_PROJECT_NAME: project,
+                ANNOTATION_APOLO_INJECT_DISK: "true",
             },
         ) as response:
             spec = response["spec"]
@@ -742,6 +750,7 @@ class TestAdmissionController:
             labels={
                 LABEL_APOLO_ORG_NAME: org,
                 LABEL_APOLO_PROJECT_NAME: project,
+                ANNOTATION_APOLO_INJECT_DISK: "true",
             },
         ) as response:
             spec = response["spec"]

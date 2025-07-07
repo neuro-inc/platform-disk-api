@@ -82,7 +82,9 @@ admissionController:
       operator: Exists
     - key: platform.apolo.us/project
       operator: Exists
-  objectSelector: {}
+  objectSelector:
+    matchLabels:
+      platform.apolo.us/inject-disk: "true"
   rules:
   - apiGroups: [""]
     apiVersions: [v1]

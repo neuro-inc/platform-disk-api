@@ -36,11 +36,6 @@ class MountSchema(BaseModel):
         *_, disk_id_or_name = self._uri_parts
         return disk_id_or_name
 
-    @cached_property
-    def path_parts(self) -> list[str]:
-        _, _, _, _, *parts = self._uri_parts
-        return parts
-
     @field_validator("mount_path", mode="after")
     @classmethod
     def is_mount_path(cls, value: str) -> str:
