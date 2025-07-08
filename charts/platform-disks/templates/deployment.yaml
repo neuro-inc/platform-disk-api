@@ -18,9 +18,14 @@ spec:
     metadata:
       labels:
         {{- include "platformDisks.selectorLabels" . | nindent 8 }}
-      {{- if .Values.secrets }}
+      {{- if or .Values.annotations .Values.secrets }}
       annotations:
+        {{- with .Values.annotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.secrets }}
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        {{- end }}
       {{- end }}
     spec:
       {{- if .Values.imagePullSecrets}}
