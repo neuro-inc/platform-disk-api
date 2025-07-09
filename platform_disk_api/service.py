@@ -55,6 +55,7 @@ DISK_API_MARK_LABEL = "platform.neuromation.io/disk-api-pvc"
 APOLO_DISK_API_MARK_LABEL = "platform.apolo.us/disk"
 DISK_API_DELETED_LABEL = "platform.neuromation.io/disk-api-pvc-deleted"
 APOLO_DISK_API_DELETED_LABEL = "platform.apolo.us/disk-deleted"
+
 DISK_API_NAME_ANNOTATION = "platform.neuromation.io/disk-api-pvc-name"
 APOLO_DISK_API_NAME_ANNOTATION = "platform.apolo.us/disk-name"
 DISK_API_CREATED_AT_ANNOTATION = "platform.neuromation.io/disk-api-pvc-created-at"

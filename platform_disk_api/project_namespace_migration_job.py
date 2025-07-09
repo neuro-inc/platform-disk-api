@@ -17,7 +17,12 @@ from platform_disk_api.config import JobMigrateProjectNamespaceConfig
 from platform_disk_api.config_factory import EnvironConfigFactory
 from platform_disk_api.kube_client import DiskNaming, KubeClient
 from platform_disk_api.service import (
+    APOLO_DISK_API_CREATED_AT_ANNOTATION,
+    APOLO_DISK_API_LAST_USAGE_ANNOTATION,
+    APOLO_DISK_API_LIFE_SPAN_ANNOTATION,
     APOLO_DISK_API_MARK_LABEL,
+    APOLO_DISK_API_NAME_ANNOTATION,
+    APOLO_DISK_API_USED_BYTES_ANNOTATION,
     APOLO_ORG_LABEL,
     APOLO_PROJECT_LABEL,
     APOLO_USER_LABEL,
@@ -36,6 +41,15 @@ logger = logging.getLogger(__name__)
 
 
 CURRENT_NAMESPACE = "platform-jobs"
+
+
+DISK_ANNOTATION_MAP = {
+    DISK_API_NAME_ANNOTATION: APOLO_DISK_API_NAME_ANNOTATION,
+    DISK_API_CREATED_AT_ANNOTATION: APOLO_DISK_API_CREATED_AT_ANNOTATION,
+    DISK_API_LAST_USAGE_ANNOTATION: APOLO_DISK_API_LAST_USAGE_ANNOTATION,
+    DISK_API_LIFE_SPAN_ANNOTATION: APOLO_DISK_API_LIFE_SPAN_ANNOTATION,
+    DISK_API_USED_BYTES_ANNOTATION: APOLO_DISK_API_USED_BYTES_ANNOTATION,
+}
 
 
 class DiskMigrationError(Exception):
@@ -295,18 +309,10 @@ async def create_pvc(
 
     annotations = {}
 
-    for annotation_key in (
-        DISK_API_NAME_ANNOTATION,
-        DISK_API_CREATED_AT_ANNOTATION,
-        DISK_API_LAST_USAGE_ANNOTATION,
-        DISK_API_LIFE_SPAN_ANNOTATION,
-        DISK_API_USED_BYTES_ANNOTATION,
-    ):
+    for annotation_key in DISK_ANNOTATION_MAP.keys():
         if annotation_key in old_metadata["annotations"]:
             annotation_value = old_metadata["annotations"][annotation_key]
-            apolo_annotation_key = annotation_key.replace(
-                "platform.neuromation.io", "platform.apolo.us"
-            )
+            apolo_annotation_key = DISK_ANNOTATION_MAP[annotation_key]
             annotations[annotation_key] = annotation_value
             annotations[apolo_annotation_key] = annotation_value
 
