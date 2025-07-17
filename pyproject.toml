@@ -40,7 +40,7 @@ mypy = "1.16.1"
 pre-commit = "4.2.0"
 aiodocker = "0.24.0"
 pytest = "8.4.1"
-pytest-asyncio = "1.0.0"
+pytest-asyncio = "1.1.0"
 pytest-cov = "6.1.1"
 
 [tool.poetry.requires-plugins]
