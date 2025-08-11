@@ -19,7 +19,7 @@ classifiers = [
 python = ">=3.12,<4.0"
 aiohttp = {version = "3.12.15", extras = ["speedups"]}
 yarl = "<2"
-neuro-auth-client = "25.8.0"
+neuro-auth-client = "25.8.2"
 marshmallow = "4.0.0"
 aiohttp-apispec = "3.0.0b2"
 markupsafe = "3.0.2"
