@@ -12,7 +12,7 @@ from aiohttp.web_exceptions import (
     HTTPNotFound,
     HTTPUnauthorized,
 )
-from neuro_auth_client import AuthClient, Permission
+from neuro_admin_client import AuthClient, Permission
 
 from platform_disk_api.api import create_app
 from platform_disk_api.config import Config

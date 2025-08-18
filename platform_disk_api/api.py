@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -35,14 +38,13 @@ from aiohttp_security import check_authorized
 from apolo_kube_client.apolo import NO_ORG, normalize_name
 from apolo_kube_client.config import KubeConfig
 from marshmallow import Schema, fields
-from neuro_auth_client import (
+from neuro_admin_client import (
     AuthClient,
-    ClientSubTreeViewRoot,
     Permission,
     User,
     check_permissions,
 )
-from neuro_auth_client.security import AuthScheme, setup_security
+from neuro_admin_client.security import AuthScheme, setup_security
 from neuro_logging import init_logging, setup_sentry
 
 from platform_disk_api import __version__
@@ -223,9 +225,6 @@ class DiskApiHandler:
         resp_payload = DiskSchema().dump(disk)
         return json_response(resp_payload, status=HTTPCreated.status_code)
 
-    def _check_disk_read_perm(self, disk: Disk, tree: ClientSubTreeViewRoot) -> bool:
-        return tree.allows(self._get_disk_read_perm(disk))
-
     @docs(
         tags=["disks"],
         summary="Get Disk objects by id or name",
@@ -256,18 +255,25 @@ class DiskApiHandler:
     @response_schema(DiskSchema(many=True), 200)
     async def handle_list_disks(self, request: Request) -> Response:
         username = await check_authorized(request)
-        tree = await self._auth_client.get_permissions_tree(
-            username, self._disk_cluster_uri
-        )
         org_name = request.query.get("org_name") or normalize_name(NO_ORG)
         project_name = request.query["project_name"]
-        disks = [
-            disk
-            for disk in await self._service.get_all_disks(
-                org_name=org_name, project_name=project_name
-            )
-            if self._check_disk_read_perm(disk, tree)
-        ]
+        disks = await self._service.get_all_disks(
+            org_name=org_name, project_name=project_name
+        )
+
+        perms_by_disk: dict[Disk, Permission] = {
+            d: self._get_disk_read_perm(d) for d in disks
+        }
+
+        missing_perms: Sequence[
+            Permission
+        ] = await self._auth_client.get_missing_permissions(
+            username,
+            list(perms_by_disk.values()),
+        )
+        missing_keys = set(missing_perms)
+
+        disks = [d for d, p in perms_by_disk.items() if p not in missing_keys]
         resp_payload = DiskSchema(many=True).dump(disks)
         return json_response(resp_payload, status=HTTPOk.status_code)
 

@@ -10,7 +10,7 @@ import pytest
 from aiohttp import ClientError
 from aiohttp.hdrs import AUTHORIZATION
 from jose import jwt
-from neuro_auth_client import AuthClient, Permission, User as AuthClientUser
+from neuro_admin_client import AuthClient, Permission, User as AuthClientUser
 from yarl import URL
 from aiodocker.utils import JSONObject
 
