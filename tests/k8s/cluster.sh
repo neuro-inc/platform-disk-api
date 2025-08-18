@@ -64,6 +64,9 @@ function k8s::apply_all_configurations {
     kubectl config use-context minikube
     kubectl apply -f tests/k8s/rb.default.gke.yml
     kubectl apply -f tests/k8s/platformapi.yml
+    kubectl apply -f tests/k8s/platformconfig.yml
+    kubectl apply -f tests/k8s/platformadmin.yml
+    kubectl apply -f tests/k8s/platformnotifications.yml
     kubectl apply -f tests/k8s/storageclass.yml
     kubectl apply -f charts/platform-disks/templates/crd-disknaming.yaml
     make dist

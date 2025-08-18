@@ -1,0 +1,225 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: platformadmin-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: platformadmin-postgres
+  template:
+    metadata:
+      labels:
+        service: platformadmin-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:12.11
+        env:
+          - name: POSTGRES_DB
+            value: postgres
+          - name: POSTGRES_USER
+            value: postgres
+          - name: POSTGRES_PASSWORD
+            value: postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformadmin-postgres
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    service: platformadmin-postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platformadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: platformadmin
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        service: platformadmin
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      initContainers:
+      - name: platformadmin-migrations
+        image: ghcr.io/neuro-inc/platformadmin:latest
+        imagePullPolicy: Always
+        command: ["alembic", "upgrade", "head"]
+        env:
+        - name: NP_ADMIN_POSTGRES_DSN
+          value: postgresql://postgres:postgres@platformadmin-postgres:5432/postgres
+      containers:
+      - name: platformadmin
+        image: ghcr.io/neuro-inc/platformadmin:latest
+        imagePullPolicy: Always
+        env:
+        - name: NP_LOG_LEVEL
+          value: INFO
+        - name: NP_ADMIN_AUTH_TOKEN
+          value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6ImFkbWluIiwiaHR0cHM6Ly9wbGF0Zm9ybS5uZXVyb21hdGlvbi5pby91c2VyIjoiYWRtaW4ifQ._F3y_fr2W0yiJ_-r46NPszsv3H1LzWAvGNXjl0eXwVI
+        - name: NP_ADMIN_AUTH_URL
+          value: http://platformauthapi:8080
+        - name: NP_ADMIN_CONFIG_TOKEN
+          value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6ImFkbWluIiwiaHR0cHM6Ly9wbGF0Zm9ybS5uZXVyb21hdGlvbi5pby91c2VyIjoiYWRtaW4ifQ._F3y_fr2W0yiJ_-r46NPszsv3H1LzWAvGNXjl0eXwVI
+        - name: NP_ADMIN_CONFIG_URL
+          value: http://platformconfig:8080
+        - name: NP_ADMIN_POSTGRES_DSN
+          value: postgresql://postgres:postgres@platformadmin-postgres:5432/postgres
+        - name: NP_ADMIN_NOTIFICATIONS_URL
+          value: http://platformnotifications:8080
+        - name: NP_ADMIN_NOTIFICATIONS_TOKEN
+          value: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZGVudGl0eSI6ImNvbXB1dGUifQ.IJDlKCfbiuNGZH9Sh6p-CdUL5KxEK5JStqzfDk4-RAA
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformadmin
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    service: platformadmin
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-cluster
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+      - name: wait-for-platform-config
+        image: curlimages/curl:8.4.0
+        command: [sh]
+        args:
+        - -c
+        - |
+          code=-1
+
+          while [ $code != 0 ]
+          do
+            sleep 1
+            curl -f "$NP_PLATFORM_CONFIG_URL/api/v1/ping"
+            code=$?
+          done
+
+          while [ $code != 0 ]
+          do
+            sleep 1
+            curl -f "$NP_PLATFORM_ADMIN_URL/apis/admin/v1/ping"
+            code=$?
+          done
+        env:
+        - name: NP_PLATFORM_CONFIG_URL
+          value: http://platformconfig:8080
+        - name: NP_PLATFORM_ADMIN_URL
+          value: http://platformadmin:8080
+      containers:
+      - name: create-cluster
+        image: curlimages/curl:8.4.0
+        command: [sh]
+        args:
+        - -ec
+        - |
+          curl -vv -X POST \
+            -H "Authorization: Bearer $NP_ADMIN_TOKEN" \
+            -d @- \
+            "$NP_PLATFORM_ADMIN_URL/apis/admin/v1/users" <<EOM
+          {
+            "name": "cluster-admin",
+            "email": "cluster-admin@neu.ro"
+          }
+          EOM
+
+          curl -vv -X POST \
+            -H "Authorization: Bearer $NP_CLUSTER_ADMIN_TOKEN" \
+            -d @- \
+            "$NP_PLATFORM_ADMIN_URL/apis/admin/v1/clusters" <<EOM
+          {
+            "name": "default"
+          }
+          EOM
+
+          curl -vv -X POST \
+            -H "Authorization: Bearer $NP_CLUSTER_ADMIN_TOKEN" \
+            -d @- \
+            "$NP_PLATFORM_ADMIN_URL/apis/admin/v1/clusters" <<EOM
+          {
+            "name": "default2"
+          }
+          EOM
+
+          curl -vv -X PUT \
+            -H "Authorization: Bearer $NP_ADMIN_TOKEN" \
+            -d @- \
+            "$NP_PLATFORM_CONFIG_URL/api/v1/clusters/default" <<EOM
+          {
+              "name": "default",
+              "orchestrator": {
+                  "is_http_ingress_secure": true,
+                  "job_hostname_template": "{job_id}.jobs.neu.ro",
+                  "job_internal_hostname_template": "{job_id}.default",
+                  "resource_pool_types": [
+                      {
+                          "name": "minikube",
+                          "min_size": 1,
+                          "max_size": 1,
+                          "cpu": 1.0,
+                          "available_cpu": 1.0,
+                          "memory": 1073741824,
+                          "available_memory": 1073741824
+                      }
+                  ],
+                  "resource_presets": [
+                      {
+                          "name": "cpu-small",
+                          "credits_per_hour": "0.0",
+                          "cpu": 0.1,
+                          "memory": 104857600
+                      }
+                  ]
+              },
+              "storage": {"url": "http://platformapi/api/v1/storage"},
+              "blob_storage": {"url": "http://platformapi/api/v1/blob"},
+              "registry": {"url": "http://localhost:5000"},
+              "monitoring": {"url": "http://platformapi/api/v1/jobs"},
+              "secrets": {"url": "http://platformapi/api/v1/secrets"},
+              "metrics": {"url": "http://platformapi/api/v1/metrics"},
+              "disks": {"url": "http://platformapi/api/v1/disk"},
+              "buckets": {
+                  "url": "http://platformapi/api/v1/buckets",
+                  "disable_creation": false
+              },
+              "ingress": {"acme_environment": "staging"},
+              "energy": {"co2_grams_eq_per_kwh": 0, "schedules": []},
+              "timezone": "UTC"
+          }
+          EOM
+        env:
+        - name: NP_PLATFORM_CONFIG_URL
+          value: http://platformconfig:8080
+        - name: NP_PLATFORM_ADMIN_URL
+          value: http://platformadmin:8080
+        - name: NP_ADMIN_TOKEN
+          value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6ImFkbWluIiwiaHR0cHM6Ly9wbGF0Zm9ybS5uZXVyb21hdGlvbi5pby91c2VyIjoiYWRtaW4ifQ._F3y_fr2W0yiJ_-r46NPszsv3H1LzWAvGNXjl0eXwVI
+        - name: NP_CLUSTER_ADMIN_TOKEN
+          value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6ImNsdXN0ZXItYWRtaW4iLCJodHRwczovL3BsYXRmb3JtLm5ldXJvbWF0aW9uLmlvL3VzZXIiOiJjbHVzdGVyLWFkbWluIn0.ee3ufWpd0XRtRmsPhbma1_d1BZeb3c3sEsxiYk0GuFI
