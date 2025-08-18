@@ -63,4 +63,4 @@ else
 endif
 
 _docker_pull_test_images:
-	docker pull ghcr.io/neuro-inc/platformauthapi:latest; \
+	docker pull ghcr.io/neuro-inc/platformadmin:latest \

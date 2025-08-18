@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -6,66 +8,25 @@ from typing import Optional
 
 import aiodocker
 from aiodocker.containers import DockerContainer
+from aiodocker.utils import JSONObject
 import pytest
 from aiohttp import ClientError
 from aiohttp.hdrs import AUTHORIZATION
 from jose import jwt
 from neuro_admin_client import AuthClient, Permission, User as AuthClientUser
 from yarl import URL
-from aiodocker.utils import JSONObject
 
 from platform_disk_api.config import AuthConfig
 from tests.integration.conftest import random_name
 
+DOCKER_NETWORK = "it_net"
+ADMIN_CONTAINER = "auth_server"
+
 
 @pytest.fixture(scope="session")
 def auth_server_image_name() -> str:
-    with open("PLATFORMAUTHAPI_IMAGE") as f:
+    with open("PLATFORMADMINAPI_IMAGE") as f:
         return f.read().strip()
-
-
-@pytest.fixture(scope="session")
-async def auth_server(
-    docker: aiodocker.Docker, reuse_docker: bool, auth_server_image_name: str
-) -> AsyncIterator[AuthConfig]:
-    image_name = auth_server_image_name
-    container_name = "auth_server"
-    container_config: JSONObject = {
-        "Image": image_name,
-        "AttachStdout": False,
-        "AttachStderr": False,
-        "HostConfig": {"PublishAllPorts": True},
-        "Env": ["NP_JWT_SECRET=secret"],
-    }
-
-    if reuse_docker:
-        try:
-            container = await docker.containers.get(container_name)
-            if container["State"]["Running"]:
-                auth_config = await create_auth_config(container)
-                await wait_for_auth_server(auth_config)
-                yield auth_config
-                return
-        except aiodocker.exceptions.DockerError:
-            pass
-
-    try:
-        await docker.images.inspect(auth_server_image_name)
-    except aiodocker.exceptions.DockerError:
-        await docker.images.pull(auth_server_image_name)
-
-    container = await docker.containers.create_or_replace(
-        name=container_name, config=container_config
-    )
-    await container.start()
-
-    auth_config = await create_auth_config(container)
-    await wait_for_auth_server(auth_config)
-    yield auth_config
-
-    if not reuse_docker:
-        await container.kill()
-        await container.delete(force=True)
 
 
 def create_token(name: str) -> str:
@@ -83,25 +44,103 @@ def admin_token(token_factory: Callable[[str], str]) -> str:
     return token_factory("admin")
 
 
-async def create_auth_config(
-    container: DockerContainer,
-) -> AuthConfig:
-    host = "0.0.0.0"
-    port_info = await container.port(8080)
-    if not port_info:
-        raise RuntimeError("Port 8080 not mapped in the container!")
-    port = int(port_info[0]["HostPort"])
-    url = URL(f"http://{host}:{port}")
+async def _get_host_port(
+    container: DockerContainer, cport: int, tries: int = 50, sleep_s: float = 0.2
+) -> int:
+    for _ in range(tries):
+        info = await container.port(cport)
+        if info and info[0].get("HostPort"):
+            return int(info[0]["HostPort"])
+        await asyncio.sleep(sleep_s)
+    raise RuntimeError(f"Port mapping for {cport}/tcp not found after {tries} tries")
+
+
+async def create_auth_config(container: DockerContainer) -> AuthConfig:
+    port = await _get_host_port(container, 8080)
+    url = URL(f"http://127.0.0.1:{port}")
     token = create_token("compute")
-    return AuthConfig(
-        url=url,
-        token=token,
+    return AuthConfig(url=url, token=token)
+
+
+@pytest.fixture(scope="session")
+async def auth_server(
+    docker: aiodocker.Docker,
+    reuse_docker: bool,
+    auth_server_image_name: str,
+    postgres: dict,
+    docker_network: str,
+    docker_smart_stubs: dict,
+    run_platformadmin_migrations,
+) -> AsyncIterator[AuthConfig]:
+    image_name = auth_server_image_name
+    container_name = ADMIN_CONTAINER
+
+    env = [
+        "NP_JWT_SECRET=secret",
+        f"NP_ADMIN_POSTGRES_DSN={postgres['dsn_sync']}",
+        f"NP_ADMIN_AUTH_URL={docker_smart_stubs['auth_url']}",
+        f"NP_ADMIN_AUTH_TOKEN={create_token('admin')}",
+        f"NP_ADMIN_CONFIG_URL={docker_smart_stubs['config_url']}",
+        f"NP_ADMIN_CONFIG_TOKEN={create_token('admin')}",
+        f"NP_ADMIN_NOTIFICATIONS_URL={docker_smart_stubs['notif_url']}",
+        f"NP_ADMIN_NOTIFICATIONS_TOKEN={create_token('compute')}",
+        "NP_ADMIN_DB_POOL_MIN=1",
+        "NP_ADMIN_DB_POOL_MAX=5",
+    ]
+
+    if reuse_docker:
+        try:
+            container = await docker.containers.get(container_name)
+            info = await container.show()
+            if info["State"]["Running"]:
+                auth_config = await create_auth_config(container)
+                await wait_for_auth_server(auth_config)
+                yield auth_config
+                return
+        except aiodocker.exceptions.DockerError:
+            pass
+
+    try:
+        await docker.images.inspect(image_name)
+    except aiodocker.exceptions.DockerError:
+        await docker.images.pull(image_name)
+
+    container_config: JSONObject = {
+        "Image": image_name,
+        "name": container_name,
+        "AttachStdout": False,
+        "AttachStderr": False,
+        "ExposedPorts": {"8080/tcp": {}},
+        "HostConfig": {
+            "PublishAllPorts": True,
+            "NetworkMode": docker_network,  # same network as stubs + postgres
+            "ExtraHosts": ["host.docker.internal:host-gateway"],
+        },
+        "NetworkingConfig": {"EndpointsConfig": {docker_network: {}}},
+        "Env": env,
+    }
+
+    container = await docker.containers.create_or_replace(
+        name=container_name, config=container_config
     )
+    await container.start()
 
+    auth_config = await create_auth_config(container)
+    print(f"[auth_server] admin at {auth_config.url}")
+    await wait_for_auth_server(auth_config)
 
-@pytest.fixture
-async def auth_config(auth_server: AuthConfig) -> AsyncIterator[AuthConfig]:
-    yield auth_server
+    try:
+        yield auth_config
+    finally:
+        if not reuse_docker:
+            try:
+                await container.kill()
+            except Exception:
+                pass
+            try:
+                await container.delete(force=True)
+            except Exception:
+                pass
 
 
 @asynccontextmanager
@@ -111,13 +150,18 @@ async def create_auth_client(config: AuthConfig) -> AsyncGenerator[AuthClient, N
 
 
 @pytest.fixture
+async def auth_config(auth_server: AuthConfig) -> AsyncIterator[AuthConfig]:
+    yield auth_server
+
+
+@pytest.fixture
 async def auth_client(auth_server: AuthConfig) -> AsyncGenerator[AuthClient, None]:
     async with create_auth_client(auth_server) as client:
         yield client
 
 
 async def wait_for_auth_server(
-    config: AuthConfig, timeout_s: float = 30, interval_s: float = 1
+    config: AuthConfig, timeout_s: float = 10000, interval_s: float = 1
 ) -> None:
     async with asyncio.timeout(timeout_s):
         while True:
@@ -161,8 +205,9 @@ async def regular_user_factory(
     ) -> _User:
         if not name:
             name = f"user-{random_name()}"
-        user = AuthClientUser(name=name)
+        user = AuthClientUser(name=name, email=f"{name}@test.org")
         await auth_client.add_user(user, token=admin_token)
+
         if not skip_grant:
             org_path = f"/{org_name}" if org_name else ""
             project_path = f"/{project_name}" if project_name else ""

@@ -56,8 +56,8 @@ def test_create_custom(cert_authority_path: str, token_path: str) -> None:
     environ: dict[str, Any] = {
         "NP_DISK_API_HOST": "0.0.0.0",
         "NP_DISK_API_PORT": 8080,
-        "NP_DISK_API_PLATFORM_AUTH_URL": "http://platformauthapi/api/v1",
-        "NP_DISK_API_PLATFORM_AUTH_TOKEN": "platform-auth-token",
+        "NP_DISK_API_PLATFORM_AUTH_URL": "http://platformadminapi/api/v1",
+        "NP_DISK_API_PLATFORM_AUTH_TOKEN": "platform-admin-token",
         "NP_DISK_API_K8S_API_URL": "https://localhost:8443",
         "NP_DISK_API_K8S_AUTH_TYPE": "token",
         "NP_DISK_API_K8S_CA_PATH": cert_authority_path,
@@ -81,7 +81,7 @@ def test_create_custom(cert_authority_path: str, token_path: str) -> None:
     assert config == Config(
         server=ServerConfig(host="0.0.0.0", port=8080),
         platform_auth=AuthConfig(
-            url=URL("http://platformauthapi/api/v1"), token="platform-auth-token"
+            url=URL("http://platformadminapi/api/v1"), token="platform-admin-token"
         ),
         kube=KubeConfig(
             endpoint_url="https://localhost:8443",

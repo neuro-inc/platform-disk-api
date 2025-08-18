@@ -4,7 +4,7 @@ import secrets
 import subprocess
 import time
 from asyncio import timeout
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -32,6 +32,9 @@ logger = logging.getLogger(__name__)
 
 pytest_plugins = [
     "tests.integration.docker",
+    "tests.integration.stubs",
+    "tests.integration.migrations",
+    "tests.integration.kube_stub",
     "tests.integration.auth",
     "tests.integration.kube",
 ]
@@ -42,17 +45,14 @@ def random_name(length: int = 8) -> str:
 
 
 @pytest.fixture(scope="session")
-def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
-    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+def event_loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     loop.set_debug(True)
-
-    watcher = asyncio.SafeChildWatcher()
-    watcher.attach_loop(loop)
-    asyncio.get_event_loop_policy().set_child_watcher(watcher)
-
-    yield loop
-    loop.close()
+    try:
+        yield loop
+    finally:
+        loop.close()
 
 
 @pytest.fixture

@@ -50,22 +50,15 @@ def cert_authority_data_pem(
 
 
 @pytest.fixture
-async def kube_config(
-    kube_config_cluster_payload: dict[str, Any],
-    kube_config_user_payload: dict[str, Any],
-    cert_authority_data_pem: Optional[str],
-) -> KubeConfig:
-    cluster = kube_config_cluster_payload
-    user = kube_config_user_payload
-    kube_config = KubeConfig(
-        endpoint_url=cluster["server"],
-        cert_authority_data_pem=cert_authority_data_pem,
-        auth_cert_path=user["client-certificate"],
-        auth_cert_key_path=user["client-key"],
-        auth_type=KubeClientAuthType.CERTIFICATE,
+async def kube_config(kube_api_stub) -> KubeConfig:
+    return KubeConfig(
+        endpoint_url=str(kube_api_stub.url),
+        cert_authority_data_pem=None,
+        auth_cert_path=None,
+        auth_cert_key_path=None,
+        auth_type=KubeClientAuthType.NONE,
         namespace="default",
     )
-    return kube_config
 
 
 class KubeClientForTest(KubeClient):
