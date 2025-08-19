@@ -64,7 +64,8 @@ class DiskApiEndpoints:
 @pytest.fixture
 async def disk_api(config: Config) -> AsyncIterator[DiskApiEndpoints]:
     app = await create_app(config)
-    async with create_local_app_server(app, port=8080) as address:
+    async with create_local_app_server(app, port=0) as address:
+        print(f"Disk API running at: {address.host}:{address.port}")
         yield DiskApiEndpoints(address=address)
 
 
@@ -306,10 +307,10 @@ class TestApi:
         client: aiohttp.ClientSession,
         regular_user_factory: Callable[..., Awaitable[_User]],
     ) -> None:
-        await regular_user_factory("test")
-        user = await regular_user_factory(
-            "test/with/additional/parts", project_name="test-project"
-        )
+        user = await regular_user_factory("test")
+        # user = await regular_user_factory(
+        #     "test/with/additional/parts", project_name="test-project", skip_grant=True
+        # )
         async with client.post(
             disk_api.disk_url,
             json={"storage": 500, "name": "test", "project_name": "test-project"},

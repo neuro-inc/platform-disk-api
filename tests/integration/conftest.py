@@ -3,6 +3,7 @@ import logging
 import secrets
 import subprocess
 import time
+from aiohttp import web
 from asyncio import timeout
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -106,18 +107,28 @@ class ApiAddress:
 
 
 @asynccontextmanager
-async def create_local_app_server(
-    app: aiohttp.web.Application, port: int = 8080
-) -> AsyncIterator[ApiAddress]:
-    runner = aiohttp.web.AppRunner(app)
+async def create_local_app_server(app: web.Application, port: int = 0):
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="127.0.0.1", port=port)
+    await site.start()
+
+    # Retrieve the actual port assigned by the OS
+    sock = site._server.sockets[0]
+    host, assigned_port = sock.getsockname()[:2]
+
+    class Address:
+        def __init__(self, host, port):
+            self.host = host
+            self.port = port
+
+        @property
+        def url(self):
+            return f"http://{self.host}:{self.port}"
+
     try:
-        await runner.setup()
-        api_address = ApiAddress("0.0.0.0", port)
-        site = aiohttp.web.TCPSite(runner, api_address.host, api_address.port)
-        await site.start()
-        yield api_address
+        yield Address(host="127.0.0.1", port=assigned_port)
     finally:
-        await runner.shutdown()
         await runner.cleanup()
 
 

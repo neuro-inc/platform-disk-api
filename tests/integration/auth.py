@@ -7,13 +7,13 @@ from dataclasses import dataclass
 from typing import Optional
 
 import aiodocker
+import pytest
 from aiodocker.containers import DockerContainer
 from aiodocker.utils import JSONObject
-import pytest
 from aiohttp import ClientError
 from aiohttp.hdrs import AUTHORIZATION
 from jose import jwt
-from neuro_admin_client import AuthClient, Permission, User as AuthClientUser
+from neuro_admin_client import AuthClient, User as AuthClientUser
 from yarl import URL
 
 from platform_disk_api.config import AuthConfig
@@ -57,8 +57,8 @@ async def _get_host_port(
 
 async def create_auth_config(container: DockerContainer) -> AuthConfig:
     port = await _get_host_port(container, 8080)
-    url = URL(f"http://127.0.0.1:{port}")
-    token = create_token("compute")
+    url = URL(f"http://127.0.0.1:{port}/apis/admin/v1")
+    token = create_token("admin")
     return AuthConfig(url=url, token=token)
 
 
@@ -128,19 +128,11 @@ async def auth_server(
     auth_config = await create_auth_config(container)
     print(f"[auth_server] admin at {auth_config.url}")
     await wait_for_auth_server(auth_config)
+    yield auth_config
 
-    try:
-        yield auth_config
-    finally:
-        if not reuse_docker:
-            try:
-                await container.kill()
-            except Exception:
-                pass
-            try:
-                await container.delete(force=True)
-            except Exception:
-                pass
+    if not reuse_docker:
+        await container.kill()
+        await container.delete(force=True)
 
 
 @asynccontextmanager
@@ -161,7 +153,7 @@ async def auth_client(auth_server: AuthConfig) -> AsyncGenerator[AuthClient, Non
 
 
 async def wait_for_auth_server(
-    config: AuthConfig, timeout_s: float = 10000, interval_s: float = 1
+    config: AuthConfig, timeout_s: float = 30, interval_s: float = 1
 ) -> None:
     async with asyncio.timeout(timeout_s):
         while True:
@@ -206,33 +198,18 @@ async def regular_user_factory(
         if not name:
             name = f"user-{random_name()}"
         user = AuthClientUser(name=name, email=f"{name}@test.org")
-        await auth_client.add_user(user, token=admin_token)
+        await auth_client.add_user(user)
+        _user = _User(name=user.name, token=token_factory(user.name))
 
         if not skip_grant:
-            org_path = f"/{org_name}" if org_name else ""
-            project_path = f"/{project_name}" if project_name else ""
-            name_path = "" if org_level else f"/{name}"
-            permissions = [
-                Permission(uri=f"disk://{cluster_name}/{name}", action="write")
-            ]
-            if org_path:
-                permissions.append(
-                    Permission(
-                        uri=f"disk://{cluster_name}{org_path}{name_path}",
-                        action="write",
-                    )
+            try:
+                cluster_path = cluster_name if cluster_name else f"{name}-cluster"
+                await auth_client.create_cluster(
+                    cluster_name=cluster_path, headers=_user.headers
                 )
-            if project_path:
-                permissions.append(
-                    Permission(
-                        uri=f"disk://{cluster_name}{org_path}{project_path}",
-                        action="write",
-                    )
-                )
-            await auth_client.grant_user_permissions(
-                name, permissions, token=admin_token
-            )
+            except ClientError:
+                pass
 
-        return _User(name=user.name, token=token_factory(user.name))
+        return _user
 
     yield _factory

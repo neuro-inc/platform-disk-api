@@ -51,16 +51,45 @@ def _write_nginx_conf() -> tuple[str, str]:
                 return 200 '{"missing": []}';
             }
 
+            location ~ ^/api/v1/notifications/.*$ {
+              return 201;
+            }
+
+            location ~ ^/api/v1/users/[^/]+/token$ {
+              default_type application/json;
+              return 200 '{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock"}';
+            }
+
             location ~ ^/api/v1/users/(.+)$ {
               default_type application/json;
               set $user_name $1;
               return 201 '{"name":"$user_name"}';
             }
 
-            location ~ ^/api/v1/notifications/.*$ {
-              return 201;
+            location = /api/v1/clusters {
+              default_type application/json;
+              return 200 '{
+                "name": "test-cluster",
+                "status": "ready",
+                "platform_infra_image_tag": "v1.0.0",
+                "orchestrator": null,
+                "storage": null,
+                "registry": null,
+                "monitoring": null,
+                "secrets": null,
+                "metrics": null,
+                "disks": null,
+                "buckets": null,
+                "ingress": null,
+                "dns": null,
+                "cloud_provider": null,
+                "credentials": null,
+                "created_at": "2025-08-19T00:00:00+00:00",
+                "timezone": null,
+                "energy": null,
+                "apps": null
+              }';
             }
-
 
             # Fallback for everything else
             location / {
