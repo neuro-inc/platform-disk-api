@@ -46,6 +46,22 @@ def _write_nginx_conf() -> tuple[str, str]:
                 }
             }
 
+            location ~ ^/api/v1/users/.*/permissions/check$ {
+                default_type application/json;
+                return 200 '{"missing": []}';
+            }
+
+            location ~ ^/api/v1/users/(.+)$ {
+              default_type application/json;
+              set $user_name $1;
+              return 201 '{"name":"$user_name"}';
+            }
+
+            location ~ ^/api/v1/notifications/.*$ {
+              return 201;
+            }
+
+
             # Fallback for everything else
             location / {
               default_type application/json;
