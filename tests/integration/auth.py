@@ -202,14 +202,21 @@ async def regular_user_factory(
         _user = _User(name=user.name, token=token_factory(user.name))
 
         if not skip_grant:
+            cluster_path = cluster_name if cluster_name else f"{name}-cluster"
             try:
-                cluster_path = cluster_name if cluster_name else f"{name}-cluster"
                 await auth_client.create_cluster(
                     cluster_name=cluster_path, headers=_user.headers
                 )
             except ClientError:
                 pass
 
+            project_path = project_name if project_name else f"{name}-project"
+            try:
+                await auth_client.create_project(
+                    name=project_path, cluster_name=cluster_path, headers=_user.headers
+                )
+            except ClientError:
+                pass
         return _user
 
     yield _factory
