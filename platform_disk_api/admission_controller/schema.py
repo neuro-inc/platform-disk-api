@@ -2,7 +2,8 @@ from enum import StrEnum
 from functools import cached_property
 from pathlib import Path, PurePosixPath
 
-from pydantic import BaseModel, field_validator, TypeAdapter
+from pydantic import BaseModel, TypeAdapter, field_validator
+
 
 SCHEMA_DISK = "disk://"
 

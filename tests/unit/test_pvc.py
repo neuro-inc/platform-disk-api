@@ -7,7 +7,14 @@ from platform_disk_api.kube_client import (
 
 
 class TestPVCSerialization:
-    @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
+    @pytest.mark.parametrize(
+        (
+            "name",
+            "storage_class",
+            "storage",
+        ),
+        [("test", "test-stor", 100)],
+    )
     def test_pvc_to_primitive(
         self, name: str, storage_class: str, storage: int
     ) -> None:
@@ -44,7 +51,14 @@ class TestPVCSerialization:
             },
         }
 
-    @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
+    @pytest.mark.parametrize(
+        (
+            "name",
+            "storage_class",
+            "storage",
+        ),
+        [("test", "test-stor", 100)],
+    )
     def test_pvc_with_labels_to_primitive(
         self, name: str, storage_class: str, storage: int
     ) -> None:
@@ -66,7 +80,14 @@ class TestPVCSerialization:
             },
         }
 
-    @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
+    @pytest.mark.parametrize(
+        (
+            "name",
+            "storage_class",
+            "storage",
+        ),
+        [("test", "test-stor", 100)],
+    )
     def test_pvc_from_primitive_pending(
         self, name: str, storage_class: str, storage: int
     ) -> None:
@@ -96,7 +117,10 @@ class TestPVCSerialization:
         )
 
     @pytest.mark.parametrize(
-        "storage_str,storage_value",
+        (
+            "storage_str",
+            "storage_value",
+        ),
         [
             ("100", 100),
             ("1e2", 100),
@@ -134,7 +158,14 @@ class TestPVCSerialization:
         assert pvc.storage_requested == storage_value
         assert pvc.storage_real == storage_value
 
-    @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
+    @pytest.mark.parametrize(
+        (
+            "name",
+            "storage_class",
+            "storage",
+        ),
+        [("test", "test-stor", 100)],
+    )
     def test_pvc_from_primitive_bound(
         self, name: str, storage_class: str, storage: int
     ) -> None:
@@ -163,7 +194,14 @@ class TestPVCSerialization:
             annotations={},
         )
 
-    @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
+    @pytest.mark.parametrize(
+        (
+            "name",
+            "storage_class",
+            "storage",
+        ),
+        [("test", "test-stor", 100)],
+    )
     def test_pvc_from_primitive_with_labels(
         self, name: str, storage_class: str, storage: int
     ) -> None:
@@ -196,7 +234,14 @@ class TestPVCSerialization:
             annotations={},
         )
 
-    @pytest.mark.parametrize("name,storage_class,storage", [("test", "test-stor", 100)])
+    @pytest.mark.parametrize(
+        (
+            "name",
+            "storage_class",
+            "storage",
+        ),
+        [("test", "test-stor", 100)],
+    )
     def test_pvc_from_primitive_with_annotations(
         self, name: str, storage_class: str, storage: int
     ) -> None:

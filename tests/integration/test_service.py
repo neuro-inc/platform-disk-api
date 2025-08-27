@@ -18,17 +18,6 @@ from platform_disk_api.utils import utc_now
 
 
 class TestService:
-    @pytest.fixture
-    def service(
-        self,
-        kube_client: KubeClient,
-        k8s_storage_class: str,
-    ) -> Service:
-        return Service(
-            kube_client=kube_client,
-            storage_class_name=k8s_storage_class,
-        )
-
     async def test_create_disk(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex
         request = DiskRequest(

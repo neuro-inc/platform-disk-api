@@ -14,16 +14,16 @@ from platform_disk_api.kube_client import (
     PersistentVolumeClaimWrite,
 )
 from platform_disk_api.service import (
-    DISK_API_MARK_LABEL,
+    APOLO_DISK_API_CREATED_AT_ANNOTATION,
     APOLO_DISK_API_MARK_LABEL,
-    USER_LABEL,
     APOLO_ORG_LABEL,
-    DISK_API_ORG_LABEL,
-    DISK_API_PROJECT_LABEL,
     APOLO_PROJECT_LABEL,
     APOLO_USER_LABEL,
     DISK_API_CREATED_AT_ANNOTATION,
-    APOLO_DISK_API_CREATED_AT_ANNOTATION,
+    DISK_API_MARK_LABEL,
+    DISK_API_ORG_LABEL,
+    DISK_API_PROJECT_LABEL,
+    USER_LABEL,
 )
 
 from .kube import KubeClientForTest

@@ -2,8 +2,8 @@ import logging
 import os
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
 
+from apolo_events_client import EventsClientConfig
 from apolo_kube_client.config import KubeClientAuthType, KubeConfig
 from yarl import URL
 
@@ -17,19 +17,19 @@ from .config import (
     ServerConfig,
 )
 
+
 logger = logging.getLogger(__name__)
 
 
 class EnvironConfigFactory:
-    def __init__(self, environ: Optional[dict[str, str]] = None) -> None:
+    def __init__(self, environ: dict[str, str] | None = None) -> None:
         self._environ = environ or os.environ
 
-    def _get_url(self, name: str) -> Optional[URL]:
+    def _get_url(self, name: str) -> URL | None:
         value = self._environ[name]
         if value == "-":
             return None
-        else:
-            return URL(value)
+        return URL(value)
 
     def create(self) -> Config:
         cluster_name = self._environ["NP_CLUSTER_NAME"]
@@ -42,7 +42,15 @@ class EnvironConfigFactory:
             cors=self.create_cors(),
             disk=self.create_disk(),
             enable_docs=enable_docs,
+            events=self.create_events(),
         )
+
+    def create_events(self) -> EventsClientConfig | None:
+        if "NP_REGISTRY_EVENTS_URL" in self._environ:
+            url = URL(self._environ["NP_REGISTRY_EVENTS_URL"])
+            token = self._environ["NP_REGISTRY_EVENTS_TOKEN"]
+            return EventsClientConfig(url=url, token=token, name="platform-disk")
+        return None
 
     def create_disk_usage_watcher(self) -> DiskUsageWatcherConfig:
         return DiskUsageWatcherConfig(

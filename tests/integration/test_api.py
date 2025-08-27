@@ -1,6 +1,6 @@
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from dataclasses import dataclass, replace
-from typing import Protocol
+from typing import Any, Protocol
 
 import aiohttp
 import pytest
@@ -78,7 +78,7 @@ async def grant_disk_permission(
     token_factory: Callable[[str], str],
     admin_token: str,
     cluster_name: str,
-) -> AsyncIterator[DiskGranter]:
+) -> Callable[[_User, Disk, str], Coroutine[Any, Any, None]]:
     async def _grant(user: _User, disk: Disk, action: str = "read") -> None:
         permission = Permission(
             uri=f"disk://{cluster_name}/{disk.owner}/{disk.id}",
@@ -86,7 +86,7 @@ async def grant_disk_permission(
         )
         await auth_client.grant_user_permissions(user.name, [permission], admin_token)
 
-    yield _grant
+    return _grant
 
 
 class ProjectGranter(Protocol):
@@ -101,7 +101,7 @@ async def grant_project_permission(
     token_factory: Callable[[str], str],
     admin_token: str,
     cluster_name: str,
-) -> AsyncIterator[ProjectGranter]:
+) -> Callable[[_User, str, str], Coroutine[Any, Any, None]]:
     async def _grant(user: _User, project_name: str, action: str = "read") -> None:
         permission = Permission(
             uri=f"disk://{cluster_name}/{project_name}",
@@ -109,7 +109,7 @@ async def grant_project_permission(
         )
         await auth_client.grant_user_permissions(user.name, [permission], admin_token)
 
-    yield _grant
+    return _grant
 
 
 class TestApi:

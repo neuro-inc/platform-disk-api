@@ -4,7 +4,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 from apolo_kube_client.config import KubeClientAuthType, KubeConfig
@@ -42,7 +42,7 @@ def kube_config_user_payload(kube_config_payload: dict[str, Any]) -> Any:
 @pytest.fixture(scope="session")
 def cert_authority_data_pem(
     kube_config_cluster_payload: dict[str, Any],
-) -> Optional[str]:
+) -> str | None:
     ca_path = kube_config_cluster_payload["certificate-authority"]
     if ca_path:
         return Path(ca_path).read_text()
@@ -53,11 +53,11 @@ def cert_authority_data_pem(
 async def kube_config(
     kube_config_cluster_payload: dict[str, Any],
     kube_config_user_payload: dict[str, Any],
-    cert_authority_data_pem: Optional[str],
+    cert_authority_data_pem: str | None,
 ) -> KubeConfig:
     cluster = kube_config_cluster_payload
     user = kube_config_user_payload
-    kube_config = KubeConfig(
+    return KubeConfig(
         endpoint_url=cluster["server"],
         cert_authority_data_pem=cert_authority_data_pem,
         auth_cert_path=user["client-certificate"],
@@ -65,7 +65,6 @@ async def kube_config(
         auth_type=KubeClientAuthType.CERTIFICATE,
         namespace="default",
     )
-    return kube_config
 
 
 class KubeClientForTest(KubeClient):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from apolo_kube_client.apolo import NO_ORG, create_namespace, normalize_name
 from apolo_kube_client.errors import ResourceNotFound
@@ -37,6 +37,7 @@ from platform_disk_api.service import (
     USER_LABEL,
 )
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +63,7 @@ class PvcInUseError(DiskMigrationError):
 
 async def migration_loop(
     config: JobMigrateProjectNamespaceConfig,
-    disk_ids_filter: Optional[set[str]] = None,
+    disk_ids_filter: set[str] | None = None,
 ) -> None:
     """
     A main loop which iterates over all disks and tries to migrate them to a
@@ -123,7 +124,7 @@ async def migrate_disk(
     pvc_name: str,
     pvc: dict[str, Any],
     disk_naming: DiskNaming,
-    pv_name: Optional[str] = None,
+    pv_name: str | None = None,
 ) -> None:
     """
     an entry-point for a single disk migration.
@@ -294,7 +295,7 @@ async def create_pvc(
     namespace: str,
     org_name: str,
     project_name: str,
-    pv_name: Optional[str] = None,
+    pv_name: str | None = None,
 ) -> None:
     logger.info(
         "creating a new PVC: %s; namespace=%s; org_name=%s; project_name=%s; pv=%s",

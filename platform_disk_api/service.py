@@ -3,7 +3,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, TypeVar
+from typing import TypeVar
 from uuid import uuid4
 
 from apolo_kube_client.apolo import (
@@ -68,7 +68,7 @@ DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 APOLO_DISK_API_USED_BYTES_ANNOTATION = "platform.apolo.us/disk-bytes-used"
 
 
-def is_no_org(org_name: Optional[str]) -> bool:
+def is_no_org(org_name: str | None) -> bool:
     return org_name is None or org_name == NO_ORG or org_name == normalize_name(NO_ORG)
 
 
@@ -77,8 +77,8 @@ class DiskRequest:
     storage: int  # In bytes
     org_name: str
     project_name: str
-    life_span: Optional[timedelta] = None
-    name: Optional[str] = None
+    life_span: timedelta | None = None
+    name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -87,13 +87,13 @@ class Disk:
     storage: int  # In bytes
     owner: str
     project_name: str
-    name: Optional[str]
+    name: str | None
     org_name: str
     status: "Disk.Status"
     created_at: datetime
-    last_usage: Optional[datetime]
-    life_span: Optional[timedelta]
-    used_bytes: Optional[int]
+    last_usage: datetime | None
+    life_span: timedelta | None
+    used_bytes: int | None
 
     class Status(str, Enum):
         PENDING = "Pending"
@@ -199,7 +199,7 @@ class Service:
 
         def _get_if_present(
             new_annotation: str, old_annotation: str, mapper: Callable[[str], _T]
-        ) -> Optional[_T]:
+        ) -> _T | None:
             if new_annotation in pvc.annotations:
                 return mapper(pvc.annotations[new_annotation])
             if old_annotation in pvc.annotations:
@@ -274,7 +274,7 @@ class Service:
         try:
             pvc = await self._kube_client.get_pvc(namespace, disk_id)
         except ResourceNotFound:
-            raise DiskNotFound
+            raise DiskNotFound from None
         return await self._pvc_to_disk(pvc)
 
     async def get_disk_by_name(
@@ -294,12 +294,12 @@ class Service:
             return await self.get_disk(org_name, project_name, disk_naming.disk_id)
         except ResourceNotFound:
             logger.exception("get_disk_by_name: unhandled error")
-            raise DiskNotFound
+            raise DiskNotFound from None
 
     async def get_all_disks(
         self,
-        org_name: Optional[str] = None,
-        project_name: Optional[str] = None,
+        org_name: str | None = None,
+        project_name: str | None = None,
     ) -> list[Disk]:
         namespace = None
         label_selectors = [
@@ -340,7 +340,7 @@ class Service:
             await self._kube_client.update_pvc(namespace, disk.id, diff)
             await self._kube_client.remove_pvc(namespace, disk.id)
         except ResourceNotFound:
-            raise DiskNotFound
+            raise DiskNotFound from None
 
     async def mark_disk_usage(
         self, namespace: str, disk_id: str, time: datetime
@@ -355,7 +355,7 @@ class Service:
         try:
             await self._kube_client.update_pvc(namespace, disk_id, diff)
         except ResourceNotFound:
-            raise DiskNotFound
+            raise DiskNotFound from None
 
     async def update_disk_used_bytes(
         self, namespace: str, disk_id: str, used_bytes: int
@@ -371,4 +371,4 @@ class Service:
         try:
             await self._kube_client.update_pvc(namespace, disk_id, diff)
         except ResourceNotFound:
-            raise DiskNotFound
+            raise DiskNotFound from None

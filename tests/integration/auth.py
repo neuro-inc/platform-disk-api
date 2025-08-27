@@ -1,18 +1,23 @@
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Callable,
+    Coroutine,
+)
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any
 
 import aiodocker
-from aiodocker.containers import DockerContainer
 import pytest
+from aiodocker.containers import DockerContainer
+from aiodocker.utils import JSONObject
 from aiohttp import ClientError
 from aiohttp.hdrs import AUTHORIZATION
 from jose import jwt
 from neuro_auth_client import AuthClient, Permission, User as AuthClientUser
 from yarl import URL
-from aiodocker.utils import JSONObject
 
 from platform_disk_api.config import AuthConfig
 from tests.integration.conftest import random_name
@@ -100,18 +105,18 @@ async def create_auth_config(
 
 
 @pytest.fixture
-async def auth_config(auth_server: AuthConfig) -> AsyncIterator[AuthConfig]:
-    yield auth_server
+async def auth_config(auth_server: AuthConfig) -> AuthConfig:
+    return auth_server
 
 
 @asynccontextmanager
-async def create_auth_client(config: AuthConfig) -> AsyncGenerator[AuthClient, None]:
+async def create_auth_client(config: AuthConfig) -> AsyncGenerator[AuthClient]:
     async with AuthClient(url=config.url, token=config.token) as client:
         yield client
 
 
 @pytest.fixture
-async def auth_client(auth_server: AuthConfig) -> AsyncGenerator[AuthClient, None]:
+async def auth_client(auth_server: AuthConfig) -> AsyncGenerator[AuthClient]:
     async with create_auth_client(auth_server) as client:
         yield client
 
@@ -151,13 +156,15 @@ async def regular_user_factory(
     token_factory: Callable[[str], str],
     admin_token: str,
     cluster_name: str,
-) -> AsyncIterator[Callable[[Optional[str]], Awaitable[_User]]]:
+) -> Callable[
+    [str | None, bool, str | None, bool, str | None], Coroutine[Any, Any, _User]
+]:
     async def _factory(
-        name: Optional[str] = None,
+        name: str | None = None,
         skip_grant: bool = False,
-        org_name: Optional[str] = None,
+        org_name: str | None = None,
         org_level: bool = False,
-        project_name: Optional[str] = None,
+        project_name: str | None = None,
     ) -> _User:
         if not name:
             name = f"user-{random_name()}"
@@ -190,4 +197,4 @@ async def regular_user_factory(
 
         return _User(name=user.name, token=token_factory(user.name))
 
-    yield _factory
+    return _factory
