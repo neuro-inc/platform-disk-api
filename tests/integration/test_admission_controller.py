@@ -91,17 +91,6 @@ async def pod_cm(
 
 
 class TestAdmissionController:
-    # @pytest.fixture
-    # def service(
-    #     self,
-    #     kube_client: KubeClient,
-    #     k8s_storage_class: str,
-    # ) -> Service:
-    #     return Service(
-    #         kube_client=kube_client,
-    #         storage_class_name=k8s_storage_class,
-    #     )
-
     @pytest.fixture
     def statefulset_manifest_factory(
         self,
