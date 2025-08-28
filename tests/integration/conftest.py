@@ -37,7 +37,6 @@ pytest_plugins = [
     "tests.integration.docker",
     "tests.integration.auth",
     "tests.integration.kube",
-    "tests.integration.conftest_events",
 ]
 
 

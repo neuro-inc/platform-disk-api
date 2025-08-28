@@ -14,6 +14,7 @@ from apolo_events_client import (
     StreamType,
     Tag,
 )
+from apolo_events_client.pytest import EventsQueues
 from apolo_kube_client.namespace import Namespace
 
 from platform_disk_api.api import create_app
@@ -21,7 +22,6 @@ from platform_disk_api.config import Config
 from platform_disk_api.service import Disk, DiskRequest, Service
 
 from .conftest import create_local_app_server
-from .conftest_events import Queues
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ async def disk_factory(
 
 async def test_deleter(
     config: Config,
-    queues: Queues,
+    events_queues: EventsQueues,
     service: Service,
     disk_factory: Callable[[str], Coroutine[Any, Any, Disk]],
     scoped_namespace: tuple[Namespace, str, str],
@@ -59,7 +59,7 @@ async def test_deleter(
         disks = await service.get_all_disks(org, project)
         assert len(disks) == 2
 
-        await queues.outcome.put(
+        await events_queues.outcome.put(
             RecvEvents(
                 subscr_id=uuid4(),
                 events=[
@@ -78,7 +78,7 @@ async def test_deleter(
             )
         )
 
-        ev = await queues.income.get()
+        ev = await events_queues.income.get()
         assert isinstance(ev, Ack)
         assert ev.events[StreamType("platform-admin")] == ["123"]
 
