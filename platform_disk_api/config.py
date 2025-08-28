@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from apolo_events_client import EventsClientConfig
 from apolo_kube_client.config import KubeConfig
 from yarl import URL
 
@@ -41,6 +42,7 @@ class Config:
     disk: DiskConfig
     cluster_name: str
     enable_docs: bool = False
+    events: EventsClientConfig | None = None
 
 
 @dataclass(frozen=True)

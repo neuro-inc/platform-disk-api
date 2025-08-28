@@ -4,9 +4,7 @@ import base64
 import json
 import logging
 import re
-from collections.abc import AsyncIterator
-from collections.abc import Awaitable
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -17,37 +15,38 @@ from aiohttp import web
 from aiohttp.web_exceptions import (
     HTTPBadRequest,
     HTTPConflict,
-    HTTPNotFound,
     HTTPForbidden,
+    HTTPNotFound,
     HTTPUnprocessableEntity,
 )
 from apolo_kube_client.errors import ResourceExists
 
-from .schema import InjectionSchema, MountMode
 from ..api import create_kube_client
 from ..config import Config
-from ..kube_client import KubeClient, DiskNaming
+from ..kube_client import DiskNaming, KubeClient
 from ..service import (
-    DISK_API_MARK_LABEL,
+    APOLO_DISK_API_CREATED_AT_ANNOTATION,
     APOLO_DISK_API_MARK_LABEL,
     APOLO_DISK_API_NAME_ANNOTATION,
-    DISK_API_NAME_ANNOTATION,
-    Service,
-    DISK_API_ORG_LABEL,
     APOLO_ORG_LABEL,
-    DISK_API_PROJECT_LABEL,
     APOLO_PROJECT_LABEL,
-    APOLO_DISK_API_CREATED_AT_ANNOTATION,
-    DISK_API_CREATED_AT_ANNOTATION,
-    USER_LABEL,
     APOLO_USER_LABEL,
+    DISK_API_CREATED_AT_ANNOTATION,
+    DISK_API_MARK_LABEL,
+    DISK_API_NAME_ANNOTATION,
+    DISK_API_ORG_LABEL,
+    DISK_API_PROJECT_LABEL,
+    USER_LABEL,
+    DiskAlreadyInUse,
+    DiskConflict,
     DiskNameUsed,
     DiskNotFound,
-    DiskConflict,
     DiskServiceError,
-    DiskAlreadyInUse,
+    Service,
 )
 from ..utils import datetime_dump, utc_now
+from .schema import InjectionSchema, MountMode
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -193,7 +192,8 @@ class AdmissionControllerHandler:
                 "unable to start an admission controller without a known storage class"
             )
         LOGGER.info(
-            f"initialized disks admission controller with the storage class `{self._storage_class_name}`"
+            "initialized disks admission controller with the storage class `%s`",
+            self._storage_class_name,
         )
         self._disk_service = Service(
             kube_client=self._kube_client, storage_class_name=self._storage_class_name
@@ -226,7 +226,7 @@ class AdmissionControllerHandler:
             return admission_review.allow()
 
         namespace = payload["request"]["namespace"]
-        LOGGER.info(f"trying to mutate {kind} in a namespace {namespace}")
+        LOGGER.info("trying to mutate %s in a namespace %s", kind, namespace)
         namespace_org, namespace_project = await self._get_namespace_org_project(
             namespace
         )
@@ -238,7 +238,7 @@ class AdmissionControllerHandler:
             admission_review,
         )
 
-    async def _handle_pod(
+    async def _handle_pod(  # noqa: C901
         self,
         pod: dict[str, Any],
         namespace: str,
@@ -280,7 +280,8 @@ class AdmissionControllerHandler:
                 message=error_message, status_code=HTTPUnprocessableEntity.status_code
             ) from e
 
-        # ensure disk URIs, namespace labels and the pod labels are same in terms of org/project values
+        # ensure disk URIs, namespace labels and the pod labels are same
+        # in terms of org/project values
         for injection_schema in injection_spec:
             for comparable in (
                 {injection_schema.org, namespace_org, pod_labels[APOLO_ORG_LABEL]},
@@ -400,7 +401,7 @@ class AdmissionControllerHandler:
                 value=label_value,
             )
 
-        LOGGER.info(f"Will submit patch operations: {admission_review.patch}")
+        LOGGER.info("Will submit patch operations: %s", admission_review.patch)
 
         await self._create_disk_naming(
             namespace=namespace,
@@ -455,7 +456,7 @@ class AdmissionControllerHandler:
             org_name=org,
             project_name=project,
         )
-        LOGGER.info(f"will create a disk naming {disk_name}")
+        LOGGER.info("will create a disk naming %s", disk_name)
         disk_naming = DiskNaming(namespace, name=disk_name, disk_id=pvc_name)
 
         try:
@@ -466,11 +467,13 @@ class AdmissionControllerHandler:
             )
             # check whether this disk is related to this particular PVC.
             # this might be a case on an admission controller reinvocation.
-            # disk name must be unique, so if it's linked to another PVC, we raise an error here.
+            # disk name must be unique, so if it's linked to another PVC,
+            # we raise an error here.
             if existing_disk_naming.disk_id != pvc_name:
-                raise DiskNameUsed(
+                exc_txt = (
                     f"Disk with name {disk_name} already exists for project {project}"
                 )
+                raise DiskNameUsed(exc_txt) from None
 
     @staticmethod
     def _add_key_value_if_not_exist(
@@ -499,7 +502,7 @@ class AdmissionControllerHandler:
             raise AdmissionControllerApiError(
                 status_code=HTTPBadRequest.status_code,
                 message="Namespace lacks required org / project labels",
-            )
+            ) from None
         return org, project
 
 

@@ -39,7 +39,11 @@ class TestPodSerialization:
         assert set(pod.pvc_in_use) == set(pvc_names)
 
     @pytest.mark.parametrize(
-        "resource_version,pvc_names", [("ver1", ("pvc1", "pvc2", "pvc3"))]
+        (
+            "resource_version",
+            "pvc_names",
+        ),
+        [("ver1", ("pvc1", "pvc2", "pvc3"))],
     )
     def test_pod_list_from_primitive(
         self,

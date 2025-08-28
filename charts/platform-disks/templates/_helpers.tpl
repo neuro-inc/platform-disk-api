@@ -59,6 +59,12 @@ service: {{ include "platformDisks.name" . }}-admission-controller
 {{- if .Values.platform.token }}
 {{ toYaml .Values.platform.token | indent 2 }}
 {{- end }}
+- name: NP_REGISTRY_EVENTS_URL
+  value: {{ .Values.platform.eventsUrl }}
+- name: NP_REGISTRY_EVENTS_TOKEN
+{{- if .Values.platform.token }}
+{{- toYaml .Values.platform.token | nindent 2 }}
+{{- end }}
 - name: NP_DISK_API_K8S_API_URL
   value: https://kubernetes.default:443
 - name: NP_DISK_API_K8S_AUTH_TYPE

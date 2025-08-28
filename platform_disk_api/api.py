@@ -1,7 +1,6 @@
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import Optional
 
 import aiohttp
 import aiohttp.web
@@ -46,6 +45,7 @@ from neuro_auth_client.security import AuthScheme, setup_security
 from neuro_logging import init_logging, setup_sentry
 
 from platform_disk_api import __version__
+from platform_disk_api.platform_deleter import ProjectDeleter
 
 from .config import Config, CORSConfig
 from .config_factory import EnvironConfigFactory
@@ -53,6 +53,7 @@ from .identity import untrusted_user
 from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
 from .service import Disk, DiskNotFound, DiskRequest, Service, is_no_org
+
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,8 @@ class DiskApiHandler:
                 project_name=project_name,
             )
         except DiskNotFound:
-            raise HTTPNotFound(text=f"Disk {id_or_name} not found")
+            exc_txt = f"Disk {id_or_name} not found"
+            raise HTTPNotFound(text=exc_txt) from None
 
     @docs(
         tags=["disks"],
@@ -328,7 +330,7 @@ async def create_disk_app(config: Config) -> aiohttp.web.Application:
 
 @asynccontextmanager
 async def create_kube_client(
-    config: KubeConfig, trace_configs: Optional[list[aiohttp.TraceConfig]] = None
+    config: KubeConfig, trace_configs: list[aiohttp.TraceConfig] | None = None
 ) -> AsyncIterator[KubeClient]:
     client = KubeClient(
         base_url=config.endpoint_url,
@@ -357,17 +359,17 @@ def _setup_cors(app: aiohttp.web.Application, config: CORSConfig) -> None:
     if not config.allowed_origins:
         return
 
-    logger.info(f"Setting up CORS with allowed origins: {config.allowed_origins}")
+    logger.info("Setting up CORS with allowed origins: %s", config.allowed_origins)
     default_options = aiohttp_cors.ResourceOptions(
         allow_credentials=True,
         expose_headers="*",
         allow_headers="*",
     )
     cors = aiohttp_cors.setup(
-        app, defaults={origin: default_options for origin in config.allowed_origins}
+        app, defaults=dict.fromkeys(config.allowed_origins, default_options)
     )
     for route in app.router.routes():
-        logger.debug(f"Setting up CORS for {route}")
+        logger.debug("Setting up CORS for %s", route)
         cors.add(route)
 
 
@@ -396,8 +398,11 @@ async def create_app(config: Config) -> aiohttp.web.Application:
             )
 
             logger.info("Initializing Service")
-            app["disk_app"]["service"] = Service(
-                kube_client, config.disk.k8s_storage_class
+            disk_service = Service(kube_client, config.disk.k8s_storage_class)
+            app["disk_app"]["service"] = disk_service
+
+            await exit_stack.enter_async_context(
+                ProjectDeleter(disk_service, config.events)
             )
 
             yield

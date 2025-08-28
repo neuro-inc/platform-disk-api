@@ -1,10 +1,9 @@
-import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 from aiohttp import ClientTimeout
@@ -12,6 +11,7 @@ from apolo_kube_client.client import KubeClient as ApoloKubeClient
 from apolo_kube_client.config import KubeClientAuthType
 from apolo_kube_client.errors import ResourceGone
 from yarl import URL
+
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class PersistentVolumeClaimRead:
     storage_class_name: str
     phase: "PersistentVolumeClaimRead.Phase"
     storage_requested: int
-    storage_real: Optional[int]
+    storage_real: int | None
     labels: dict[str, str]
     annotations: dict[str, str]
 
@@ -113,7 +113,7 @@ class PersistentVolumeClaimRead:
     @classmethod
     def from_primitive(cls, payload: dict[str, Any]) -> "PersistentVolumeClaimRead":
         try:
-            storage_real: Optional[int] = _storage_str_to_int(
+            storage_real: int | None = _storage_str_to_int(
                 payload["status"]["capacity"]["storage"]
             )
         except KeyError:
@@ -164,7 +164,7 @@ class PodListResult:
 class PodWatchEvent:
     type: "PodWatchEvent.Type"
     pod: PodRead
-    resource_version: Optional[str] = None
+    resource_version: str | None = None
 
     class Type(str, Enum):
         """Possible values for phase of PVC.
@@ -243,7 +243,7 @@ class KubeClient(ApoloKubeClient):
     def _all_pvc_url(self) -> str:
         return f"{self.api_v1_url}/persistentvolumeclaims"
 
-    def _generate_pvc_url(self, namespace: str, pvc_name: Optional[str] = None) -> str:
+    def _generate_pvc_url(self, namespace: str, pvc_name: str | None = None) -> str:
         url = self.generate_namespace_url(namespace)
         url = f"{url}/persistentvolumeclaims"
         if pvc_name:
@@ -251,7 +251,7 @@ class KubeClient(ApoloKubeClient):
         return url
 
     def _generate_disk_naming_url(
-        self, namespace: Optional[str] = None, name: Optional[str] = None
+        self, namespace: str | None = None, name: str | None = None
     ) -> str:
         url = f"{self._base_url}/apis/neuromation.io/v1"
         if namespace:
@@ -272,9 +272,7 @@ class KubeClient(ApoloKubeClient):
     def _generate_statefulsets_url(self, namespace: str) -> str:
         return f"{self._base_url}/apis/apps/v1/namespaces/{namespace}/statefulsets"
 
-    def _create_headers(
-        self, headers: Optional[dict[str, Any]] = None
-    ) -> dict[str, Any]:
+    def _create_headers(self, headers: dict[str, Any] | None = None) -> dict[str, Any]:
         headers = dict(headers) if headers else {}
         if self._auth_type == KubeClientAuthType.TOKEN and self._token:
             headers["Authorization"] = "Bearer " + self._token
@@ -288,7 +286,7 @@ class KubeClient(ApoloKubeClient):
         return PersistentVolumeClaimRead.from_primitive(payload)
 
     async def list_pvc(
-        self, namespace: Optional[str] = None, label_selector: Optional[str] = None
+        self, namespace: str | None = None, label_selector: str | None = None
     ) -> list[PersistentVolumeClaimRead]:
         if namespace:
             url = URL(self._generate_pvc_url(namespace))
@@ -339,7 +337,7 @@ class KubeClient(ApoloKubeClient):
         return PodListResult.from_primitive(payload)
 
     async def watch_pods(
-        self, resource_version: Optional[str] = None
+        self, resource_version: str | None = None
     ) -> AsyncIterator[PodWatchEvent]:
         params = {"watch": "true", "allowWatchBookmarks": "true"}
         if resource_version:
@@ -367,7 +365,7 @@ class KubeClient(ApoloKubeClient):
                         self._raise_for_status(payload["object"])
 
                     yield PodWatchEvent.from_primitive(payload)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     async def get_pvc_volumes_metrics(self) -> AsyncIterator[PVCVolumeMetrics]:

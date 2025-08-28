@@ -3,7 +3,6 @@ import itertools
 import logging
 from collections.abc import Iterable
 from datetime import datetime
-from typing import Optional
 
 from apolo_kube_client.errors import (
     KubeClientExpired,
@@ -22,6 +21,7 @@ from platform_disk_api.kube_client import (
 from platform_disk_api.service import DiskNotFound, Service
 from platform_disk_api.utils import utc_now
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +36,7 @@ async def update_last_used(
 
 
 async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:
-    resource_version: Optional[str] = None
+    resource_version: str | None = None
     while True:
         try:
             if resource_version is None:

@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def datetime_dump(dt: datetime) -> str:
@@ -10,7 +10,7 @@ def datetime_dump(dt: datetime) -> str:
 
 
 def datetime_load(raw: str) -> datetime:
-    return datetime.fromtimestamp(float(raw), timezone.utc)
+    return datetime.fromtimestamp(float(raw), UTC)
 
 
 def timedelta_dump(td: timedelta) -> str:

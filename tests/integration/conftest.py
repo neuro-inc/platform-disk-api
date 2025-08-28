@@ -13,6 +13,7 @@ from uuid import uuid4
 import aiohttp
 import aiohttp.web
 import pytest
+from apolo_events_client import EventsClientConfig
 from apolo_kube_client.apolo import create_namespace
 from apolo_kube_client.config import KubeConfig
 from apolo_kube_client.errors import ResourceNotFound
@@ -26,6 +27,8 @@ from platform_disk_api.config import (
     ServerConfig,
 )
 from platform_disk_api.kube_client import KubeClient
+from platform_disk_api.service import Service
+
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +64,17 @@ async def k8s_storage_class() -> str:
 
 
 @pytest.fixture
+def service(
+    kube_client: KubeClient,
+    k8s_storage_class: str,
+) -> Service:
+    return Service(
+        kube_client=kube_client,
+        storage_class_name=k8s_storage_class,
+    )
+
+
+@pytest.fixture
 async def client() -> AsyncIterator[aiohttp.ClientSession]:
     async with aiohttp.ClientSession() as session:
         yield session
@@ -72,7 +86,8 @@ def config_factory(
     kube_config: KubeConfig,
     cluster_name: str,
     k8s_storage_class: str,
-    kube_client: None,  # Force cleanup
+    kube_client: None,  # Force
+    events_config: EventsClientConfig,
 ) -> Callable[..., Config]:
     def _f(**kwargs: Any) -> Config:
         defaults = {
@@ -85,6 +100,7 @@ def config_factory(
                 storage_limit_per_project=1024 * 1024 * 20,  # 20mb
             ),
             "cors": CORSConfig(allowed_origins=["https://neu.ro"]),
+            "events": events_config,
         }
         kwargs = {**defaults, **kwargs}
         return Config(**kwargs)

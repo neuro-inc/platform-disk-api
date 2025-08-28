@@ -9,6 +9,7 @@ from ..config import Config
 from ..config_factory import EnvironConfigFactory
 from .api import create_app
 
+
 LOGGER = logging.getLogger(__name__)
 
 

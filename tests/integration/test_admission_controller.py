@@ -1,40 +1,40 @@
 from __future__ import annotations
 
-import json
-from collections.abc import Callable, AsyncIterator
 import asyncio
+import json
 from asyncio.timeouts import timeout
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import uuid4
 
 import pytest
-from apolo_kube_client.errors import ResourceInvalid, KubeClientException
+from apolo_kube_client.errors import KubeClientException, ResourceInvalid
 from apolo_kube_client.namespace import Namespace
 
 from platform_disk_api.admission_controller.api import (
     ANNOTATION_APOLO_INJECT_DISK,
+    INJECTED_VOLUME_NAME_PREFIX,
     LABEL_APOLO_ORG_NAME,
     LABEL_APOLO_PROJECT_NAME,
-    INJECTED_VOLUME_NAME_PREFIX,
 )
 from platform_disk_api.kube_client import KubeClient
 from platform_disk_api.service import (
-    DiskRequest,
-    Service,
     APOLO_DISK_API_CREATED_AT_ANNOTATION,
-    DISK_API_CREATED_AT_ANNOTATION,
-    DISK_API_MARK_LABEL,
     APOLO_DISK_API_MARK_LABEL,
-    DISK_API_NAME_ANNOTATION,
     APOLO_DISK_API_NAME_ANNOTATION,
-    DISK_API_ORG_LABEL,
     APOLO_ORG_LABEL,
-    DISK_API_PROJECT_LABEL,
     APOLO_PROJECT_LABEL,
     APOLO_USER_LABEL,
+    DISK_API_CREATED_AT_ANNOTATION,
+    DISK_API_MARK_LABEL,
+    DISK_API_NAME_ANNOTATION,
+    DISK_API_ORG_LABEL,
+    DISK_API_PROJECT_LABEL,
     USER_LABEL,
     Disk,
+    DiskRequest,
+    Service,
 )
 
 
@@ -92,17 +92,6 @@ async def pod_cm(
 
 class TestAdmissionController:
     @pytest.fixture
-    def service(
-        self,
-        kube_client: KubeClient,
-        k8s_storage_class: str,
-    ) -> Service:
-        return Service(
-            kube_client=kube_client,
-            storage_class_name=k8s_storage_class,
-        )
-
-    @pytest.fixture
     def statefulset_manifest_factory(
         self,
         k8s_storage_class: str,
@@ -112,7 +101,7 @@ class TestAdmissionController:
             annotations: dict[str, str],
             storage_class_name: str = k8s_storage_class,
         ) -> dict[str, Any]:
-            manifest = {
+            return {
                 "apiVersion": "apps/v1",
                 "kind": "StatefulSet",
                 "metadata": {"name": "test-statefulset"},
@@ -155,7 +144,6 @@ class TestAdmissionController:
                     ],
                 },
             }
-            return manifest
 
         return _factory
 
