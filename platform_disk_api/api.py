@@ -401,13 +401,11 @@ async def create_app(config: Config) -> aiohttp.web.Application:
             disk_service = Service(kube_client, config.disk.k8s_storage_class)
             app["disk_app"]["service"] = disk_service
 
-            deleter = await exit_stack.enter_async_context(
+            await exit_stack.enter_async_context(
                 ProjectDeleter(disk_service, config.events)
             )
 
             yield
-
-            await deleter.aclose()
 
     app.cleanup_ctx.append(_init_app)
 
