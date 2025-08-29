@@ -27,7 +27,9 @@ class ProjectDeleter:
 
     async def __aenter__(self) -> Self:
         logger.info("Subscribe for %r", self.ADMIN_STREAM)
-        await self._client.subscribe_group(self.ADMIN_STREAM, self._on_admin_event)
+        await self._client.subscribe_group(
+            self.ADMIN_STREAM, self._on_admin_event, auto_ack=True
+        )
         logger.info("Subscribed")
         return self
 
@@ -46,5 +48,3 @@ class ProjectDeleter:
                 org_name=ev.org, project_name=ev.project
             ):
                 await self._disk_service.remove_disk(disk=disk)
-
-            await self._client.ack({self.ADMIN_STREAM: [ev.tag]})

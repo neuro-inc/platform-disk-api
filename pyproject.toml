@@ -28,7 +28,7 @@ aiohttp-cors = "0.8.1"
 apolo-kube-client = "25.7.2"
 uvloop = "^0.21.0"
 pydantic = "^2.11.7"
-apolo-events-client = "^25.7.7"
+apolo-events-client = "^25.8.0"
 
 [tool.poetry.scripts]
 platform-disk-api = "platform_disk_api.api:main"
