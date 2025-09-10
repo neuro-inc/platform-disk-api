@@ -13,7 +13,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
     - name: Install python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version-file: .python-version
     - name: Install pipx
@@ -45,7 +45,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
     - name: Install python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version-file: .python-version
     - name: Install pipx
@@ -84,7 +84,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
     - name: Install python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version-file: .python-version
     - name: Install pipx
@@ -138,7 +138,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
     - name: Install python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version-file: .python-version
     - name: Install pipx
