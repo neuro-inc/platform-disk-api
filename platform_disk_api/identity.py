@@ -1,10 +1,9 @@
 import logging
-import typing
 from dataclasses import dataclass, field
 
 from aiohttp.web import HTTPUnauthorized, Request
-from aiohttp_security.api import AUTZ_KEY, IDENTITY_KEY
-from neuro_admin_client.security import AuthPolicy
+from aiohttp_security.api import IDENTITY_KEY
+from neuro_admin_client.security import get_untrusted_user_name
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +20,7 @@ async def untrusted_user(request: Request) -> Identity:
     retrieve the minimal information about the user.
     """
     identity = await _get_identity(request)
-
-    autz_policy = request.config_dict[AUTZ_KEY]
-    autz_policy = typing.cast(AuthPolicy, autz_policy)  # todo: fix after python upgrade
-    name = autz_policy.get_user_name_from_identity(identity)
+    name = get_untrusted_user_name(identity)
     if name is None:
         raise HTTPUnauthorized()
 
