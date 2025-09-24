@@ -1189,13 +1189,15 @@ files = [
 
 [[package]]
 name = "neuro-admin-client"
-version = "25.5.1.dev16+g05bf6a47d.d20250818"
+version = "25.9.2"
 description = "Internal client for Neu.ro admin service"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-files = []
-develop = true
+files = [
+    {file = "neuro_admin_client-25.9.2-py3-none-any.whl", hash = "sha256:863c2fb5cdec1168fbf7be26f892d231f97af1b3b1f57ebc3ac51ab16be6d603"},
+    {file = "neuro_admin_client-25.9.2.tar.gz", hash = "sha256:9b4ee1c3a970e60bf595aeda1e7fc0afcc1c83b8ccdc105da898df12923a91e3"},
+]
 
 [package.dependencies]
 aiohttp = ">=3.8.1"
@@ -1203,10 +1205,6 @@ aiohttp-security = ">=0.4.0"
 multidict = ">=6"
 python-jose = ">=3.0.1"
 yarl = ">=1.10"
-
-[package.source]
-type = "directory"
-url = "../neuro-admin-client"
 
 [[package]]
 name = "neuro-logging"
@@ -2278,4 +2276,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "ece706393ab63667f059d32761a52ce033ad4b4f1696dbcac7de79a6c55436c1"
+content-hash = "4583e7ff3a0b040092d5b1d3227cc7b4a6f9281bf4dd1f4ecd66cb3ebfbc0f07"
