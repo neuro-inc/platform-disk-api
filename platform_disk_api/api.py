@@ -261,19 +261,12 @@ class DiskApiHandler:
             org_name=org_name, project_name=project_name
         )
 
-        perms_by_disk: dict[Disk, Permission] = {
-            d: self._get_disk_read_perm(d) for d in disks
-        }
-
-        missing_perms: Sequence[
-            Permission
-        ] = await self._auth_client.get_missing_permissions(
-            username,
-            list(perms_by_disk.values()),
+        disks = await self._auth_client.get_authorized_entities(
+            user_name=username,
+            entities=disks,
+            global_perm=None,
+            per_entity_perms=lambda d: [self._get_disk_read_perm(d)],
         )
-        missing_keys = set(missing_perms)
-
-        disks = [d for d, p in perms_by_disk.items() if p not in missing_keys]
         resp_payload = DiskSchema(many=True).dump(disks)
         return json_response(resp_payload, status=HTTPOk.status_code)
 
