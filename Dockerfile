@@ -38,7 +38,6 @@ COPY --from=builder --chown=$SERVICE_NAME:$SERVICE_GID /root/.local /home/${SERV
 
 WORKDIR /app
 
-USER $SERVICE_NAME
 ENV NP_DISK_API_PORT=8080
 EXPOSE $NP_DISK_API_PORT
 
