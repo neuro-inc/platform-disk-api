@@ -476,7 +476,6 @@ class AdmissionControllerHandler:
         LOGGER.info(
             "will create a disk naming %s in namespace %s", disk_name, namespace
         )
-        # disk_naming = DiskNaming(namespace, name=disk_name, disk_id=pvc_name)
         disk_naming = V1DiskNamingCRD(
             metadata=V1DiskNamingCRDMetadata(
                 name=disk_name,
@@ -487,14 +486,10 @@ class AdmissionControllerHandler:
             ),
         )
         try:
-            # await self._kube_client.create_disk_naming(disk_naming)
             await self._kube_client.neuromation_io_v1.disk_naming.create(
                 model=disk_naming, namespace=namespace
             )
         except ResourceExists:
-            # existing_disk_naming = await self._kube_client.get_disk_naming(
-            #     namespace=namespace, name=disk_name
-            # )
             existing_disk_naming = (
                 await self._kube_client.neuromation_io_v1.disk_naming.get(
                     namespace=namespace, name=disk_name
