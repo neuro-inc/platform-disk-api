@@ -25,10 +25,10 @@ aiohttp-apispec = "3.0.0b2"
 markupsafe = "3.0.3"
 neuro-logging = "25.6.1"
 aiohttp-cors = "0.8.1"
-apolo-kube-client = "25.7.2"
 uvloop = "^0.21.0"
 pydantic = "^2.11.9"
 apolo-events-client = "^25.8.0"
+apolo-kube-client = "^25.10.4"
 
 [tool.poetry.scripts]
 platform-disk-api = "platform_disk_api.api:main"
@@ -98,6 +98,10 @@ follow_imports = "silent"
 strict_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "kubernetes.*"
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "aiohttp_security"

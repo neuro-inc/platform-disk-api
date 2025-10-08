@@ -1,13 +1,19 @@
 import datetime
+import json
 from datetime import timedelta
 from uuid import uuid4
 
 import pytest
+from apolo_kube_client import KubeClient, ResourceExists
 from apolo_kube_client.apolo import generate_namespace_name
-from apolo_kube_client.errors import ResourceExists
-from apolo_kube_client.namespace import Namespace
+from kubernetes.client.models import (
+    V1Namespace,
+    V1ObjectMeta,
+    V1PersistentVolumeClaim,
+    V1PersistentVolumeClaimSpec,
+    V1ResourceRequirements,
+)
 
-from platform_disk_api.kube_client import KubeClient, PersistentVolumeClaimWrite
 from platform_disk_api.service import (
     Disk,
     DiskNotFound,
@@ -59,7 +65,7 @@ class TestService:
         expected_error_message_part = (
             f"Disk with name test--{org_name}--{project_name} already exists"
         )
-        assert expected_error_message_part in e.value.args[0]["message"]
+        assert expected_error_message_part in json.loads(e.value.args[0])["message"]
 
     async def test_can_create_disk_with_same_name_after_delete(
         self, service: Service
@@ -161,15 +167,26 @@ class TestService:
         self,
         kube_client: KubeClient,
         service: Service,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
-        await kube_client.create_pvc(
-            "default",
-            PersistentVolumeClaimWrite(
-                name="outer-pvc", storage_class_name="no-way", storage=200
+
+        pvc = V1PersistentVolumeClaim(
+            kind="PersistentVolumeClaim",
+            metadata=V1ObjectMeta(
+                name="outer-pvc",
+            ),
+            spec=V1PersistentVolumeClaimSpec(
+                access_modes=["ReadWriteOnce"],
+                resources=V1ResourceRequirements(requests={"storage": 200}),
+                volume_mode="Filesystem",
+                storage_class_name="no-way",
             ),
         )
+        await kube_client.core_v1.persistent_volume_claim.create(
+            namespace="default", model=pvc
+        )
+
         request = DiskRequest(
             storage=1024 * 1024,
             project_name=project,
@@ -184,15 +201,26 @@ class TestService:
         self,
         kube_client: KubeClient,
         service: Service,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
-        await kube_client.create_pvc(
-            "default",
-            PersistentVolumeClaimWrite(
-                name="outer-pvc", storage_class_name="no-way", storage=200
+
+        pvc = V1PersistentVolumeClaim(
+            kind="PersistentVolumeClaim",
+            metadata=V1ObjectMeta(
+                name="outer-pvc",
+            ),
+            spec=V1PersistentVolumeClaimSpec(
+                access_modes=["ReadWriteOnce"],
+                resources=V1ResourceRequirements(requests={"storage": 200}),
+                volume_mode="Filesystem",
+                storage_class_name="no-way",
             ),
         )
+        await kube_client.core_v1.persistent_volume_claim.create(
+            namespace="default", model=pvc
+        )
+
         request = DiskRequest(
             storage=1024 * 1024,
             project_name="other-test-project",

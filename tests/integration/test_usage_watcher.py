@@ -1,22 +1,20 @@
 import asyncio
-from collections.abc import AsyncIterator, Callable
-from dataclasses import replace
+from collections.abc import AsyncIterator
 from datetime import timedelta
-from typing import cast
 from uuid import uuid4
 
 import pytest
+from apolo_kube_client import KubeClient, KubeConfig
 from apolo_kube_client.apolo import generate_namespace_name
 
-from platform_disk_api.config import KubeConfig
-from platform_disk_api.kube_client import KubeClient
 from platform_disk_api.service import DiskNotFound, DiskRequest, Service
 from platform_disk_api.usage_watcher import (
     utc_now,
     watch_disk_usage,
     watch_lifespan_ended,
 )
-from tests.integration.kube import KubeClientForTest
+
+from .kube import run_pod
 
 
 class TestUsageWatcher:
@@ -24,12 +22,10 @@ class TestUsageWatcher:
     async def watcher_task(
         self,
         kube_config: KubeConfig,
-        kube_client_factory: Callable[[KubeConfig], KubeClientForTest],
         service: Service,
     ) -> AsyncIterator[None]:
-        kube_config = replace(kube_config, client_watch_timeout_s=1)  # Force reloads
-        async with kube_client_factory(kube_config) as kube_client:
-            kube_client = cast(KubeClient, kube_client)
+        kube_config.client_watch_timeout_s = 1
+        async with KubeClient(config=kube_config) as kube_client:
             task = asyncio.create_task(watch_disk_usage(kube_client, service))
             await asyncio.sleep(0)  # Allow task to start
             yield
@@ -53,7 +49,7 @@ class TestUsageWatcher:
     async def test_usage_watcher_updates_label(
         self,
         watcher_task: None,
-        kube_client: KubeClientForTest,
+        kube_client: KubeClient,
         service: Service,
     ) -> None:
         org, project = uuid4().hex, uuid4().hex
@@ -76,7 +72,7 @@ class TestUsageWatcher:
                 "user",
             )
             before_start = utc_now()
-            async with kube_client.run_pod(namespace_name, [disk.id]):
+            async with run_pod(kube_client, namespace_name, [disk.id]):
                 await asyncio.wait_for(wait_for_last_usage(disk.id), timeout=10)
 
             disk = await service.get_disk(disk.org_name, disk.project_name, disk.id)
