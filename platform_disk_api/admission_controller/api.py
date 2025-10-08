@@ -28,8 +28,6 @@ from apolo_kube_client import (
 )
 
 from ..config import Config
-
-# from ..kube_client import DiskNaming, KubeClient
 from ..service import (
     APOLO_DISK_API_CREATED_AT_ANNOTATION,
     APOLO_DISK_API_MARK_LABEL,
@@ -189,17 +187,10 @@ class AdmissionControllerHandler:
         )
 
     async def _get_default_storage_class_name(self) -> str | None:
-        # response = await self.get(self._all_storage_classes_url)
         storage_class_list = (
             await self._kube_client.storage_k8s_io_v1.storage_class.get_list()
         )
-        # for storage_class in response["items"]:
-        #     if (
-        #         storage_class.get("metadata", {})
-        #             .get("annotations", {})
-        #             .get("storageclass.kubernetes.io/is-default-class")
-        #     ) == "true":
-        #         return storage_class["metadata"]["name"]
+
         for storage_class in storage_class_list.items:
             sc_annotations = storage_class.metadata.annotations or {}
             if (
@@ -535,9 +526,6 @@ class AdmissionControllerHandler:
         )
 
     async def _get_namespace_org_project(self, namespace: str) -> tuple[str, str]:
-        # namespace_obj = await self._kube_client.get(
-        #     self._kube_client.generate_namespace_url(namespace)
-        # )
         ns = await self._kube_client.core_v1.namespace.get(name=namespace)
         try:
             namespace_labels = ns.metadata.labels
