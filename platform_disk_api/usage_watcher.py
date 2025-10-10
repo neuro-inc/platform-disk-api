@@ -70,7 +70,6 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:  
         try:
             if resource_version is None:
                 async with new_trace_cm(name="watch_disk_usage_start"):
-                    # list_result = await kube_client.list_pods()
                     pod_list = await kube_client.core_v1.pod.get_list(
                         all_namespaces=True
                     )
