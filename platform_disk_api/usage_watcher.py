@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncGenerator, Iterable
+from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -38,7 +39,7 @@ async def update_last_used(
 
 async def get_pvc_volumes_metrics(
     kube_client: KubeClient,
-) -> AsyncIterator[PVCVolumeMetrics]:
+) -> AsyncGenerator[PVCVolumeMetrics]:
     node_list = await kube_client.core_v1.node.get_list()
     for node in node_list.items:
         try:
@@ -85,13 +86,12 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:  
                     await update_last_used(service, namespace_pvcs, now)
                     resource_version = pod_list.metadata.resource_version
 
-            async for event in kube_client.core_v1.pod.watch(
+            watch = kube_client.core_v1.pod.watch(
                 all_namespaces=True, resource_version=resource_version
-            ).stream():
-                async with new_trace_cm(name="watch_disk_usage"):
-                    if event.type == "BOOKMARK":
-                        resource_version = event.resource_version
-                    else:
+            )
+            async with aclosing(watch.stream()) as event_stream:
+                async for event in event_stream:
+                    async with new_trace_cm(name="watch_disk_usage"):
                         namespace_pvcs = set()
                         for pvc_claim_name in [
                             v.persistent_volume_claim.claim_name
@@ -119,13 +119,14 @@ async def watch_used_bytes(
     while True:
         try:
             async with new_trace_cm(name="watch_used_bytes"):
-                async for stat in get_pvc_volumes_metrics(kube_client):
-                    try:
-                        await service.update_disk_used_bytes(
-                            stat.namespace, stat.pvc_name, stat.used_bytes
-                        )
-                    except DiskNotFound:
-                        pass
+                async with aclosing(get_pvc_volumes_metrics(kube_client)) as stat_agen:
+                    async for stat in stat_agen:
+                        try:
+                            await service.update_disk_used_bytes(
+                                stat.namespace, stat.pvc_name, stat.used_bytes
+                            )
+                        except DiskNotFound:
+                            pass
             await asyncio.sleep(check_interval)
         except asyncio.CancelledError:
             raise
