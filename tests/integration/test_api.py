@@ -594,6 +594,7 @@ class TestApi:
         ) as resp:
             assert resp.status == HTTPCreated.status_code
             disk = DiskSchema().load(await resp.json())
+
         async with await client.delete(
             disk_api.single_disk_url(disk.id),
             headers=user.headers,

@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from apolo_events_client import EventsClientConfig
-from apolo_kube_client.config import KubeConfig
+from apolo_kube_client import KubeConfig
 from yarl import URL
 
 

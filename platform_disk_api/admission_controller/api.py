@@ -19,11 +19,15 @@ from aiohttp.web_exceptions import (
     HTTPNotFound,
     HTTPUnprocessableEntity,
 )
-from apolo_kube_client.errors import ResourceExists
+from apolo_kube_client import (
+    KubeClient,
+    ResourceExists,
+    V1DiskNamingCRD,
+    V1DiskNamingCRDMetadata,
+    V1DiskNamingCRDSpec,
+)
 
-from ..api import create_kube_client
 from ..config import Config
-from ..kube_client import DiskNaming, KubeClient
 from ..service import (
     APOLO_DISK_API_CREATED_AT_ANNOTATION,
     APOLO_DISK_API_MARK_LABEL,
@@ -182,10 +186,23 @@ class AdmissionControllerHandler:
             ]
         )
 
+    async def _get_default_storage_class_name(self) -> str | None:
+        storage_class_list = (
+            await self._kube_client.storage_k8s_io_v1.storage_class.get_list()
+        )
+
+        for storage_class in storage_class_list.items:
+            sc_annotations = storage_class.metadata.annotations or {}
+            if (
+                sc_annotations.get("storageclass.kubernetes.io/is-default-class")
+                == "true"
+            ):
+                return storage_class.metadata.name
+        return None
+
     async def init(self) -> None:
         self._storage_class_name = (
-            self._storage_class_name
-            or await self._kube_client.get_default_storage_class_name()
+            self._storage_class_name or await self._get_default_storage_class_name()
         )
         if not self._storage_class_name:
             raise RuntimeError(
@@ -456,20 +473,33 @@ class AdmissionControllerHandler:
             org_name=org,
             project_name=project,
         )
-        LOGGER.info("will create a disk naming %s", disk_name)
-        disk_naming = DiskNaming(namespace, name=disk_name, disk_id=pvc_name)
-
+        LOGGER.info(
+            "will create a disk naming %s in namespace %s", disk_name, namespace
+        )
+        disk_naming = V1DiskNamingCRD(
+            metadata=V1DiskNamingCRDMetadata(
+                name=disk_name,
+                namespace=namespace,
+            ),
+            spec=V1DiskNamingCRDSpec(
+                disk_id=pvc_name,
+            ),
+        )
         try:
-            await self._kube_client.create_disk_naming(disk_naming)
+            await self._kube_client.neuromation_io_v1.disk_naming.create(
+                model=disk_naming, namespace=namespace
+            )
         except ResourceExists:
-            existing_disk_naming = await self._kube_client.get_disk_naming(
-                namespace=namespace, name=disk_name
+            existing_disk_naming = (
+                await self._kube_client.neuromation_io_v1.disk_naming.get(
+                    namespace=namespace, name=disk_name
+                )
             )
             # check whether this disk is related to this particular PVC.
             # this might be a case on an admission controller reinvocation.
             # disk name must be unique, so if it's linked to another PVC,
             # we raise an error here.
-            if existing_disk_naming.disk_id != pvc_name:
+            if existing_disk_naming.spec.disk_id != pvc_name:
                 exc_txt = (
                     f"Disk with name {disk_name} already exists for project {project}"
                 )
@@ -491,11 +521,9 @@ class AdmissionControllerHandler:
         )
 
     async def _get_namespace_org_project(self, namespace: str) -> tuple[str, str]:
-        namespace_obj = await self._kube_client.get(
-            self._kube_client.generate_namespace_url(namespace)
-        )
+        ns = await self._kube_client.core_v1.namespace.get(name=namespace)
         try:
-            namespace_labels = namespace_obj["metadata"]["labels"]
+            namespace_labels = ns.metadata.labels
             org = namespace_labels[APOLO_ORG_LABEL]
             project = namespace_labels[APOLO_PROJECT_LABEL]
         except KeyError:
@@ -550,7 +578,7 @@ async def create_app(config: Config) -> web.Application:
         async with AsyncExitStack() as exit_stack:
             LOGGER.info("Initializing Kube client")
             kube_client = await exit_stack.enter_async_context(
-                create_kube_client(config.kube)
+                KubeClient(config=config.kube)
             )
             app[KUBE_CLIENT_KEY] = kube_client
             await handler.init()

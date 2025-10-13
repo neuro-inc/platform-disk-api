@@ -9,8 +9,22 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from apolo_kube_client.errors import KubeClientException, ResourceInvalid
-from apolo_kube_client.namespace import Namespace
+from apolo_kube_client import KubeClient, KubeClientException, ResourceInvalid
+from kubernetes.client.models import (
+    V1Container,
+    V1LabelSelector,
+    V1Namespace,
+    V1ObjectMeta,
+    V1PersistentVolumeClaim,
+    V1PersistentVolumeClaimSpec,
+    V1Pod,
+    V1PodSpec,
+    V1PodTemplateSpec,
+    V1ResourceRequirements,
+    V1StatefulSet,
+    V1StatefulSetSpec,
+    V1VolumeMount,
+)
 
 from platform_disk_api.admission_controller.api import (
     ANNOTATION_APOLO_INJECT_DISK,
@@ -18,7 +32,6 @@ from platform_disk_api.admission_controller.api import (
     LABEL_APOLO_ORG_NAME,
     LABEL_APOLO_PROJECT_NAME,
 )
-from platform_disk_api.kube_client import KubeClient
 from platform_disk_api.service import (
     APOLO_DISK_API_CREATED_AT_ANNOTATION,
     APOLO_DISK_API_MARK_LABEL,
@@ -44,50 +57,45 @@ async def pod_cm(
     namespace: str,
     annotations: dict[str, Any] | None = None,
     labels: dict[str, Any] | None = None,
-) -> AsyncIterator[dict[str, Any]]:
+) -> AsyncIterator[V1Pod]:
     """
     A context manager for creating the pod, returning the response,
     and deleting the POD at the end
     """
     pod_name = str(uuid4())
-    payload = {
-        "kind": "Pod",
-        "apiVersion": "v1",
-        "metadata": {
-            "name": pod_name,
-        },
-        "spec": {
-            "containers": [
-                {
-                    "name": "hello",
-                    "image": "busybox",
-                    "command": ["sh", "-c", "sleep 5"],
-                }
+
+    pod = V1Pod(
+        api_version="v1",
+        kind="Pod",
+        metadata=V1ObjectMeta(name=pod_name),
+        spec=V1PodSpec(
+            containers=[
+                V1Container(
+                    name="hello",
+                    image="busybox",
+                    command=["sh", "-c", "sleep 5"],
+                )
             ]
-        },
-    }
+        ),
+    )
+
     if annotations is not None:
-        payload["metadata"]["annotations"] = annotations  # type: ignore[index]
+        pod.metadata.annotations = annotations
 
     if labels is not None:
-        payload["metadata"]["labels"] = labels  # type: ignore[index]
+        pod.metadata.labels = labels
 
-    url = f"{kube_client.generate_namespace_url(namespace)}/pods"
-    response = await kube_client.post(
-        url=url,
-        json=payload,
-    )
+    pod = await kube_client.core_v1.pod.create(model=pod, namespace=namespace)
 
     # wait until a POD is running
     async with asyncio.timeout(60):
-        while (await kube_client.get(f"{url}/{pod_name}"))["status"][  # noqa ASYNC110
-            "phase"
-        ] != "Running":
-            await asyncio.sleep(0.1)
+        while pod.status.phase != "Running":
+            pod = await kube_client.core_v1.pod.get(name=pod_name, namespace=namespace)
+            await asyncio.sleep(0.5)
 
-    yield response
+    yield pod
 
-    await kube_client.delete(f"{url}/{pod_name}")
+    await kube_client.core_v1.pod.delete(name=pod_name, namespace=namespace)
 
 
 class TestAdmissionController:
@@ -100,50 +108,52 @@ class TestAdmissionController:
             labels: dict[str, str],
             annotations: dict[str, str],
             storage_class_name: str = k8s_storage_class,
-        ) -> dict[str, Any]:
-            return {
-                "apiVersion": "apps/v1",
-                "kind": "StatefulSet",
-                "metadata": {"name": "test-statefulset"},
-                "spec": {
-                    "serviceName": "ubuntu-service",
-                    "replicas": 2,
-                    "selector": {"matchLabels": {"app": "ubuntu"}},
-                    "template": {
-                        "metadata": {"labels": {"app": "ubuntu"}},
-                        "spec": {
-                            "containers": [
-                                {
-                                    "name": "ubuntu",
-                                    "image": "ubuntu:latest",
-                                    "command": ["sleep", "infinity"],
-                                    "volumeMounts": [
-                                        {
-                                            "name": "ubuntu-data",
-                                            "mountPath": "/mnt/data",
-                                        }
+        ) -> V1StatefulSet:
+            return V1StatefulSet(
+                api_version="apps/v1",
+                kind="StatefulSet",
+                metadata=V1ObjectMeta(name="test-statefulset"),
+                spec=V1StatefulSetSpec(
+                    service_name="ubuntu-service",
+                    replicas=2,
+                    selector=V1LabelSelector(match_labels={"app": "ubuntu"}),
+                    template=V1PodTemplateSpec(
+                        metadata=V1ObjectMeta(labels={"app": "ubuntu"}),
+                        spec=V1PodSpec(
+                            containers=[
+                                V1Container(
+                                    name="ubuntu",
+                                    image="ubuntu:latest",
+                                    command=["sleep", "infinity"],
+                                    volume_mounts=[
+                                        V1VolumeMount(
+                                            name="ubuntu-data",
+                                            mount_path="/mnt/data",
+                                        )
                                     ],
-                                }
+                                )
                             ],
-                            "terminationGracePeriodSeconds": 1,
-                        },
-                    },
-                    "volumeClaimTemplates": [
-                        {
-                            "metadata": {
-                                "name": "ubuntu-data",
-                                "annotations": annotations,
-                                "labels": labels,
-                            },
-                            "spec": {
-                                "accessModes": ["ReadWriteOnce"],
-                                "resources": {"requests": {"storage": "10Mi"}},
-                                "storageClassName": storage_class_name,
-                            },
-                        }
+                            termination_grace_period_seconds=1,
+                        ),
+                    ),
+                    volume_claim_templates=[
+                        V1PersistentVolumeClaim(
+                            metadata=V1ObjectMeta(
+                                name="ubuntu-data",
+                                annotations=annotations,
+                                labels=labels,
+                            ),
+                            spec=V1PersistentVolumeClaimSpec(
+                                access_modes=["ReadWriteOnce"],
+                                resources=V1ResourceRequirements(
+                                    requests={"storage": "10Mi"}
+                                ),
+                                storage_class_name=storage_class_name,
+                            ),
+                        )
                     ],
-                },
-            }
+                ),
+            )
 
         return _factory
 
@@ -156,13 +166,13 @@ class TestAdmissionController:
         """
         Wait for a stateful set to spawn all the POD's
         """
-        url = kube_client._generate_statefulsets_url(namespace_name)
-        url = f"{url}/{name}"
         async with timeout(60):
             while True:
-                response = await kube_client.get(url)
-                requested_replicas = response["spec"]["replicas"]
-                actual_replicas = response["status"].get("currentReplicas", 0) or 0
+                statefulset = await kube_client.apps_v1.statefulset.get(
+                    name=name, namespace=namespace_name
+                )
+                requested_replicas = statefulset.spec.replicas
+                actual_replicas = statefulset.status.current_replicas or 0
                 if requested_replicas == actual_replicas:
                     break
                 await asyncio.sleep(1)
@@ -171,7 +181,7 @@ class TestAdmissionController:
     async def disk_no_name(
         self,
         service: Service,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> Disk:
         namespace, org, project = scoped_namespace
         request = DiskRequest(
@@ -189,7 +199,7 @@ class TestAdmissionController:
     async def disk_with_name(
         self,
         service: Service,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
         disk_name: str,
     ) -> Disk:
         namespace, org, project = scoped_namespace
@@ -209,26 +219,28 @@ class TestAdmissionController:
         """
         Creating a disk without a name shouldn't lead to a DiskNaming object creation
         """
-        disk_namings = await kube_client.list_disk_namings()
-        assert not disk_namings
+        disk_naming_list = await kube_client.neuromation_io_v1.disk_naming.get_list()
+        assert not disk_naming_list.items
 
     async def test__create_disk__name_provided_disk_naming_created(
         self,
         kube_client: KubeClient,
         service: Service,
         disk_with_name: Disk,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         """
         Whenever a disk name is provided,
         admission controller will create a DiskNaming kube object
         """
-        _, org, project = scoped_namespace
-        disk_namings = await kube_client.list_disk_namings()
-        assert len(disk_namings) == 1
-        disk_naming = disk_namings[0]
-        assert disk_naming.name == f"{disk_with_name.name}--{org}--{project}"
-        assert disk_naming.namespace == disk_with_name.namespace
+        namespace, org, project = scoped_namespace
+        disk_naming_list = await kube_client.neuromation_io_v1.disk_naming.get_list(
+            namespace=namespace.metadata.name
+        )
+        assert len(disk_naming_list.items) == 1
+        disk_naming = disk_naming_list.items[0]
+        assert disk_naming.metadata.name == f"{disk_with_name.name}--{org}--{project}"
+        assert disk_naming.metadata.namespace == disk_with_name.namespace
 
     async def test__create_statefulset__no_name(
         self,
@@ -236,52 +248,58 @@ class TestAdmissionController:
         kube_client: KubeClient,
         k8s_storage_class: str,
         statefulset_manifest_factory: Callable[..., dict[str, Any]],
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         """
         Ensure that PVC is created properly for the statefulset,
         based on a volumeClaimTemplate
         """
         namespace, org, project = scoped_namespace
-        manifest = statefulset_manifest_factory(
+        statefulset = statefulset_manifest_factory(
             labels={},
             annotations={},
             storage_class_name=k8s_storage_class,
         )
-        url = kube_client._generate_statefulsets_url(namespace.name)
-        response = await kube_client.post(url, json=manifest)
+        statefulset = await kube_client.apps_v1.statefulset.create(
+            model=statefulset,
+            namespace=namespace.metadata.name,
+        )
 
         # let's wait for statefulset pods to be running
         await self._wait_statefulset(
             kube_client=kube_client,
-            name=response["metadata"]["name"],
-            namespace_name=namespace.name,
+            name=statefulset.metadata.name,
+            namespace_name=namespace.metadata.name,
         )
 
         # there should be two PVCs created
-        pvcs = await kube_client.list_pvc(namespace.name)
-        assert len(pvcs) == 2
+        pvcs = await kube_client.core_v1.persistent_volume_claim.get_list(
+            namespace=namespace.metadata.name
+        )
+        assert len(pvcs.items) == 2
 
-        for pvc in pvcs:
-            assert APOLO_DISK_API_CREATED_AT_ANNOTATION in pvc.annotations
-            assert DISK_API_CREATED_AT_ANNOTATION in pvc.annotations
+        for pvc in pvcs.items:
+            assert APOLO_DISK_API_CREATED_AT_ANNOTATION in pvc.metadata.annotations
+            assert DISK_API_CREATED_AT_ANNOTATION in pvc.metadata.annotations
 
             # ensure name annotation does not present
-            assert APOLO_DISK_API_NAME_ANNOTATION not in pvc.annotations
-            assert DISK_API_NAME_ANNOTATION not in pvc.annotations
+            assert APOLO_DISK_API_NAME_ANNOTATION not in pvc.metadata.annotations
+            assert DISK_API_NAME_ANNOTATION not in pvc.metadata.annotations
 
-            assert pvc.labels[DISK_API_MARK_LABEL] == "true"
-            assert pvc.labels[APOLO_DISK_API_MARK_LABEL] == "true"
-            assert pvc.labels[DISK_API_ORG_LABEL] == org
-            assert pvc.labels[APOLO_ORG_LABEL] == org
-            assert pvc.labels[DISK_API_PROJECT_LABEL] == project
-            assert pvc.labels[APOLO_PROJECT_LABEL] == project
-            assert pvc.labels[APOLO_USER_LABEL] == project
-            assert pvc.labels[USER_LABEL] == project
+            assert pvc.metadata.labels[DISK_API_MARK_LABEL] == "true"
+            assert pvc.metadata.labels[APOLO_DISK_API_MARK_LABEL] == "true"
+            assert pvc.metadata.labels[DISK_API_ORG_LABEL] == org
+            assert pvc.metadata.labels[APOLO_ORG_LABEL] == org
+            assert pvc.metadata.labels[DISK_API_PROJECT_LABEL] == project
+            assert pvc.metadata.labels[APOLO_PROJECT_LABEL] == project
+            assert pvc.metadata.labels[APOLO_USER_LABEL] == project
+            assert pvc.metadata.labels[USER_LABEL] == project
 
         # no disk namings should be created
-        disk_namings = await kube_client.list_disk_namings()
-        assert not disk_namings
+        disk_naming_list = await kube_client.neuromation_io_v1.disk_naming.get_list(
+            namespace=namespace.metadata.name
+        )
+        assert not disk_naming_list.items
 
     async def test__create_statefulset__with_name(
         self,
@@ -289,7 +307,7 @@ class TestAdmissionController:
         kube_client: KubeClient,
         k8s_storage_class: str,
         statefulset_manifest_factory: Callable[..., dict[str, Any]],
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         """
         Ensure that both PVC and DiskNaming are created properly for the statefulset,
@@ -297,54 +315,63 @@ class TestAdmissionController:
         """
         disk_name = "test-disk"
         namespace, org, project = scoped_namespace
-        manifest = statefulset_manifest_factory(
+        statefulset = statefulset_manifest_factory(
             labels={},
             annotations={APOLO_DISK_API_NAME_ANNOTATION: disk_name},
             storage_class_name=k8s_storage_class,
         )
-        url = kube_client._generate_statefulsets_url(namespace.name)
-        response = await kube_client.post(url, json=manifest)
+        statefulset = await kube_client.apps_v1.statefulset.create(
+            model=statefulset,
+            namespace=namespace.metadata.name,
+        )
 
         # let's wait for statefulset pods to be running
         await self._wait_statefulset(
             kube_client=kube_client,
-            name=response["metadata"]["name"],
-            namespace_name=namespace.name,
+            name=statefulset.metadata.name,
+            namespace_name=namespace.metadata.name,
         )
 
         # there should be two PVCs created
-        pvcs = await kube_client.list_pvc(namespace.name)
-        assert len(pvcs) == 2
+        pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
+            namespace=namespace.metadata.name
+        )
+        assert len(pvc_list.items) == 2
 
         for idx, pvc in enumerate(
             sorted(
-                pvcs,
-                key=lambda p: p.annotations[APOLO_DISK_API_NAME_ANNOTATION],
+                pvc_list.items,
+                key=lambda p: p.metadata.annotations[APOLO_DISK_API_NAME_ANNOTATION],
             )
         ):
-            assert APOLO_DISK_API_CREATED_AT_ANNOTATION in pvc.annotations
-            assert DISK_API_CREATED_AT_ANNOTATION in pvc.annotations
+            assert APOLO_DISK_API_CREATED_AT_ANNOTATION in pvc.metadata.annotations
+            assert DISK_API_CREATED_AT_ANNOTATION in pvc.metadata.annotations
 
             # ensure name annotation is present now
             assert (
-                pvc.annotations[APOLO_DISK_API_NAME_ANNOTATION] == f"{disk_name}-{idx}"
+                pvc.metadata.annotations[APOLO_DISK_API_NAME_ANNOTATION]
+                == f"{disk_name}-{idx}"
             )
 
-            assert pvc.labels[DISK_API_MARK_LABEL] == "true"
-            assert pvc.labels[APOLO_DISK_API_MARK_LABEL] == "true"
-            assert pvc.labels[DISK_API_ORG_LABEL] == org
-            assert pvc.labels[APOLO_ORG_LABEL] == org
-            assert pvc.labels[DISK_API_PROJECT_LABEL] == project
-            assert pvc.labels[APOLO_PROJECT_LABEL] == project
-            assert pvc.labels[APOLO_USER_LABEL] == project
-            assert pvc.labels[USER_LABEL] == project
+            assert pvc.metadata.labels[DISK_API_MARK_LABEL] == "true"
+            assert pvc.metadata.labels[APOLO_DISK_API_MARK_LABEL] == "true"
+            assert pvc.metadata.labels[DISK_API_ORG_LABEL] == org
+            assert pvc.metadata.labels[APOLO_ORG_LABEL] == org
+            assert pvc.metadata.labels[DISK_API_PROJECT_LABEL] == project
+            assert pvc.metadata.labels[APOLO_PROJECT_LABEL] == project
+            assert pvc.metadata.labels[APOLO_USER_LABEL] == project
+            assert pvc.metadata.labels[USER_LABEL] == project
 
         # ensure that both disk namings are now created
-        disk_namings = await kube_client.list_disk_namings()
-        assert len(disk_namings) == 2
+        disk_naming_list = await kube_client.neuromation_io_v1.disk_naming.get_list(
+            namespace=namespace.metadata.name
+        )
+        assert len(disk_naming_list.items) == 2
 
-        for idx, disk_naming in enumerate(sorted(disk_namings, key=lambda d: d.name)):
-            assert disk_naming.name == f"{disk_name}-{idx}--{org}--{project}"
+        for idx, disk_naming in enumerate(
+            sorted(disk_naming_list.items, key=lambda d: d.metadata.name)
+        ):
+            assert disk_naming.metadata.name == f"{disk_name}-{idx}--{org}--{project}"
 
     async def test__create_statefulset__invalid_storage_class(
         self,
@@ -352,54 +379,59 @@ class TestAdmissionController:
         kube_client: KubeClient,
         k8s_storage_class: str,
         statefulset_manifest_factory: Callable[..., dict[str, Any]],
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         """
         Ensures that the admission controller will use
         a proper storage class available to it
         """
         namespace, org, project = scoped_namespace
-        manifest = statefulset_manifest_factory(
+        statefulset = statefulset_manifest_factory(
             labels={},
             annotations={},
             storage_class_name="invalid-storage-class",
         )
-        url = kube_client._generate_statefulsets_url(namespace.name)
-        response = await kube_client.post(url, json=manifest)
+        statefulset = await kube_client.apps_v1.statefulset.create(
+            model=statefulset,
+            namespace=namespace.metadata.name,
+        )
 
         # let's wait for statefulset pods to be running
         await self._wait_statefulset(
             kube_client=kube_client,
-            name=response["metadata"]["name"],
-            namespace_name=namespace.name,
+            name=statefulset.metadata.name,
+            namespace_name=namespace.metadata.name,
         )
 
         # ensure storage class was overridden
-        pvcs = await kube_client.list_pvc(namespace.name)
-        for pvc in pvcs:
-            assert pvc.storage_class_name == k8s_storage_class
+        pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
+            namespace=namespace.metadata.name
+        )
+        pvc: V1PersistentVolumeClaim
+        for pvc in pvc_list.items:
+            assert pvc.spec.storage_class_name == k8s_storage_class
 
     async def test__pod_without_annotations_will_be_ignored(
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
-        async with pod_cm(kube_client, namespace.name) as response:
-            assert response["kind"] == "Pod"
+        async with pod_cm(kube_client, namespace.metadata.name) as pod:
+            assert pod.kind == "Pod"
 
     async def test__pod_invalid_annotation_will_prohibit_pod_creation(
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
         with pytest.raises(ResourceInvalid) as e:
             async with pod_cm(
                 kube_client,
-                namespace.name,
+                namespace.metadata.name,
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
@@ -415,13 +447,13 @@ class TestAdmissionController:
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
         with pytest.raises(KubeClientException) as e:
             async with pod_cm(
                 kube_client,
-                namespace.name,
+                namespace.metadata.name,
                 labels={
                     LABEL_APOLO_ORG_NAME: "invalid org",
                     LABEL_APOLO_PROJECT_NAME: project,
@@ -446,13 +478,13 @@ class TestAdmissionController:
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
         with pytest.raises(KubeClientException) as e:
             async with pod_cm(
                 kube_client,
-                namespace.name,
+                namespace.metadata.name,
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: "invalid project",
@@ -477,13 +509,13 @@ class TestAdmissionController:
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
         with pytest.raises(KubeClientException) as e:
             async with pod_cm(
                 kube_client,
-                namespace.name,
+                namespace.metadata.name,
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
@@ -508,13 +540,13 @@ class TestAdmissionController:
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
         with pytest.raises(KubeClientException) as e:
             async with pod_cm(
                 kube_client,
-                namespace.name,
+                namespace.metadata.name,
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
@@ -539,7 +571,7 @@ class TestAdmissionController:
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
         disk_no_name: Disk,
     ) -> None:
         namespace, org, project = scoped_namespace
@@ -547,7 +579,7 @@ class TestAdmissionController:
         # now let's create a POD with the proper annotation
         async with pod_cm(
             kube_client,
-            namespace=namespace.name,
+            namespace=namespace.metadata.name,
             annotations={
                 ANNOTATION_APOLO_INJECT_DISK: json.dumps(
                     [
@@ -563,18 +595,16 @@ class TestAdmissionController:
                 LABEL_APOLO_PROJECT_NAME: project,
                 ANNOTATION_APOLO_INJECT_DISK: "true",
             },
-        ) as response:
-            spec = response["spec"]
-            volumes = spec["volumes"]
-            container = spec["containers"][0]
+        ) as pod:
+            container = pod.spec.containers[0]
 
-            volumes = [v for v in volumes if "persistentVolumeClaim" in v]
+            volumes = [v for v in pod.spec.volumes if v.persistent_volume_claim]
             assert len(volumes) == 1
-            assert volumes[0]["name"].startswith(INJECTED_VOLUME_NAME_PREFIX)
-            assert volumes[0]["persistentVolumeClaim"]["claimName"] == disk_no_name.id
+            assert volumes[0].name.startswith(INJECTED_VOLUME_NAME_PREFIX)
+            assert volumes[0].persistent_volume_claim.claim_name == disk_no_name.id
 
-            mounts_by_path = {v["mountPath"]: v for v in container["volumeMounts"]}
-            assert mounts_by_path["/mnt/disk"]["name"].startswith(
+            mounts_by_path = {v.mount_path: v for v in container.volume_mounts}
+            assert mounts_by_path["/mnt/disk"].name.startswith(
                 INJECTED_VOLUME_NAME_PREFIX
             )
 
@@ -582,7 +612,7 @@ class TestAdmissionController:
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
 
@@ -604,7 +634,7 @@ class TestAdmissionController:
         mount_path_1, mount_path_2 = "/mnt/disk1", "/mnt/disk2"
         async with pod_cm(
             kube_client,
-            namespace.name,
+            namespace.metadata.name,
             annotations={
                 ANNOTATION_APOLO_INJECT_DISK: json.dumps(
                     [
@@ -624,26 +654,24 @@ class TestAdmissionController:
                 LABEL_APOLO_PROJECT_NAME: project,
                 ANNOTATION_APOLO_INJECT_DISK: "true",
             },
-        ) as response:
-            spec = response["spec"]
-            volumes = spec["volumes"]
-            container = spec["containers"][0]
+        ) as pod:
+            container = pod.spec.containers[0]
 
-            volumes = [v for v in volumes if "persistentVolumeClaim" in v]
+            volumes = [v for v in pod.spec.volumes if v.persistent_volume_claim]
             assert len(volumes) == 2
 
             for volume in volumes:
-                assert volume["name"].startswith(INJECTED_VOLUME_NAME_PREFIX)
-                assert volume["persistentVolumeClaim"]["claimName"] in {
+                assert volume.name.startswith(INJECTED_VOLUME_NAME_PREFIX)
+                assert volume.persistent_volume_claim.claim_name in {
                     disk_1.id,
                     disk_2.id,
                 }
 
-            mounts_by_path = {v["mountPath"]: v for v in container["volumeMounts"]}
-            assert mounts_by_path[mount_path_1]["name"].startswith(
+            mounts_by_path = {v.mount_path: v for v in container.volume_mounts}
+            assert mounts_by_path[mount_path_1].name.startswith(
                 INJECTED_VOLUME_NAME_PREFIX
             )
-            assert mounts_by_path[mount_path_2]["name"].startswith(
+            assert mounts_by_path[mount_path_2].name.startswith(
                 INJECTED_VOLUME_NAME_PREFIX
             )
 
@@ -651,7 +679,7 @@ class TestAdmissionController:
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
         disk_with_name: Disk,
         disk_name: str,
     ) -> None:
@@ -660,7 +688,7 @@ class TestAdmissionController:
         # now let's create a POD with the proper annotation
         async with pod_cm(
             kube_client,
-            namespace=namespace.name,
+            namespace=namespace.metadata.name,
             annotations={
                 ANNOTATION_APOLO_INJECT_DISK: json.dumps(
                     [
@@ -676,19 +704,18 @@ class TestAdmissionController:
                 LABEL_APOLO_PROJECT_NAME: project,
                 ANNOTATION_APOLO_INJECT_DISK: "true",
             },
-        ) as response:
-            spec = response["spec"]
-            volumes = spec["volumes"]
-            container = spec["containers"][0]
+        ) as pod:
+            container = pod.spec.containers[0]
 
-            volumes = [v for v in volumes if "persistentVolumeClaim" in v]
+            volumes = [v for v in pod.spec.volumes if v.persistent_volume_claim]
             assert len(volumes) == 1
-            assert volumes[0]["name"].startswith(INJECTED_VOLUME_NAME_PREFIX)
+            assert volumes[0].name.startswith(INJECTED_VOLUME_NAME_PREFIX)
             # ensure claim name uses a disk ID (e.g. PVC name)
-            assert volumes[0]["persistentVolumeClaim"]["claimName"] == disk_with_name.id
+            assert volumes[0].persistent_volume_claim.claim_name == disk_with_name.id
 
-            mounts_by_path = {v["mountPath"]: v for v in container["volumeMounts"]}
-            assert mounts_by_path["/mnt/disk"]["name"].startswith(
+            mounts_by_path = {v.mount_path: v for v in container.volume_mounts}
+
+            assert mounts_by_path["/mnt/disk"].name.startswith(
                 INJECTED_VOLUME_NAME_PREFIX
             )
 
@@ -696,7 +723,7 @@ class TestAdmissionController:
         self,
         service: Service,
         kube_client: KubeClient,
-        scoped_namespace: tuple[Namespace, str, str],
+        scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
 
@@ -720,7 +747,7 @@ class TestAdmissionController:
         mount_path_1, mount_path_2 = "/mnt/disk1", "/mnt/disk2"
         async with pod_cm(
             kube_client,
-            namespace.name,
+            namespace.metadata.name,
             annotations={
                 ANNOTATION_APOLO_INJECT_DISK: json.dumps(
                     [
@@ -740,25 +767,23 @@ class TestAdmissionController:
                 LABEL_APOLO_PROJECT_NAME: project,
                 ANNOTATION_APOLO_INJECT_DISK: "true",
             },
-        ) as response:
-            spec = response["spec"]
-            volumes = spec["volumes"]
-            container = spec["containers"][0]
+        ) as pod:
+            container = pod.spec.containers[0]
 
-            volumes = [v for v in volumes if "persistentVolumeClaim" in v]
+            volumes = [v for v in pod.spec.volumes if v.persistent_volume_claim]
             assert len(volumes) == 2
 
             for volume in volumes:
-                assert volume["name"].startswith(INJECTED_VOLUME_NAME_PREFIX)
-                assert volume["persistentVolumeClaim"]["claimName"] in {
+                assert volume.name.startswith(INJECTED_VOLUME_NAME_PREFIX)
+                assert volume.persistent_volume_claim.claim_name in {
                     disk_1.id,
                     disk_2.id,
                 }
 
-            mounts_by_path = {v["mountPath"]: v for v in container["volumeMounts"]}
-            assert mounts_by_path[mount_path_1]["name"].startswith(
+            mounts_by_path = {v.mount_path: v for v in container.volume_mounts}
+            assert mounts_by_path[mount_path_1].name.startswith(
                 INJECTED_VOLUME_NAME_PREFIX
             )
-            assert mounts_by_path[mount_path_2]["name"].startswith(
+            assert mounts_by_path[mount_path_2].name.startswith(
                 INJECTED_VOLUME_NAME_PREFIX
             )

@@ -14,10 +14,9 @@ import aiohttp
 import aiohttp.web
 import pytest
 from apolo_events_client import EventsClientConfig
+from apolo_kube_client import KubeClient, KubeConfig, ResourceNotFound
 from apolo_kube_client.apolo import create_namespace
-from apolo_kube_client.config import KubeConfig
-from apolo_kube_client.errors import ResourceNotFound
-from apolo_kube_client.namespace import Namespace, NamespaceApi
+from kubernetes.client.models import V1Namespace
 
 from platform_disk_api.config import (
     AuthConfig,
@@ -26,7 +25,6 @@ from platform_disk_api.config import (
     DiskConfig,
     ServerConfig,
 )
-from platform_disk_api.kube_client import KubeClient
 from platform_disk_api.service import Service
 
 
@@ -172,21 +170,22 @@ def cluster_name() -> str:
 @pytest.fixture
 async def scoped_namespace(
     kube_client: KubeClient,
-) -> AsyncIterator[tuple[Namespace, str, str]]:
+) -> AsyncIterator[tuple[V1Namespace, str, str]]:
     org, project = uuid4().hex, uuid4().hex
     namespace = await create_namespace(kube_client, org, project)
     try:
         yield namespace, org, project
     finally:
-        namespace_api = NamespaceApi(kube_client)
-        await namespace_api.delete_namespace(namespace.name)
+        await kube_client.core_v1.namespace.delete(name=namespace.metadata.name)
 
         # deletion of namespace also deletes all the resources in it,
         # so we should wait until a namespace will be fully deleted
         async with timeout(300):
             while True:
                 try:
-                    await namespace_api.get_namespace(namespace.name)
+                    await kube_client.core_v1.namespace.get(
+                        name=namespace.metadata.name
+                    )
                 except ResourceNotFound:
                     break
                 await asyncio.sleep(1)

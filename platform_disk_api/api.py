@@ -1,6 +1,6 @@
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack
 
 import aiohttp
 import aiohttp.web
@@ -31,8 +31,8 @@ from aiohttp_apispec import (
     setup_aiohttp_apispec,
 )
 from aiohttp_security import check_authorized
+from apolo_kube_client import KubeClient
 from apolo_kube_client.apolo import NO_ORG, normalize_name
-from apolo_kube_client.config import KubeConfig
 from marshmallow import Schema, fields
 from neuro_auth_client import (
     AuthClient,
@@ -50,7 +50,6 @@ from platform_disk_api.platform_deleter import ProjectDeleter
 from .config import Config, CORSConfig
 from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
-from .kube_client import KubeClient
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
 from .service import Disk, DiskNotFound, DiskRequest, Service, is_no_org
 
@@ -158,7 +157,7 @@ class DiskApiHandler:
     ) -> int:
         return sum(
             [
-                d.storage
+                int(d.storage)
                 for d in await self._service.get_all_disks(
                     disk_request.org_name, disk_request.project_name
                 )
@@ -328,33 +327,6 @@ async def create_disk_app(config: Config) -> aiohttp.web.Application:
     return app
 
 
-@asynccontextmanager
-async def create_kube_client(
-    config: KubeConfig, trace_configs: list[aiohttp.TraceConfig] | None = None
-) -> AsyncIterator[KubeClient]:
-    client = KubeClient(
-        base_url=config.endpoint_url,
-        namespace=config.namespace,
-        cert_authority_path=config.cert_authority_path,
-        cert_authority_data_pem=config.cert_authority_data_pem,
-        auth_type=config.auth_type,
-        auth_cert_path=config.auth_cert_path,
-        auth_cert_key_path=config.auth_cert_key_path,
-        token=config.token,
-        token_path=config.token_path,
-        conn_timeout_s=config.client_conn_timeout_s,
-        read_timeout_s=config.client_read_timeout_s,
-        watch_timeout_s=config.client_watch_timeout_s,
-        conn_pool_size=config.client_conn_pool_size,
-        trace_configs=trace_configs,
-    )
-    try:
-        await client.init()
-        yield client
-    finally:
-        await client.close()
-
-
 def _setup_cors(app: aiohttp.web.Application, config: CORSConfig) -> None:
     if not config.allowed_origins:
         return
@@ -394,7 +366,7 @@ async def create_app(config: Config) -> aiohttp.web.Application:
 
             logger.info("Initializing Kubernetes client")
             kube_client = await exit_stack.enter_async_context(
-                create_kube_client(config.kube)
+                KubeClient(config=config.kube)
             )
 
             logger.info("Initializing Service")

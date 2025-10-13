@@ -15,7 +15,7 @@ from apolo_events_client import (
     Tag,
 )
 from apolo_events_client.pytest import EventsQueues
-from apolo_kube_client.namespace import Namespace
+from kubernetes.client.models import V1Namespace
 
 from platform_disk_api.api import create_app
 from platform_disk_api.config import Config
@@ -27,7 +27,7 @@ from .conftest import create_local_app_server
 @pytest.fixture
 async def disk_factory(
     service: Service,
-    scoped_namespace: tuple[Namespace, str, str],
+    scoped_namespace: tuple[V1Namespace, str, str],
 ) -> Callable[[str], Coroutine[Any, Any, Disk]]:
     async def _factory(disk_name: str) -> Disk:
         namespace, org, project = scoped_namespace
@@ -47,11 +47,11 @@ async def test_deleter(
     events_queues: EventsQueues,
     service: Service,
     disk_factory: Callable[[str], Coroutine[Any, Any, Disk]],
-    scoped_namespace: tuple[Namespace, str, str],
+    scoped_namespace: tuple[V1Namespace, str, str],
 ) -> None:
     app = await create_app(config)
     async with create_local_app_server(app, port=8080):
-        namespace, org, project = scoped_namespace
+        _, org, project = scoped_namespace
 
         await disk_factory("disk1")
         await disk_factory("disk2")
