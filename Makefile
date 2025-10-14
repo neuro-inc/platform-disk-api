@@ -30,7 +30,7 @@ test_unit:
 
 .PHONY: test_integration
 test_integration:
-	poetry run pytest -svv --maxfail=30 --cov-config=pyproject.toml --cov-report xml:.coverage-integration.xml tests/integration
+	poetry run pytest -vv --maxfail=3 --cov-config=pyproject.toml --cov-report xml:.coverage-integration.xml tests/integration
 
 .PHONY: clean-dist
 clean-dist:
