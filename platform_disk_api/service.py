@@ -6,12 +6,14 @@ from enum import Enum
 from typing import TypeVar
 from uuid import uuid4
 
-from apolo_kube_client import KubeClient, ResourceNotFound, escape_json_pointer
+from apolo_kube_client import (
+    KubeClientSelector,
+    ResourceNotFound,
+    escape_json_pointer,
+)
 from apolo_kube_client.apolo import (
-    NO_ORG,
     create_namespace,
     generate_namespace_name,
-    normalize_name,
 )
 from kubernetes.client.models import (
     V1ObjectMeta,
@@ -74,10 +76,6 @@ DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 APOLO_DISK_API_USED_BYTES_ANNOTATION = "platform.apolo.us/disk-bytes-used"
 
 
-def is_no_org(org_name: str | None) -> bool:
-    return org_name is None or org_name == NO_ORG or org_name == normalize_name(NO_ORG)
-
-
 @dataclass(frozen=True)
 class DiskRequest:
     storage: int  # In bytes
@@ -113,14 +111,12 @@ class Disk:
     def namespace(self) -> str:
         return generate_namespace_name(self.org_name, self.project_name)
 
-    @property
-    def has_org(self) -> bool:
-        return not is_no_org(self.org_name)
-
 
 class Service:
-    def __init__(self, kube_client: KubeClient, storage_class_name: str) -> None:
-        self._kube_client = kube_client
+    def __init__(
+        self, kube_client_selector: KubeClientSelector, storage_class_name: str
+    ) -> None:
+        self._kube_client_selector = kube_client_selector
         self._storage_class_name = storage_class_name
 
     @staticmethod
@@ -280,25 +276,30 @@ class Service:
         request: DiskRequest,
         username: str,
     ) -> Disk:
-        namespace = await create_namespace(
-            self._kube_client, request.org_name, request.project_name
+        await create_namespace(
+            self._kube_client_selector.host_client,
+            request.org_name,
+            request.project_name,
         )
-        pvc = await self._kube_client.core_v1.persistent_volume_claim.create(
-            model=self._request_to_pvc(request, username),
-            namespace=namespace.metadata.name,
-        )
+        async with self._kube_client_selector.get_client(
+            org_name=request.org_name, project_name=request.project_name
+        ) as kube_client:
+            pvc = await kube_client.core_v1.persistent_volume_claim.create(
+                model=self._request_to_pvc(request, username),
+            )
 
         return await self._pvc_to_disk(pvc=pvc)
 
     async def get_disk(self, org_name: str, project_name: str, disk_id: str) -> Disk:
-        namespace = generate_namespace_name(org_name, project_name)
-        try:
-            # pvc = await self._kube_client.get_pvc(namespace, disk_id)
-            pvc = await self._kube_client.core_v1.persistent_volume_claim.get(
-                name=disk_id, namespace=namespace
-            )
-        except ResourceNotFound:
-            raise DiskNotFound from None
+        async with self._kube_client_selector.get_client(
+            org_name=org_name, project_name=project_name
+        ) as kube_client:
+            try:
+                pvc = await kube_client.core_v1.persistent_volume_claim.get(
+                    name=disk_id,
+                )
+            except ResourceNotFound:
+                raise DiskNotFound from None
         return await self._pvc_to_disk(pvc)
 
     async def get_disk_by_name(
@@ -310,81 +311,84 @@ class Service:
                 org_name=org_name,
                 project_name=project_name,
             )
-            namespace = generate_namespace_name(org_name, project_name)
-            disk_naming = await self._kube_client.neuromation_io_v1.disk_naming.get(
-                name=disk_naming_name, namespace=namespace
-            )
+            async with self._kube_client_selector.get_client(
+                org_name=org_name, project_name=project_name
+            ) as kube_client:
+                disk_naming = await kube_client.neuromation_io_v1.disk_naming.get(
+                    name=disk_naming_name,
+                )
             return await self.get_disk(org_name, project_name, disk_naming.spec.disk_id)
         except ResourceNotFound:
             logger.exception("get_disk_by_name: unhandled error")
             raise DiskNotFound from None
 
-    async def get_all_disks(
-        self,
-        org_name: str | None = None,
-        project_name: str | None = None,
-    ) -> list[Disk]:
-        namespace = None
+    async def get_all_disks(self, org_name: str, project_name: str) -> list[Disk]:
         label_selectors = [
             f"{DISK_API_MARK_LABEL}=true",  # is apolo disk
             f"!{DISK_API_DELETED_LABEL}",  # not deleted
         ]
-        if project_name:
-            # request is in the scope of org/project.
-            # let's figure out the org and enrich with labels and namespace
-            org_name = org_name or normalize_name(NO_ORG)
-            namespace = generate_namespace_name(org_name, project_name)
 
-        get_list_kwargs = {"label_selector": ",".join(label_selectors)}
-        if namespace:
-            get_list_kwargs["namespace"] = namespace
-        else:
-            get_list_kwargs["all_namespaces"] = True  # type: ignore
+        async with self._kube_client_selector.get_client(
+            org_name=org_name, project_name=project_name
+        ) as kube_client:
+            pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
+                label_selector=",".join(label_selectors)
+            )
+        return [await self._pvc_to_disk(pvc) for pvc in pvc_list.items]
 
-        pvc_list = await self._kube_client.core_v1.persistent_volume_claim.get_list(
-            **get_list_kwargs  # type: ignore
+    async def get_all_namespaces_disks(
+        self,
+    ) -> list[Disk]:
+        label_selectors = [
+            f"{DISK_API_MARK_LABEL}=true",  # is apolo disk
+            f"!{DISK_API_DELETED_LABEL}",  # not deleted
+        ]
+        kube_client = self._kube_client_selector.host_client
+        pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
+            label_selector=",".join(label_selectors), all_namespaces=True
         )
         return [await self._pvc_to_disk(pvc) for pvc in pvc_list.items]
 
     async def remove_disk(self, disk: Disk) -> None:
-        namespace = disk.namespace
         try:
-            if disk.name:
-                disk_naming_name = self.get_disk_naming_name(
-                    disk.name,
-                    org_name=disk.org_name,
-                    project_name=disk.project_name,
-                )
-                try:
-                    await self._kube_client.neuromation_io_v1.disk_naming.delete(
-                        name=disk_naming_name, namespace=namespace
+            async with self._kube_client_selector.get_client(
+                org_name=disk.org_name, project_name=disk.project_name
+            ) as kube_client:
+                if disk.name:
+                    disk_naming_name = self.get_disk_naming_name(
+                        disk.name,
+                        org_name=disk.org_name,
+                        project_name=disk.project_name,
                     )
-                except ResourceNotFound:
-                    pass  # already removed
+                    try:
+                        await kube_client.neuromation_io_v1.disk_naming.delete(
+                            name=disk_naming_name,
+                        )
+                    except ResourceNotFound:
+                        pass  # already removed
 
-            patch_json_list = [
-                {
-                    "op": "add",
-                    "path": f"/metadata/labels/"
-                    f"{escape_json_pointer(DISK_API_DELETED_LABEL)}",
-                    "value": "true",
-                },
-                {
-                    "op": "add",
-                    "path": f"/metadata/labels/"
-                    f"{escape_json_pointer(APOLO_DISK_API_DELETED_LABEL)}",
-                    "value": "true",
-                },
-            ]
+                patch_json_list = [
+                    {
+                        "op": "add",
+                        "path": f"/metadata/labels/"
+                        f"{escape_json_pointer(DISK_API_DELETED_LABEL)}",
+                        "value": "true",
+                    },
+                    {
+                        "op": "add",
+                        "path": f"/metadata/labels/"
+                        f"{escape_json_pointer(APOLO_DISK_API_DELETED_LABEL)}",
+                        "value": "true",
+                    },
+                ]
 
-            await self._kube_client.core_v1.persistent_volume_claim.patch_json(
-                name=disk.id,
-                patch_json_list=patch_json_list,  # type: ignore
-                namespace=namespace,
-            )
-            await self._kube_client.core_v1.persistent_volume_claim.delete(
-                name=disk.id, namespace=namespace
-            )
+                await kube_client.core_v1.persistent_volume_claim.patch_json(
+                    name=disk.id,
+                    patch_json_list=patch_json_list,  # type: ignore
+                )
+                await kube_client.core_v1.persistent_volume_claim.delete(
+                    name=disk.id,
+                )
         except ResourceNotFound:
             raise DiskNotFound from None
 
@@ -408,7 +412,8 @@ class Service:
             },
         ]
         try:
-            await self._kube_client.core_v1.persistent_volume_claim.patch_json(
+            kube_client = self._kube_client_selector.host_client
+            await kube_client.core_v1.persistent_volume_claim.patch_json(
                 name=disk_id,
                 patch_json_list=patch_json_list,  # type: ignore
                 namespace=namespace,
@@ -436,7 +441,8 @@ class Service:
             },
         ]
         try:
-            await self._kube_client.core_v1.persistent_volume_claim.patch_json(
+            kube_client = self._kube_client_selector.host_client
+            await kube_client.core_v1.persistent_volume_claim.patch_json(
                 name=disk_id,
                 patch_json_list=patch_json_list,  # type: ignore
                 namespace=namespace,

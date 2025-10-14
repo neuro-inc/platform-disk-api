@@ -10,6 +10,7 @@ import pytest
 from apolo_kube_client import (
     KubeClient,
     KubeClientAuthType,
+    KubeClientSelector,
     KubeConfig,
     ResourceNotFound,
 )
@@ -114,14 +115,13 @@ async def run_pod(
 
 
 @pytest.fixture
-async def kube_client(kube_config: KubeConfig) -> AsyncIterator[KubeClient]:
+async def kube_selector(kube_config: KubeConfig) -> AsyncIterator[KubeClientSelector]:
     async def _clean_k8s(kube_client: KubeClient) -> None:
         pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
             all_namespaces=True
         )
         for pvc in pvc_list.items:
             try:
-                # await kube_client.remove_pvc(pvc.namespace, pvc.name)
                 await kube_client.core_v1.persistent_volume_claim.delete(
                     name=pvc.metadata.name,
                     namespace=pvc.metadata.namespace,
@@ -132,15 +132,18 @@ async def kube_client(kube_config: KubeConfig) -> AsyncIterator[KubeClient]:
             all_namespaces=True
         )
         for disk_naming in disk_naming_list.items:
-            # await kube_client.remove_disk_naming(
-            #     disk_naming.namespace, disk_naming.name
-            # )
             await kube_client.neuromation_io_v1.disk_naming.delete(
                 name=disk_naming.metadata.name,
                 namespace=disk_naming.metadata.namespace,
             )
 
-    async with KubeClient(config=kube_config) as client:
-        await _clean_k8s(client)
-        yield client
-        await _clean_k8s(client)
+    # async with KubeClient(config=kube_config) as client:
+    async with KubeClientSelector(config=kube_config) as kube_client_selector:
+        await _clean_k8s(kube_client_selector.host_client)
+        yield kube_client_selector
+        await _clean_k8s(kube_client_selector.host_client)
+
+
+@pytest.fixture
+async def kube_client(kube_selector: KubeClientSelector) -> KubeClient:
+    return kube_selector.host_client

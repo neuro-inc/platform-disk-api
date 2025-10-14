@@ -156,14 +156,11 @@ async def regular_user_factory(
     token_factory: Callable[[str], str],
     admin_token: str,
     cluster_name: str,
-) -> Callable[
-    [str | None, bool, str | None, bool, str | None], Coroutine[Any, Any, _User]
-]:
+) -> Callable[[str | None, bool, str | None, str | None], Coroutine[Any, Any, _User]]:
     async def _factory(
         name: str | None = None,
         skip_grant: bool = False,
         org_name: str | None = None,
-        org_level: bool = False,
         project_name: str | None = None,
     ) -> _User:
         if not name:
@@ -173,14 +170,13 @@ async def regular_user_factory(
         if not skip_grant:
             org_path = f"/{org_name}" if org_name else ""
             project_path = f"/{project_name}" if project_name else ""
-            name_path = "" if org_level else f"/{name}"
             permissions = [
                 Permission(uri=f"disk://{cluster_name}/{name}", action="write")
             ]
             if org_path:
                 permissions.append(
                     Permission(
-                        uri=f"disk://{cluster_name}{org_path}{name_path}",
+                        uri=f"disk://{cluster_name}{org_path}",
                         action="write",
                     )
                 )

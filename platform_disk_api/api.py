@@ -31,8 +31,7 @@ from aiohttp_apispec import (
     setup_aiohttp_apispec,
 )
 from aiohttp_security import check_authorized
-from apolo_kube_client import KubeClient
-from apolo_kube_client.apolo import NO_ORG, normalize_name
+from apolo_kube_client import KubeClientSelector
 from marshmallow import Schema, fields
 from neuro_auth_client import (
     AuthClient,
@@ -51,7 +50,7 @@ from .config import Config, CORSConfig
 from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
-from .service import Disk, DiskNotFound, DiskRequest, Service, is_no_org
+from .service import Disk, DiskNotFound, DiskRequest, Service
 
 
 logger = logging.getLogger(__name__)
@@ -120,19 +119,13 @@ class DiskApiHandler:
     def _get_user_disk_or_project_uri(
         self, user: User, org_name: str, project_name: str
     ) -> str:
-        if not is_no_org(org_name):
-            base = self._get_org_disks_uri(org_name)
-        else:
-            base = self._disk_cluster_uri
+        base = self._get_org_disks_uri(org_name)
         if user.name == project_name:
             return f"{base}/{user.name}"
         return f"{base}/{project_name}"
 
     def _get_disk_or_project_uri(self, disk: Disk) -> str:
-        if disk.has_org:
-            base = self._get_org_disks_uri(disk.org_name)
-        else:
-            base = self._disk_cluster_uri
+        base = self._get_org_disks_uri(disk.org_name)
         if disk.owner == disk.project_name:
             return f"{base}/{disk.owner}/{disk.id}"
         return f"{base}/{disk.project_name}"
@@ -166,12 +159,12 @@ class DiskApiHandler:
 
     async def _resolve_disk_from_request(self, request: Request) -> Disk:
         id_or_name = request.match_info["disk_id_or_name"]
-        org_name = request.query.get("org_name") or normalize_name(NO_ORG)
+        org_name = request.query.get("org_name")
         project_name = request.query["project_name"]
         try:
             return await self._service.resolve_disk(
                 disk_id_or_name=id_or_name,
-                org_name=org_name,
+                org_name=org_name,  # type: ignore[arg-type]
                 project_name=project_name,
             )
         except DiskNotFound:
@@ -260,12 +253,13 @@ class DiskApiHandler:
         tree = await self._auth_client.get_permissions_tree(
             username, self._disk_cluster_uri
         )
-        org_name = request.query.get("org_name") or normalize_name(NO_ORG)
+        org_name = request.query.get("org_name")
         project_name = request.query["project_name"]
         disks = [
             disk
             for disk in await self._service.get_all_disks(
-                org_name=org_name, project_name=project_name
+                org_name=org_name,  # type: ignore[arg-type]
+                project_name=project_name,
             )
             if self._check_disk_read_perm(disk, tree)
         ]
@@ -365,12 +359,12 @@ async def create_app(config: Config) -> aiohttp.web.Application:
             app["disk_app"]["auth_client"] = auth_client
 
             logger.info("Initializing Kubernetes client")
-            kube_client = await exit_stack.enter_async_context(
-                KubeClient(config=config.kube)
+            kube_client_selector = await exit_stack.enter_async_context(
+                KubeClientSelector(config=config.kube)
             )
 
             logger.info("Initializing Service")
-            disk_service = Service(kube_client, config.disk.k8s_storage_class)
+            disk_service = Service(kube_client_selector, config.disk.k8s_storage_class)
             app["disk_app"]["service"] = disk_service
 
             await exit_stack.enter_async_context(

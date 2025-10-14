@@ -25,15 +25,15 @@ class TestUsageWatcher:
         service: Service,
     ) -> AsyncIterator[None]:
         kube_config.client_watch_timeout_s = 1
-        async with KubeClient(config=kube_config) as kube_client:
-            task = asyncio.create_task(watch_disk_usage(kube_client, service))
-            await asyncio.sleep(0)  # Allow task to start
-            yield
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        # async with KubeClient(config=kube_config) as kube_client:
+        task = asyncio.create_task(watch_disk_usage(service))
+        await asyncio.sleep(0)  # Allow task to start
+        yield
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     @pytest.fixture
     async def cleanup_task(self, service: Service) -> AsyncIterator[None]:
@@ -89,7 +89,7 @@ class TestUsageWatcher:
                 storage=1000,
                 life_span=timedelta(seconds=1),
                 project_name="test-project",
-                org_name="no-org",
+                org_name="test-org",
             ),
             "user",
         )
