@@ -164,7 +164,7 @@ class DiskApiHandler:
         try:
             return await self._service.resolve_disk(
                 disk_id_or_name=id_or_name,
-                org_name=org_name,  # type: ignore[arg-type]
+                org_name=org_name,
                 project_name=project_name,
             )
         except DiskNotFound:
@@ -258,7 +258,7 @@ class DiskApiHandler:
         disks = [
             disk
             for disk in await self._service.get_all_disks(
-                org_name=org_name,  # type: ignore[arg-type]
+                org_name=org_name,
                 project_name=project_name,
             )
             if self._check_disk_read_perm(disk, tree)
