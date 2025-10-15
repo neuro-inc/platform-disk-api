@@ -12,7 +12,6 @@ from apolo_kube_client import (
     escape_json_pointer,
 )
 from apolo_kube_client.apolo import (
-    create_namespace,
     generate_namespace_name,
 )
 from kubernetes.client.models import (
@@ -276,11 +275,6 @@ class Service:
         request: DiskRequest,
         username: str,
     ) -> Disk:
-        await create_namespace(
-            self._kube_client_selector.host_client,
-            request.org_name,
-            request.project_name,
-        )
         async with self._kube_client_selector.get_client(
             org_name=request.org_name, project_name=request.project_name
         ) as kube_client:

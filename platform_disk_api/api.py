@@ -159,7 +159,7 @@ class DiskApiHandler:
 
     async def _resolve_disk_from_request(self, request: Request) -> Disk:
         id_or_name = request.match_info["disk_id_or_name"]
-        org_name = request.query.get("org_name")
+        org_name = request.query["org_name"]
         project_name = request.query["project_name"]
         try:
             return await self._service.resolve_disk(
@@ -253,7 +253,7 @@ class DiskApiHandler:
         tree = await self._auth_client.get_permissions_tree(
             username, self._disk_cluster_uri
         )
-        org_name = request.query.get("org_name")
+        org_name = request.query["org_name"]
         project_name = request.query["project_name"]
         disks = [
             disk

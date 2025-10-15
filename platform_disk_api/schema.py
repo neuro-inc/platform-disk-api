@@ -21,7 +21,7 @@ class DiskRequestSchema(Schema):
 
     @post_load
     def make_request(self, data: Any, **kwargs: Any) -> DiskRequest:
-        org_name = data.get("org_name")
+        org_name = data["org_name"]
         data["org_name"] = org_name
         return DiskRequest(**data)
 
