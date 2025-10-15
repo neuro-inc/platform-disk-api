@@ -27,7 +27,7 @@ neuro-logging = "25.10.0"
 aiohttp-cors = "0.8.1"
 uvloop = "^0.21.0"
 pydantic = "^2.12.1"
-apolo-events-client = "^25.8.0"
+apolo-events-client = "^25.10.0"
 apolo-kube-client = "^25.10.4"
 
 [tool.poetry.scripts]
