@@ -93,7 +93,10 @@ class TestService:
         )
         disk = await service.create_disk(request, "testuser")
         await service.remove_disk(disk)
-        assert await service.get_all_disks() == []
+        assert (
+            await service.get_all_disks(org_name=org_name, project_name=project_name)
+            == []
+        )
 
     async def test_get_disk(self, service: Service) -> None:
         org_name, project_name = uuid4().hex, uuid4().hex

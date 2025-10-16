@@ -10,15 +10,21 @@ from platform_disk_api.utils import utc_now
 
 def test_validate_disk_request_ok() -> None:
     request = DiskRequestSchema().load(
-        {"storage": 2000, "project_name": "test-project"}
+        {"storage": 2000, "project_name": "test-project", "org_name": "test-org"}
     )
     assert request.storage == 2000
     assert request.project_name == "test-project"
+    assert request.org_name == "test-org"
 
 
 def test_validate_disk_request_with_life_span_ok() -> None:
     request = DiskRequestSchema().load(
-        {"storage": 2000, "life_span": 3600, "project_name": "test-project"}
+        {
+            "storage": 2000,
+            "life_span": 3600,
+            "project_name": "test-project",
+            "org_name": "test-org",
+        }
     )
     assert request.storage == 2000
     assert request.life_span == timedelta(hours=1)
@@ -27,7 +33,12 @@ def test_validate_disk_request_with_life_span_ok() -> None:
 @pytest.mark.parametrize("name", ["cool-disk", "singleword", "word-1-digit"])
 def test_validate_disk_request_with_name_ok(name: str) -> None:
     request = DiskRequestSchema().load(
-        {"storage": 2000, "name": name, "project_name": "test-project"}
+        {
+            "storage": 2000,
+            "name": name,
+            "project_name": "test-project",
+            "org_name": "test-org",
+        }
     )
     assert request.storage == 2000
     assert request.name == name
@@ -37,7 +48,12 @@ def test_validate_disk_request_with_name_ok(name: str) -> None:
 def test_validate_disk_request_with_invalid_name_fail(name: str) -> None:
     with pytest.raises(ValidationError):
         DiskRequestSchema().load(
-            {"storage": 2000, "name": name, "project_name": "test-project"}
+            {
+                "storage": 2000,
+                "name": name,
+                "project_name": "test-project",
+                "org_name": "test-org",
+            }
         )
 
 

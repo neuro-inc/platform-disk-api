@@ -1,6 +1,5 @@
 from typing import Any
 
-from apolo_kube_client.apolo import NO_ORG, normalize_name
 from marshmallow import Schema, fields, post_load, validate
 
 from platform_disk_api.service import Disk, DiskRequest
@@ -18,17 +17,11 @@ class DiskRequestSchema(Schema):
         ],
     )
     project_name = fields.String(required=True)
-    org_name = fields.String(
-        required=False,
-        allow_none=True,
-    )
+    org_name = fields.String(required=True)
 
     @post_load
     def make_request(self, data: Any, **kwargs: Any) -> DiskRequest:
-        org_name = data.get("org_name") or NO_ORG
-        if org_name == NO_ORG:
-            # NO_ORG could come from API potentially, otherwise we won't normalize
-            org_name = normalize_name(org_name)
+        org_name = data["org_name"]
         data["org_name"] = org_name
         return DiskRequest(**data)
 

@@ -14,7 +14,11 @@ import aiohttp
 import aiohttp.web
 import pytest
 from apolo_events_client import EventsClientConfig
-from apolo_kube_client import KubeClient, KubeConfig, ResourceNotFound
+from apolo_kube_client import (
+    KubeClientSelector,
+    KubeConfig,
+    ResourceNotFound,
+)
 from apolo_kube_client.apolo import create_namespace
 from kubernetes.client.models import V1Namespace
 
@@ -63,11 +67,11 @@ async def k8s_storage_class() -> str:
 
 @pytest.fixture
 def service(
-    kube_client: KubeClient,
+    kube_selector: KubeClientSelector,
     k8s_storage_class: str,
 ) -> Service:
     return Service(
-        kube_client=kube_client,
+        kube_client_selector=kube_selector,
         storage_class_name=k8s_storage_class,
     )
 
@@ -84,7 +88,6 @@ def config_factory(
     kube_config: KubeConfig,
     cluster_name: str,
     k8s_storage_class: str,
-    kube_client: None,  # Force
     events_config: EventsClientConfig,
 ) -> Callable[..., Config]:
     def _f(**kwargs: Any) -> Config:
@@ -169,10 +172,12 @@ def cluster_name() -> str:
 
 @pytest.fixture
 async def scoped_namespace(
-    kube_client: KubeClient,
+    kube_selector: KubeClientSelector,
 ) -> AsyncIterator[tuple[V1Namespace, str, str]]:
     org, project = uuid4().hex, uuid4().hex
+    kube_client = kube_selector.host_client
     namespace = await create_namespace(kube_client, org, project)
+
     try:
         yield namespace, org, project
     finally:

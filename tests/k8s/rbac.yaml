@@ -45,6 +45,12 @@ rules:
   - apiGroups: ["neuromation.io"]
     resources: ["disknamings"]
     verbs: ["*"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["*"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["*"]
 
 ---
 

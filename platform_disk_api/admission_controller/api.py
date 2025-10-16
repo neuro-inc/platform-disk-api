@@ -21,6 +21,7 @@ from aiohttp.web_exceptions import (
 )
 from apolo_kube_client import (
     KubeClient,
+    KubeClientSelector,
     ResourceExists,
     V1DiskNamingCRD,
     V1DiskNamingCRDMetadata,
@@ -68,6 +69,7 @@ PATH_LABELS = "/metadata/labels"
 # endswith dash and number, e.g.: -0, -1, -2, etc
 RE_STATEFUL_SET_PVC_NAME_INDEX = re.compile(r"(?P<index>-\d+$)")
 
+KUBE_CLIENT_SELECTOR_KEY = web.AppKey("kube_client_selector", KubeClientSelector)
 KUBE_CLIENT_KEY = web.AppKey("kube_client", KubeClient)
 CONFIG_KEY = web.AppKey("config", Config)
 
@@ -213,8 +215,13 @@ class AdmissionControllerHandler:
             self._storage_class_name,
         )
         self._disk_service = Service(
-            kube_client=self._kube_client, storage_class_name=self._storage_class_name
+            kube_client_selector=self._kube_client_selector,
+            storage_class_name=self._storage_class_name,
         )
+
+    @property
+    def _kube_client_selector(self) -> KubeClientSelector:
+        return self._app[KUBE_CLIENT_SELECTOR_KEY]
 
     @property
     def _kube_client(self) -> KubeClient:
@@ -577,10 +584,11 @@ async def create_app(config: Config) -> web.Application:
     async def _init_app(app: web.Application) -> AsyncIterator[None]:
         async with AsyncExitStack() as exit_stack:
             LOGGER.info("Initializing Kube client")
-            kube_client = await exit_stack.enter_async_context(
-                KubeClient(config=config.kube)
+            kube_client_selector = await exit_stack.enter_async_context(
+                KubeClientSelector(config=config.kube)
             )
-            app[KUBE_CLIENT_KEY] = kube_client
+            app[KUBE_CLIENT_SELECTOR_KEY] = kube_client_selector
+            app[KUBE_CLIENT_KEY] = kube_client_selector.host_client
             await handler.init()
             yield
 

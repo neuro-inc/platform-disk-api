@@ -8,7 +8,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from apolo_kube_client import KubeClient, KubeClientUnauthorized, ResourceGone
+from apolo_kube_client import (
+    KubeClient,
+    KubeClientSelector,
+    KubeClientUnauthorized,
+    ResourceGone,
+)
 from neuro_logging import init_logging, new_trace_cm, setup_sentry
 
 from platform_disk_api.config import DiskUsageWatcherConfig
@@ -64,8 +69,9 @@ async def get_pvc_volumes_metrics(
                     pass
 
 
-async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:  # noqa: C901
+async def watch_disk_usage(service: Service) -> None:  # noqa: C901
     resource_version: str | None = None
+    kube_client = service._kube_client_selector.host_client
     while True:
         try:
             if resource_version is None:
@@ -112,9 +118,8 @@ async def watch_disk_usage(kube_client: KubeClient, service: Service) -> None:  
             logger.exception("Failed to update disk usage")
 
 
-async def watch_used_bytes(
-    kube_client: KubeClient, service: Service, check_interval: float = 60
-) -> None:
+async def watch_used_bytes(service: Service, check_interval: float = 60) -> None:
+    kube_client = service._kube_client_selector.host_client
     while True:
         try:
             async with new_trace_cm(name="watch_used_bytes"):
@@ -137,7 +142,7 @@ async def watch_lifespan_ended(service: Service, check_interval: float = 600) ->
     while True:
         try:
             async with new_trace_cm(name="watch_lifespan_ended"):
-                for disk in await service.get_all_disks():
+                for disk in await service.get_all_namespaces_disks():
                     if disk.life_span is None:
                         continue
                     lifespan_start = disk.last_usage or disk.created_at
@@ -151,15 +156,15 @@ async def watch_lifespan_ended(service: Service, check_interval: float = 600) ->
 
 
 async def async_main(config: DiskUsageWatcherConfig) -> None:
-    async with KubeClient(config=config.kube) as kube_client:
+    async with KubeClientSelector(config=config.kube) as kube_client_selector:
         # We are not going to create disks using this service
         # instance, so its safe to provide invalid storage
         # class name
-        service = Service(kube_client, "fake invalid value")
+        service = Service(kube_client_selector, "fake invalid value")
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(watch_disk_usage(kube_client, service))
+            tg.create_task(watch_disk_usage(service))
             tg.create_task(watch_lifespan_ended(service))
-            tg.create_task(watch_used_bytes(kube_client, service))
+            tg.create_task(watch_used_bytes(service))
 
 
 def main() -> None:  # pragma: no coverage
