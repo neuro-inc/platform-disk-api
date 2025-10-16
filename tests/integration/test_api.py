@@ -538,7 +538,7 @@ class TestApi:
         async with client.get(
             disk_api.project_disk_url(project),
             headers=user.headers,
-            params={"org_name": org},
+            params={"project_name": project, "org_name": org},
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
