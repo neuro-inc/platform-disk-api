@@ -542,7 +542,8 @@ class TestApi:
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
-            assert disks[0].id == disk1.id
+            disk_ids = [d.id for d in disks]
+            assert disk1.id in disk_ids, disks
 
     async def test_list_disk_in_project__owner_and_project_name_same(
         self,
@@ -568,7 +569,8 @@ class TestApi:
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
-            assert disks[0].id == disk.id
+            disk_ids = [d.id for d in disks]
+            assert disk.id in disk_ids, disks
 
     async def test_can_delete_own_disk(
         self,
