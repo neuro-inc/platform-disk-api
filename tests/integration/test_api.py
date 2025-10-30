@@ -542,7 +542,7 @@ class TestApi:
         ) as resp:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
-            assert disks[0].id == disk1.id
+            assert disks[0].id == disk1.id, disks
 
     async def test_list_disk_in_project__owner_and_project_name_same(
         self,
