@@ -9,15 +9,14 @@ from uuid import uuid4
 from apolo_kube_client import (
     KubeClientSelector,
     ResourceNotFound,
+    V1ObjectMeta,
+    V1PersistentVolumeClaim,
+    V1PersistentVolumeClaimSpec,
+    V1VolumeResourceRequirements,
     escape_json_pointer,
 )
 from apolo_kube_client.apolo import (
     generate_namespace_name,
-)
-from kubernetes.client.models import (
-    V1ObjectMeta,
-    V1PersistentVolumeClaim,
-    V1PersistentVolumeClaimSpec,
 )
 
 from .utils import (
@@ -164,7 +163,9 @@ class Service:
             spec=V1PersistentVolumeClaimSpec(
                 access_modes=["ReadWriteOnce"],
                 volume_mode="Filesystem",
-                resources={"requests": {"storage": request.storage}},
+                resources=V1VolumeResourceRequirements(
+                    requests={"storage": str(request.storage)}
+                ),
                 storage_class_name=self._storage_class_name or None,
             ),
         )
@@ -256,6 +257,8 @@ class Service:
 
         storage = _storage_str_to_int(storage_str)
 
+        assert pvc.metadata.name is not None
+        assert pvc.status.phase is not None
         return Disk(
             id=pvc.metadata.name,
             storage=storage,
