@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator, Iterable
 from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
 from apolo_kube_client import (
     KubeClient,
@@ -48,22 +47,23 @@ async def get_pvc_volumes_metrics(
     node_list = await kube_client.core_v1.node.get_list()
     for node in node_list.items:
         try:
-            stats: dict[str, Any] = await kube_client.core_v1.node.get_stats_summary(  # type: ignore
-                node.metadata.name
-            )
+            assert node.metadata.name is not None
+            stats = await kube_client.core_v1.node.get_stats_summary(node.metadata.name)
         except Exception as exc:
             logger.exception(
                 "Failed to get stats for node %s: %s", node.metadata.name, exc
             )
             continue
 
-        for pod in stats.get("pods", []):
-            for volume in pod.get("volume", []):
+        for pod in stats.pods:
+            for volume in pod.volume:
+                if volume.pvc_ref is None:
+                    continue
                 try:
                     yield PVCVolumeMetrics(
-                        namespace=pod["podRef"]["namespace"],
-                        pvc_name=volume["pvcRef"]["name"],
-                        used_bytes=volume["usedBytes"],
+                        namespace=pod.pod_ref.namespace,
+                        pvc_name=volume.pvc_ref.name,
+                        used_bytes=volume.used_bytes,
                     )
                 except KeyError:
                     pass
@@ -82,11 +82,13 @@ async def watch_disk_usage(service: Service) -> None:  # noqa: C901
                     now = utc_now()
                     namespace_pvcs = set()
                     for pod in pod_list.items:
+                        assert pod.spec is not None
                         for pvc_claim_name in [
                             v.persistent_volume_claim.claim_name
                             for v in pod.spec.volumes
                             if v.persistent_volume_claim
                         ]:
+                            assert pod.metadata.namespace
                             namespace_pvcs.add((pod.metadata.namespace, pvc_claim_name))
                     await update_last_used(service, namespace_pvcs, now)
                     resource_version = pod_list.metadata.resource_version
@@ -98,11 +100,13 @@ async def watch_disk_usage(service: Service) -> None:  # noqa: C901
                 async for event in event_stream:
                     async with new_trace_cm(name="watch_disk_usage"):
                         namespace_pvcs = set()
+                        assert event.object.spec is not None
                         for pvc_claim_name in [
                             v.persistent_volume_claim.claim_name
                             for v in event.object.spec.volumes
                             if v.persistent_volume_claim
                         ]:
+                            assert event.object.metadata.namespace is not None
                             namespace_pvcs.add(
                                 (event.object.metadata.namespace, pvc_claim_name)
                             )

@@ -15,7 +15,7 @@ from apolo_events_client import (
     Tag,
 )
 from apolo_events_client.pytest import EventsQueues
-from kubernetes.client.models import V1Namespace
+from apolo_kube_client import V1Namespace
 
 from platform_disk_api.api import create_app
 from platform_disk_api.config import Config

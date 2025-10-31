@@ -4,15 +4,16 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from apolo_kube_client import KubeClient, ResourceExists
-from apolo_kube_client.apolo import generate_namespace_name
-from kubernetes.client.models import (
+from apolo_kube_client import (
+    KubeClient,
+    ResourceExists,
     V1Namespace,
     V1ObjectMeta,
     V1PersistentVolumeClaim,
     V1PersistentVolumeClaimSpec,
-    V1ResourceRequirements,
+    V1VolumeResourceRequirements,
 )
+from apolo_kube_client.apolo import generate_namespace_name
 
 from platform_disk_api.service import (
     Disk,
@@ -181,7 +182,7 @@ class TestService:
             ),
             spec=V1PersistentVolumeClaimSpec(
                 access_modes=["ReadWriteOnce"],
-                resources=V1ResourceRequirements(requests={"storage": 200}),
+                resources=V1VolumeResourceRequirements(requests={"storage": "200"}),
                 volume_mode="Filesystem",
                 storage_class_name="no-way",
             ),
@@ -215,7 +216,7 @@ class TestService:
             ),
             spec=V1PersistentVolumeClaimSpec(
                 access_modes=["ReadWriteOnce"],
-                resources=V1ResourceRequirements(requests={"storage": 200}),
+                resources=V1VolumeResourceRequirements(requests={"storage": "200"}),
                 volume_mode="Filesystem",
                 storage_class_name="no-way",
             ),

@@ -18,9 +18,9 @@ from apolo_kube_client import (
     KubeClientSelector,
     KubeConfig,
     ResourceNotFound,
+    V1Namespace,
 )
 from apolo_kube_client.apolo import create_namespace
-from kubernetes.client.models import V1Namespace
 
 from platform_disk_api.config import (
     AuthConfig,
@@ -181,6 +181,7 @@ async def scoped_namespace(
     try:
         yield namespace, org, project
     finally:
+        assert namespace.metadata.name is not None
         await kube_client.core_v1.namespace.delete(name=namespace.metadata.name)
 
         # deletion of namespace also deletes all the resources in it,

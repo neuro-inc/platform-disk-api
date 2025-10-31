@@ -11,13 +11,11 @@ from apolo_kube_client import (
     V1DiskNamingCRD,
     V1DiskNamingCRDMetadata,
     V1DiskNamingCRDSpec,
-)
-from apolo_kube_client.apolo import NO_ORG, create_namespace, normalize_name
-from kubernetes.client.models import (
     V1ObjectMeta,
     V1PersistentVolumeClaim,
     V1PersistentVolumeClaimSpec,
 )
+from apolo_kube_client.apolo import NO_ORG, create_namespace, normalize_name
 from neuro_logging import (
     init_logging,
 )
@@ -91,6 +89,7 @@ async def migration_loop(
 
         for pvc in pvc_list.items:
             pvc_name = pvc.metadata.name
+            assert pvc_name is not None
             if disk_ids_filter and pvc_name not in disk_ids_filter:
                 continue
 
@@ -163,6 +162,7 @@ async def migrate_disk(
         # remove a claim reference from the PV to release it
         await remove_claim_ref(kube_client, pv_name)
 
+    assert new_namespace.metadata.name is not None
     # create a PVC in a new namespace
     await create_pvc(
         kube_client,
@@ -261,6 +261,7 @@ async def ensure_pvc_deletable(
     """
     pod_list = await kube_client.core_v1.pod.get_list(all_namespaces=True)
     for pod in pod_list.items:
+        assert pod.spec is not None
         pvc_in_use = {
             v.persistent_volume_claim.claim_name
             for v in pod.spec.volumes
@@ -339,8 +340,8 @@ async def create_pvc(
     annotations = {}
 
     for annotation_key in DISK_ANNOTATION_MAP.keys():
-        if annotation_key in old_metadata["annotations"]:
-            annotation_value = old_metadata["annotations"][annotation_key]
+        if annotation_key in old_metadata.annotations:
+            annotation_value = old_metadata.annotations[annotation_key]
             apolo_annotation_key = DISK_ANNOTATION_MAP[annotation_key]
             annotations[annotation_key] = annotation_value
             annotations[apolo_annotation_key] = annotation_value
@@ -360,7 +361,7 @@ async def create_pvc(
         metadata=V1ObjectMeta(
             name=pvc_name,
             namespace=namespace,
-            uid=old_metadata["uid"],  # keep old UID so PV can claim the new PVC
+            uid=old_metadata.uid,  # keep old UID so PV can claim the new PVC
             labels={
                 APOLO_ORG_LABEL: org_name,
                 DISK_API_ORG_LABEL: org_name,
@@ -368,8 +369,8 @@ async def create_pvc(
                 DISK_API_PROJECT_LABEL: project_name,
                 DISK_API_MARK_LABEL: "true",
                 APOLO_DISK_API_MARK_LABEL: "true",
-                USER_LABEL: old_metadata["labels"][USER_LABEL],
-                APOLO_USER_LABEL: old_metadata["labels"][USER_LABEL],
+                USER_LABEL: old_metadata.labels[USER_LABEL],
+                APOLO_USER_LABEL: old_metadata.labels[USER_LABEL],
             },
             annotations=annotations,
         ),

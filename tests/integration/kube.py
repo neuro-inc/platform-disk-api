@@ -13,8 +13,6 @@ from apolo_kube_client import (
     KubeClientSelector,
     KubeConfig,
     ResourceNotFound,
-)
-from kubernetes.client.models import (
     V1Container,
     V1ObjectMeta,
     V1PersistentVolumeClaimVolumeSource,
@@ -111,6 +109,7 @@ async def run_pod(
     )
     pod = await kube_client.core_v1.pod.create(namespace=namespace, model=pod)
     yield pod
+    assert pod.metadata.name is not None
     await kube_client.core_v1.pod.delete(namespace=namespace, name=pod.metadata.name)
 
 
@@ -121,6 +120,7 @@ async def kube_selector(kube_config: KubeConfig) -> AsyncIterator[KubeClientSele
             all_namespaces=True
         )
         for pvc in pvc_list.items:
+            assert pvc.metadata.name is not None
             try:
                 await kube_client.core_v1.persistent_volume_claim.delete(
                     name=pvc.metadata.name,
