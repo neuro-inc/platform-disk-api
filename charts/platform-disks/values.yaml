@@ -103,15 +103,5 @@ admissionController:
     operations: [CREATE]
     resources: [persistentvolumeclaims]
     scope: '*'
-  - apiGroups: ["discovery.k8s.io"]
-    apiVersions: [v1]
-    operations: [GET, LIST]
-    resources: [endpointslices]
-    scope: '*'
-  - apiGroups: ["networking.k8s.io"]
-    apiVersions: [v1]
-    operations: [GET, LIST, CREATE, UPDATE]
-    resources: [networkpolicies]
-    scope: '*'
   reinvocationPolicy: IfNeeded
   failurePolicy: Fail
