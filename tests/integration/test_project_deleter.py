@@ -56,7 +56,7 @@ async def test_deleter(
         await disk_factory("disk1")
         await disk_factory("disk2")
 
-        disks = await service.get_all_disks(org, project)
+        disks = await service.get_all_disks(org, project, ensure_namespace=False)
         assert len(disks) == 2
 
         await events_queues.outcome.put(
@@ -82,5 +82,5 @@ async def test_deleter(
         assert isinstance(ev, Ack)
         assert ev.events[StreamType("platform-admin")] == ["123"]
 
-        disks = await service.get_all_disks(org, project)
+        disks = await service.get_all_disks(org, project, ensure_namespace=False)
         assert disks == []
