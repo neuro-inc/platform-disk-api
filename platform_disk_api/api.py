@@ -418,8 +418,8 @@ async def create_app(config: Config) -> aiohttp.web.Application:
 
 
 def main() -> None:  # pragma: no coverage
-    init_logging()
-    setup_sentry()
+    init_logging(health_check_url_path="/ping")
+    setup_sentry(health_check_url_path="/ping")
     config = EnvironConfigFactory().create()
     logging.info("Loaded config: %r", config)
     loop = uvloop.new_event_loop()

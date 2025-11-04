@@ -28,7 +28,7 @@ async def create_ssl_context(config: Config) -> ssl.SSLContext | None:
 
 def main() -> None:
     init_logging(health_check_url_path="/ping")
-    setup_sentry()
+    setup_sentry(health_check_url_path="/ping")
 
     config = EnvironConfigFactory().create()
     LOGGER.info("Loaded config: %s", config)
