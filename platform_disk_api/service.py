@@ -7,6 +7,7 @@ from typing import TypeVar
 from uuid import uuid4
 
 from apolo_kube_client import (
+    KubeClientException,
     KubeClientSelector,
     ResourceNotFound,
     V1ObjectMeta,
@@ -319,18 +320,29 @@ class Service:
             logger.exception("get_disk_by_name: unhandled error")
             raise DiskNotFound from None
 
-    async def get_all_disks(self, org_name: str, project_name: str) -> list[Disk]:
+    async def get_all_disks(
+        self,
+        org_name: str,
+        project_name: str,
+        *,
+        ensure_namespace: bool = True,
+    ) -> list[Disk]:
         label_selectors = [
             f"{DISK_API_MARK_LABEL}=true",  # is apolo disk
             f"!{DISK_API_DELETED_LABEL}",  # not deleted
         ]
 
         async with self._kube_client_selector.get_client(
-            org_name=org_name, project_name=project_name
+            org_name=org_name,
+            project_name=project_name,
+            ensure_namespace=ensure_namespace,
         ) as kube_client:
-            pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
-                label_selector=",".join(label_selectors)
-            )
+            try:
+                pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
+                    label_selector=",".join(label_selectors)
+                )
+            except KubeClientException:
+                return []
         return [await self._pvc_to_disk(pvc) for pvc in pvc_list.items]
 
     async def get_all_namespaces_disks(
@@ -346,10 +358,12 @@ class Service:
         )
         return [await self._pvc_to_disk(pvc) for pvc in pvc_list.items]
 
-    async def remove_disk(self, disk: Disk) -> None:
+    async def remove_disk(self, disk: Disk, *, ensure_namespace: bool = True) -> None:
         try:
             async with self._kube_client_selector.get_client(
-                org_name=disk.org_name, project_name=disk.project_name
+                org_name=disk.org_name,
+                project_name=disk.project_name,
+                ensure_namespace=ensure_namespace,
             ) as kube_client:
                 if disk.name:
                     disk_naming_name = self.get_disk_naming_name(
