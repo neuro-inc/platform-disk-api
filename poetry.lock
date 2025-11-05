@@ -313,14 +313,14 @@ pytest = ["pytest (>=8.4.1)", "pytest-aiohttp (>=1.1.0)", "pytest-asyncio (>=1.0
 
 [[package]]
 name = "apolo-kube-client"
-version = "25.11.1"
+version = "25.11.2"
 description = "Apolo internal client for kubernetes API"
 optional = false
 python-versions = "<4.0,>=3.13"
 groups = ["main"]
 files = [
-    {file = "apolo_kube_client-25.11.1-py3-none-any.whl", hash = "sha256:2cf9bd4d9cfcabe17feb2bb6b568fea52a9caa9a3ea88192fc9b44d04200f6e1"},
-    {file = "apolo_kube_client-25.11.1.tar.gz", hash = "sha256:ace7513bdb69bd76f6d558b6df77c4c86cd6fbb1cbc71d328b448f92bdc39aff"},
+    {file = "apolo_kube_client-25.11.2-py3-none-any.whl", hash = "sha256:510565bc99280c9be018163e407250a1c09e2e018093855301d2711bd36975de"},
+    {file = "apolo_kube_client-25.11.2.tar.gz", hash = "sha256:f7785ec822cb95327c5d1286aefae4d99bb95e8bf3604a931f754d4deed628f0"},
 ]
 
 [package.dependencies]
@@ -2568,7 +2568,6 @@ files = [
     {file = "yarl-1.22.0.tar.gz", hash = "sha256:bebf8557577d4401ba8bd9ff33906f1376c877aa78d1fe216ad01b4d6745af71"},
 ]
 
-
 [package.dependencies]
 idna = ">=2.0"
 multidict = ">=4.0"
@@ -2577,4 +2576,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13,<4.0"
-content-hash = "e4ccc434c54692f0ae2a1207fb29b4361508a6a1674da376994eecdedfa5a450"
+content-hash = "e07ae20c8c7f59f5cf441d0b67fc0a8492346201c4b2830510ca770fec49d1a7"
