@@ -38,7 +38,7 @@ platform-disk-admission-controller = "platform_disk_api.admission_controller.__m
 
 [tool.poetry.group.dev.dependencies]
 mypy = "1.18.2"
-pre-commit = "4.3.0"
+pre-commit = "4.4.0"
 aiodocker = "0.24.0"
 pytest = "8.4.2"
 pytest-asyncio = "1.2.0"
