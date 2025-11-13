@@ -1,5 +1,4 @@
 import datetime
-import json
 from datetime import timedelta
 from uuid import uuid4
 
@@ -66,7 +65,7 @@ class TestService:
         expected_error_message_part = (
             f"Disk with name test--{org_name}--{project_name} already exists"
         )
-        assert expected_error_message_part in json.loads(e.value.args[0])["message"]
+        assert expected_error_message_part in e.value.args[0].message
 
     async def test_can_create_disk_with_same_name_after_delete(
         self, service: Service
