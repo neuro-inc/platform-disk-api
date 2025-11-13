@@ -2412,25 +2412,25 @@ test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess
 
 [[package]]
 name = "webargs"
-version = "8.7.0"
+version = "8.7.1"
 description = "Declarative parsing and validation of HTTP request objects, with built-in support for popular web frameworks, including Flask, Django, Bottle, Tornado, Pyramid, Falcon, and aiohttp."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "webargs-8.7.0-py3-none-any.whl", hash = "sha256:4571de9ff5aac98ef528d9cecd7dbc0e05c0e9149e8293a01d1d1398abfcf780"},
-    {file = "webargs-8.7.0.tar.gz", hash = "sha256:0c617dec19ed4f1ff6b247cd73855e949d87052d71900938b71f0cafd92f191b"},
+    {file = "webargs-8.7.1-py3-none-any.whl", hash = "sha256:a184aed9d2509e6e14ab99ee3e9dc3a614c7070affe94cd4dfdb0d002e0a6e5f"},
+    {file = "webargs-8.7.1.tar.gz", hash = "sha256:799bf9039c76c23fd8dc1951107a75a9e561203c15d6ae8f89c1e46e234636c1"},
 ]
 
 [package.dependencies]
-marshmallow = ">=3.0.0"
+marshmallow = ">=3.13.0,<5.0.0"
 packaging = ">=17.0"
 
 [package.extras]
 dev = ["pre-commit (>=3.5,<5.0)", "tox", "webargs[tests]"]
-docs = ["Sphinx (==8.2.3)", "furo (==2024.8.6)", "sphinx-issues (==5.0.1)", "webargs[frameworks]"]
+docs = ["Sphinx (==8.2.3)", "furo (==2025.9.25)", "sphinx-issues (==5.0.1)", "webargs[frameworks]"]
 frameworks = ["Django (>=2.2.0)", "Flask (>=0.12.5)", "aiohttp (>=3.0.8)", "bottle (>=0.12.13)", "falcon (>=2.0.0)", "pyramid (>=1.9.1)", "tornado (>=4.5.2)"]
-tests = ["packaging (>=17.0)", "pytest", "pytest-aiohttp (>=0.3.0)", "pytest-asyncio", "webargs[frameworks]", "webtest (==3.0.4)", "webtest-aiohttp (==2.0.0)"]
+tests = ["packaging (>=17.0)", "pytest", "pytest-aiohttp (>=0.3.0)", "pytest-asyncio", "webargs[frameworks]", "webtest (==3.0.7)", "webtest-aiohttp (==2.0.0)"]
 
 [[package]]
 name = "yarl"
