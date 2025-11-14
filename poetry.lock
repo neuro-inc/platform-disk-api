@@ -272,14 +272,14 @@ files = [
 
 [[package]]
 name = "apispec"
-version = "6.8.2"
+version = "6.8.4"
 description = "A pluggable API specification generator. Currently supports the OpenAPI Specification (f.k.a. the Swagger specification)."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "apispec-6.8.2-py3-none-any.whl", hash = "sha256:43c52ab6aa7d4056c1dfc6c81310c659b29f4db5858b3b4351819b77d3a1afff"},
-    {file = "apispec-6.8.2.tar.gz", hash = "sha256:ce5b69b9fcf0250cb56ba0c1a52a75ff22c2f7c586654e57884399018c519f26"},
+    {file = "apispec-6.8.4-py3-none-any.whl", hash = "sha256:18d6cfaf6a9742d4f9a8f364bfabb7e8884983e10b155ad13616e084f47164ef"},
+    {file = "apispec-6.8.4.tar.gz", hash = "sha256:fd0ed14af71a2949d9aeb96b72ce1517cb4a48a5c55667cd0483b7ed33156a2a"},
 ]
 
 [package.dependencies]
@@ -289,7 +289,7 @@ packaging = ">=21.3"
 dev = ["apispec[tests]", "pre-commit (>=3.5,<5.0)", "tox"]
 docs = ["apispec[marshmallow]", "pyyaml (==6.0.2)", "sphinx (==8.2.3)", "sphinx-issues (==5.0.1)", "sphinx-rtd-theme (==3.0.2)"]
 marshmallow = ["marshmallow (>=3.18.0)"]
-tests = ["apispec[marshmallow,yaml]", "openapi-spec-validator (==0.7.1)", "pytest"]
+tests = ["apispec[marshmallow,yaml]", "openapi-spec-validator (==0.7.2)", "pytest"]
 yaml = ["PyYAML (>=3.10)"]
 
 [[package]]
