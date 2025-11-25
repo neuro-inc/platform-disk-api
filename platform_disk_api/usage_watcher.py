@@ -146,7 +146,7 @@ async def watch_lifespan_ended(service: Service, check_interval: float = 600) ->
     while True:
         try:
             async with new_trace_cm(name="watch_lifespan_ended"):
-                for disk in await service.get_all_namespaces_disks():
+                for disk in await service.get_all_disks():
                     if disk.life_span is None:
                         continue
                     lifespan_start = disk.last_usage or disk.created_at
