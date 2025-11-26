@@ -7,6 +7,7 @@ from typing import Literal
 
 from apolo_kube_client import (
     KubeClient,
+    PatchAdd,
     ResourceNotFound,
     V1DiskNamingCRD,
     V1DiskNamingCRDMetadata,
@@ -226,11 +227,10 @@ async def update_reclaim_policy(
     logger.info("updating reclaim policy: %s", pv_name)
 
     patch_json_list = [
-        {
-            "op": "add",
-            "path": "/spec/persistentVolumeReclaimPolicy",
-            "value": policy,
-        }
+        PatchAdd(
+            path="/spec/persistentVolumeReclaimPolicy",
+            value=policy,
+        )
     ]
     await kube_client.core_v1.persistent_volume.patch_json(
         name=pv_name, patch_json_list=patch_json_list
@@ -291,15 +291,14 @@ async def remove_claim_ref(
     logger.info("removing claim ref: %s", pv_name)
 
     patch_json_list = [
-        {
-            "op": "add",
-            "path": "/spec/claimRef",
-            "value": None,
-        }
+        PatchAdd(
+            path="/spec/claimRef",
+            value=None,
+        )
     ]
     await kube_client.core_v1.persistent_volume.patch_json(
         name=pv_name,
-        patch_json_list=patch_json_list,  # type: ignore
+        patch_json_list=patch_json_list,
     )
 
     logger.info("claim ref removed: %s", pv_name)

@@ -9,6 +9,7 @@ from uuid import uuid4
 from apolo_kube_client import (
     KubeClientException,
     KubeClientSelector,
+    PatchAdd,
     ResourceNotFound,
     V1ObjectMeta,
     V1PersistentVolumeClaim,
@@ -384,23 +385,21 @@ class Service:
                         pass  # already removed
 
                 patch_json_list = [
-                    {
-                        "op": "add",
-                        "path": f"/metadata/labels/"
+                    PatchAdd(
+                        path=f"/metadata/labels/"
                         f"{escape_json_pointer(DISK_API_DELETED_LABEL)}",
-                        "value": "true",
-                    },
-                    {
-                        "op": "add",
-                        "path": f"/metadata/labels/"
+                        value="true",
+                    ),
+                    PatchAdd(
+                        path=f"/metadata/labels/"
                         f"{escape_json_pointer(APOLO_DISK_API_DELETED_LABEL)}",
-                        "value": "true",
-                    },
+                        value="true",
+                    ),
                 ]
 
                 await kube_client.core_v1.persistent_volume_claim.patch_json(
                     name=disk.id,
-                    patch_json_list=patch_json_list,  # type: ignore
+                    patch_json_list=patch_json_list,
                 )
                 await kube_client.core_v1.persistent_volume_claim.delete(
                     name=disk.id,
@@ -414,24 +413,22 @@ class Service:
         time_dump = datetime_dump(time)
 
         patch_json_list = [
-            {
-                "op": "add",
-                "path": f"/metadata/annotations/"
+            PatchAdd(
+                path=f"/metadata/annotations/"
                 f"{escape_json_pointer(DISK_API_LAST_USAGE_ANNOTATION)}",
-                "value": time_dump,
-            },
-            {
-                "op": "add",
-                "path": f"/metadata/annotations/"
+                value=time_dump,
+            ),
+            PatchAdd(
+                path=f"/metadata/annotations/"
                 f"{escape_json_pointer(APOLO_DISK_API_LAST_USAGE_ANNOTATION)}",
-                "value": time_dump,
-            },
+                value=time_dump,
+            ),
         ]
         try:
             kube_client = self._kube_client_selector.host_client
             await kube_client.core_v1.persistent_volume_claim.patch_json(
                 name=disk_id,
-                patch_json_list=patch_json_list,  # type: ignore
+                patch_json_list=patch_json_list,
                 namespace=namespace,
             )
         except ResourceNotFound:
@@ -443,24 +440,22 @@ class Service:
         used_bytes_dump = str(used_bytes)
 
         patch_json_list = [
-            {
-                "op": "add",
-                "path": f"/metadata/annotations/"
+            PatchAdd(
+                path=f"/metadata/annotations/"
                 f"{escape_json_pointer(DISK_API_USED_BYTES_ANNOTATION)}",
-                "value": used_bytes_dump,
-            },
-            {
-                "op": "add",
-                "path": f"/metadata/annotations/"
+                value=used_bytes_dump,
+            ),
+            PatchAdd(
+                path=f"/metadata/annotations/"
                 f"{escape_json_pointer(APOLO_DISK_API_USED_BYTES_ANNOTATION)}",
-                "value": used_bytes_dump,
-            },
+                value=used_bytes_dump,
+            ),
         ]
         try:
             kube_client = self._kube_client_selector.host_client
             await kube_client.core_v1.persistent_volume_claim.patch_json(
                 name=disk_id,
-                patch_json_list=patch_json_list,  # type: ignore
+                patch_json_list=patch_json_list,
                 namespace=namespace,
             )
         except ResourceNotFound:
