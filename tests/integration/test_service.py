@@ -35,7 +35,7 @@ class TestService:
         assert disk.storage >= request.storage
         assert disk.owner == "testuser"
         assert disk.project_name == project_name
-        disks = await service.get_all_disks(org_name, project_name)
+        disks = await service.get_project_disks(org_name, project_name)
         assert len(disks) == 1
         assert disks[0].id == disk.id
 
@@ -46,7 +46,7 @@ class TestService:
         )
         disk = await service.create_disk(request, "testuser")
         assert disk.org_name == org_name
-        disks = await service.get_all_disks(org_name, project_name)
+        disks = await service.get_project_disks(org_name, project_name)
         assert len(disks) == 1
         assert disks[0].org_name == org_name
 
@@ -94,7 +94,9 @@ class TestService:
         disk = await service.create_disk(request, "testuser")
         await service.remove_disk(disk)
         assert (
-            await service.get_all_disks(org_name=org_name, project_name=project_name)
+            await service.get_project_disks(
+                org_name=org_name, project_name=project_name
+            )
             == []
         )
 
@@ -196,7 +198,7 @@ class TestService:
             org_name=org,
         )
         disk_created = await service.create_disk(request, "testuser")
-        all_disks = await service.get_all_disks(org, project)
+        all_disks = await service.get_project_disks(org, project)
         assert len(all_disks) == 1
         assert all_disks[0].id == disk_created.id
 
@@ -236,7 +238,9 @@ class TestService:
             org_name=org,
         )
         disk_created = await service.create_disk(request, "testuser")
-        project_disks = await service.get_all_disks(org_name=org, project_name=project)
+        project_disks = await service.get_project_disks(
+            org_name=org, project_name=project
+        )
         assert len(project_disks) == 1
         assert project_disks[0].id == disk_created.id
 

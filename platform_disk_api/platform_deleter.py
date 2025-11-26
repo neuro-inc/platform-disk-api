@@ -44,7 +44,7 @@ class ProjectDeleter:
             assert ev.org
             assert ev.project
 
-            for disk in await self._disk_service.get_all_disks(
+            for disk in await self._disk_service.get_project_disks(
                 org_name=ev.org,
                 project_name=ev.project,
                 ensure_namespace=False,

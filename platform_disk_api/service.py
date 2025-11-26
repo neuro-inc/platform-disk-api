@@ -74,6 +74,8 @@ APOLO_DISK_API_LIFE_SPAN_ANNOTATION = "platform.apolo.us/disk-life-span"
 DISK_API_USED_BYTES_ANNOTATION = "platform.neuromation.io/disk-api-used-bytes"
 APOLO_DISK_API_USED_BYTES_ANNOTATION = "platform.apolo.us/disk-bytes-used"
 
+VCLUSTER_OBJECT_NAME_ANNOTATION = "vcluster.loft.sh/object-name"
+
 
 @dataclass(frozen=True)
 class DiskRequest:
@@ -259,9 +261,12 @@ class Service:
         storage = _storage_str_to_int(storage_str)
 
         assert pvc.metadata.name is not None
+        # in disks from vcluster accessed from host kube the name is mangled
+        disk_id = annotations.get(VCLUSTER_OBJECT_NAME_ANNOTATION, pvc.metadata.name)
+
         assert pvc.status.phase is not None
         return Disk(
-            id=pvc.metadata.name,
+            id=disk_id,
             storage=storage,
             status=status_map[pvc.status.phase],
             owner=username,
@@ -320,7 +325,7 @@ class Service:
             logger.exception("get_disk_by_name: unhandled error")
             raise DiskNotFound from None
 
-    async def get_all_disks(
+    async def get_project_disks(
         self,
         org_name: str,
         project_name: str,
@@ -345,7 +350,7 @@ class Service:
                 return []
         return [await self._pvc_to_disk(pvc) for pvc in pvc_list.items]
 
-    async def get_all_namespaces_disks(
+    async def get_all_disks(
         self,
     ) -> list[Disk]:
         label_selectors = [

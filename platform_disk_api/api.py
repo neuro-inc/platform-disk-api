@@ -151,7 +151,7 @@ class DiskApiHandler:
         return sum(
             [
                 int(d.storage)
-                for d in await self._service.get_all_disks(
+                for d in await self._service.get_project_disks(
                     disk_request.org_name, disk_request.project_name
                 )
             ]
@@ -257,7 +257,7 @@ class DiskApiHandler:
         project_name = request.query["project_name"]
         disks = [
             disk
-            for disk in await self._service.get_all_disks(
+            for disk in await self._service.get_project_disks(
                 org_name=org_name,
                 project_name=project_name,
             )
