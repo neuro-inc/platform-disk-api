@@ -23,10 +23,10 @@ class TestUsageWatcher:
     async def watcher_task(
         self,
         kube_config: KubeConfig,
-        kube_client_selector: KubeClientSelector,
+        kube_selector: KubeClientSelector,
         service: Service,
     ) -> AsyncIterator[None]:
-        kube_client_selector._config = replace(kube_config, client_watch_timeout_s=1)
+        kube_selector._config = replace(kube_config, client_watch_timeout_s=1)
         # async with KubeClient(config=kube_config) as kube_client:
         task = asyncio.create_task(watch_disk_usage(service))
         await asyncio.sleep(0)  # Allow task to start
