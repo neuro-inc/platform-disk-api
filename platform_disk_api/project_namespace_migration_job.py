@@ -10,7 +10,6 @@ from apolo_kube_client import (
     PatchAdd,
     ResourceNotFound,
     V1DiskNamingCRD,
-    V1DiskNamingCRDMetadata,
     V1DiskNamingCRDSpec,
     V1ObjectMeta,
     V1PersistentVolumeClaim,
@@ -185,6 +184,7 @@ async def migrate_disk(
 
     # remove old disk naming
     logger.info("removing an old disk naming: %s", disk_naming)
+    assert disk_naming.metadata.name is not None
     await kube_client.neuromation_io_v1.disk_naming.delete(
         name=disk_naming.metadata.name, namespace=CURRENT_NAMESPACE
     )
@@ -193,7 +193,7 @@ async def migrate_disk(
     # create a new disk naming
     new_disk_naming = V1DiskNamingCRD(
         kind="DiskNaming",
-        metadata=V1DiskNamingCRDMetadata(
+        metadata=V1ObjectMeta(
             name=disk_naming.metadata.name,
             namespace=new_namespace.metadata.name,
         ),

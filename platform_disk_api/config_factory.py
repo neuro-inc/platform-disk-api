@@ -4,7 +4,14 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from apolo_events_client import EventsClientConfig
-from apolo_kube_client import KubeClientAuthType, KubeConfig
+from apolo_kube_client import (
+    DEFAULT_CLIENT_CONN_POOL_SIZE as DEFAULT_KUBE_CLIENT_CONN_POOL_SIZE,
+    DEFAULT_CLIENT_CONN_TIMEOUT as DEFAULT_KUBE_CLIENT_CONN_TIMEOUT,
+    DEFAULT_CLIENT_READ_TIMEOUT as DEFAULT_KUBE_CLIENT_READ_TIMEOUT,
+    DEFAULT_CLIENT_WATCH_TIMEOUT as DEFAULT_KUBE_CLIENT_WATCH_TIMEOUT,
+    KubeClientAuthType,
+    KubeConfig,
+)
 from yarl import URL
 
 from .config import (
@@ -101,24 +108,21 @@ class EnvironConfigFactory:
             auth_cert_key_path=self._environ.get("NP_DISK_API_K8S_AUTH_CERT_KEY_PATH"),
             token=token,
             token_path=token_path,
-            namespace=self._environ.get(
-                "NP_DISK_API_K8S_NS", KubeConfig.model_fields["namespace"].default
-            ),
             client_conn_timeout_s=int(
                 self._environ.get("NP_DISK_API_K8S_CLIENT_CONN_TIMEOUT")
-                or KubeConfig.model_fields["client_conn_timeout_s"].default
+                or DEFAULT_KUBE_CLIENT_CONN_TIMEOUT
             ),
             client_read_timeout_s=int(
                 self._environ.get("NP_DISK_API_K8S_CLIENT_READ_TIMEOUT")
-                or KubeConfig.model_fields["client_read_timeout_s"].default
+                or DEFAULT_KUBE_CLIENT_READ_TIMEOUT
             ),
             client_watch_timeout_s=int(
                 self._environ.get("NP_DISK_API_K8S_CLIENT_WATCH_TIMEOUT")
-                or KubeConfig.model_fields["client_watch_timeout_s"].default
+                or DEFAULT_KUBE_CLIENT_WATCH_TIMEOUT
             ),
             client_conn_pool_size=int(
                 self._environ.get("NP_DISK_API_K8S_CLIENT_CONN_POOL_SIZE")
-                or KubeConfig.model_fields["client_conn_pool_size"].default
+                or DEFAULT_KUBE_CLIENT_CONN_POOL_SIZE
             ),
         )
 

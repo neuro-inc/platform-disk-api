@@ -378,7 +378,7 @@ class TestAdmissionController:
         assert len(disk_naming_list.items) == 2
 
         for idx, disk_naming in enumerate(
-            sorted(disk_naming_list.items, key=lambda d: d.metadata.name)
+            sorted(disk_naming_list.items, key=lambda d: str(d.metadata.name))
         ):
             assert disk_naming.metadata.name == f"{disk_name}-{idx}--{org}--{project}"
 

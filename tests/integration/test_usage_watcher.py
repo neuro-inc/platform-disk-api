@@ -1,10 +1,11 @@
 import asyncio
 from collections.abc import AsyncIterator
+from copy import replace
 from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from apolo_kube_client import KubeClient, KubeConfig
+from apolo_kube_client import KubeClient, KubeClientSelector, KubeConfig
 from apolo_kube_client.apolo import generate_namespace_name
 
 from platform_disk_api.service import DiskNotFound, DiskRequest, Service
@@ -22,9 +23,10 @@ class TestUsageWatcher:
     async def watcher_task(
         self,
         kube_config: KubeConfig,
+        kube_selector: KubeClientSelector,
         service: Service,
     ) -> AsyncIterator[None]:
-        kube_config.client_watch_timeout_s = 1
+        kube_selector._config = replace(kube_config, client_watch_timeout_s=1)
         # async with KubeClient(config=kube_config) as kube_client:
         task = asyncio.create_task(watch_disk_usage(service))
         await asyncio.sleep(0)  # Allow task to start
