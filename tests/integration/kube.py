@@ -72,7 +72,6 @@ async def kube_config(
         auth_cert_path=user["client-certificate"],
         auth_cert_key_path=user["client-key"],
         auth_type=KubeClientAuthType.CERTIFICATE,
-        namespace="default",
     )
 
 
@@ -132,6 +131,7 @@ async def kube_selector(kube_config: KubeConfig) -> AsyncIterator[KubeClientSele
             all_namespaces=True
         )
         for disk_naming in disk_naming_list.items:
+            assert disk_naming.metadata.name is not None
             await kube_client.neuromation_io_v1.disk_naming.delete(
                 name=disk_naming.metadata.name,
                 namespace=disk_naming.metadata.namespace,

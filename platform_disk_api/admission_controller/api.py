@@ -24,8 +24,8 @@ from apolo_kube_client import (
     KubeClientSelector,
     ResourceExists,
     V1DiskNamingCRD,
-    V1DiskNamingCRDMetadata,
     V1DiskNamingCRDSpec,
+    V1ObjectMeta,
 )
 
 from ..config import Config
@@ -484,7 +484,7 @@ class AdmissionControllerHandler:
             "will create a disk naming %s in namespace %s", disk_name, namespace
         )
         disk_naming = V1DiskNamingCRD(
-            metadata=V1DiskNamingCRDMetadata(
+            metadata=V1ObjectMeta(
                 name=disk_name,
                 namespace=namespace,
             ),
