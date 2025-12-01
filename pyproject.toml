@@ -37,7 +37,7 @@ platform-disk-project-namespace-migration-job = "platform_disk_api.project_names
 platform-disk-admission-controller = "platform_disk_api.admission_controller.__main__:main"
 
 [tool.poetry.group.dev.dependencies]
-mypy = "1.18.2"
+mypy = "1.19.0"
 pre-commit = "4.5.0"
 aiodocker = "0.24.0"
 pytest = "9.0.1"
