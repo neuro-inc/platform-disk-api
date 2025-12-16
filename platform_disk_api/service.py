@@ -20,6 +20,7 @@ from apolo_kube_client import (
     V1PersistentVolumeClaimSpec,
     V1VolumeResourceRequirements,
     escape_json_pointer,
+    V1Secret,
 )
 from apolo_kube_client.apolo import (
     generate_namespace_name,
@@ -436,7 +437,6 @@ class Service:
         return [await self._pvc_to_disk(pvc) for pvc in pvc_list.items]
 
     async def remove_disk(self, disk: Disk, *, ensure_namespace: bool = True) -> None:
-        namespace = generate_namespace_name(disk.org_name, disk.project_name)
         try:
             async with self._kube_client_selector.get_client(
                 org_name=disk.org_name,
@@ -448,6 +448,9 @@ class Service:
                         disk.name,
                         org_name=disk.org_name,
                         project_name=disk.project_name,
+                    )
+                    namespace = generate_namespace_name(
+                        org_name=disk.org_name, project_name=disk.project_name
                     )
                     try:
                         await self._host_client.neuromation_io_v1.disk_naming.delete(

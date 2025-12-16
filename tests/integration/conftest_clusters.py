@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import tempfile
 from asyncio import timeout
 from collections.abc import AsyncIterator, Iterator
@@ -14,10 +15,11 @@ from apolo_kube_client import (
     KubeClient,
     KubeConfig,
     ResourceNotFound,
-    V1Secret,
 )
 from apolo_kube_client.apolo import create_namespace
 
+
+logger = logging.getLogger(__name__)
 
 VCLUSTER_NAME = "vcluster"
 VCLUSTER_SECRET_NAME = "vc-vcluster"
@@ -34,7 +36,8 @@ VCLUSTER_SECRET_POLL_INTERVAL_S = 5
     ],
 )
 async def org_project(
-    request: pytest.FixtureRequest, kube_config: KubeConfig
+    request: pytest.FixtureRequest,
+    kube_config: KubeConfig,
 ) -> AsyncIterator[tuple[str, str]]:
     """
     Returns an org name and a project name.
@@ -95,13 +98,16 @@ async def _vcluster_environment(
     org_name: str,
     project_name: str,
 ) -> AsyncIterator[tuple[str, str]]:
-    with _make_localhost_connectable():
+    local_port = 8444
+    with _make_connectable_from_local(
+        local_port=local_port,
+    ):
         await _create_vcluster(namespace)
-        # we consider vcluster ready when secret being created
-        await _wait_for_vcluster_secret(kube_client, namespace)
+        await _wait_vcluster_ready(kube_client, namespace)
         remote_port = await _get_vcluster_service_port(kube_client, namespace)
         port_forward_proc, port_forward_drain_task = await _start_port_forward(
             namespace,
+            local_port=local_port,
             remote_port=remote_port,
         )
         try:
@@ -112,21 +118,21 @@ async def _vcluster_environment(
 
 
 @contextmanager
-def _make_localhost_connectable() -> Iterator[None]:
+def _make_connectable_from_local(local_port: int) -> Iterator[None]:
     """
     Patches a kube selector and ensures that the test-suite
     will be able to connect to a vcluster from localhost
     """
 
-    # new YAML callable that is used by a kube client selector
+    # new YAML callable that is used by a kube client selector,
+    # and will point to a localhost
     def safe_load(raw: bytes) -> dict[str, Any]:
         value = yaml.safe_load(raw)
-        value["clusters"][0]["cluster"]["server"] = "https://127.0.0.1:8443"
+        value["clusters"][0]["cluster"]["server"] = f"https://127.0.0.1:{local_port}"
         return value
 
     with patch("apolo_kube_client._vcluster._client_factory.yaml") as yaml_patch:
         yaml_patch.safe_load = safe_load
-
         yield
 
 
@@ -134,13 +140,13 @@ async def _create_vcluster(namespace_name: str) -> None:
     """
     Create a vcluster in the given namespace using a temporary config file.
     """
-    fqdn_host = f"{VCLUSTER_NAME}.{namespace_name}.svc.cluster.local"
+    in_kube_host = f"{VCLUSTER_NAME}.{namespace_name}.svc.cluster.local"
 
     config = {
         # ensure in-kube services can connect to a vcluster from within a host cluster
-        "controlPlane": {"proxy": {"extraSANs": [fqdn_host]}},
+        "controlPlane": {"proxy": {"extraSANs": [in_kube_host]}},
         "exportKubeConfig": {
-            "server": f"https://{fqdn_host}:443",
+            "server": f"https://{in_kube_host}:443",
             "secret": {"name": VCLUSTER_SECRET_NAME},
         },
     }
@@ -188,19 +194,34 @@ async def _create_vcluster(namespace_name: str) -> None:
                 pass
 
 
-async def _wait_for_vcluster_secret(
+async def _wait_vcluster_ready(
     kube_client: KubeClient,
     namespace_name: str,
-) -> V1Secret:
+) -> None:
+    vcluster_pod_name = "vcluster-0"
     async with timeout(VCLUSTER_CREATION_TIMEOUT_S):
         while True:
             try:
-                return await kube_client.core_v1.secret.get(
-                    name=VCLUSTER_SECRET_NAME,
+                pod = await kube_client.core_v1.pod.get(
+                    name=vcluster_pod_name,
                     namespace=namespace_name,
                 )
             except ResourceNotFound:
-                await asyncio.sleep(VCLUSTER_SECRET_POLL_INTERVAL_S)
+                pass
+            else:
+                # Ensure that the pod is running and all containers
+                # are fully ready (no waiting / terminating states).
+                if (pod.status.phase or "") == "Running":
+                    container_statuses = pod.status.container_statuses
+                    if container_statuses and all(
+                        status.ready
+                        and status.state.waiting is None
+                        and status.state.terminated is None
+                        for status in container_statuses
+                    ):
+                        return
+
+            await asyncio.sleep(VCLUSTER_SECRET_POLL_INTERVAL_S)
 
 
 async def _get_vcluster_service_port(
@@ -219,13 +240,14 @@ async def _get_vcluster_service_port(
 
 async def _start_port_forward(
     namespace_name: str,
+    local_port: int,
     remote_port: int,
 ) -> tuple[asyncio.subprocess.Process, asyncio.Task[None]]:
     port_forward_cmd = [
         "kubectl",
         "port-forward",
         f"svc/{VCLUSTER_NAME}",
-        f"{8443}:{remote_port}",
+        f"{local_port}:{remote_port}",
         "-n",
         namespace_name,
     ]

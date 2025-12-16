@@ -2,6 +2,7 @@ import asyncio
 import datetime
 from asyncio import timeout
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
 from apolo_kube_client import (
@@ -52,9 +53,10 @@ class TestService:
         org_project: tuple[str, str],
     ) -> None:
         org_name, project_name = org_project
+        disk_name = uuid4().hex
         request = DiskRequest(
             storage=1024 * 1024,
-            name="test",
+            name=disk_name,
             project_name=project_name,
             org_name=org_name,
         )
@@ -62,7 +64,7 @@ class TestService:
         with pytest.raises(DiskNameUsed) as e:
             await service.create_disk(request, "testuser")
 
-        expected_error_message_part = "Disk with name test already exists"
+        expected_error_message_part = f"Disk with name {disk_name} already exists"
         assert expected_error_message_part in e.value.args[0]
 
     async def test_can_create_disk_with_same_name_after_delete(
@@ -74,13 +76,13 @@ class TestService:
         org_name, project_name = org_project
         request = DiskRequest(
             storage=1024 * 1024,
-            name="test",
+            name=uuid4().hex,
             project_name=project_name,
             org_name=org_name,
         )
         disk = await service.create_disk(request, "testuser")
+        await asyncio.sleep(5)  # wait until will be synced
         await service.remove_disk(disk)
-        # eventually all names will be removed, let's wait for it
         await wait_no_namings(kube_client)
         await service.create_disk(request, "testuser")
 

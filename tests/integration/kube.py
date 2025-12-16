@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import subprocess
 import uuid
 from asyncio import timeout
@@ -22,6 +23,9 @@ from apolo_kube_client import (
     V1PodSpec,
     V1Volume,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="session")

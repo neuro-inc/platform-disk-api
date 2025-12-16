@@ -104,7 +104,6 @@ async def cleanup_disks(kube_client: KubeClient) -> AsyncIterator[None]:
                         namespace=pvc.metadata.namespace,
                     )
                 except ResourceNotFound:
-                    # Already gone; nothing to clean up.
                     pass
 
             disk_naming_list = await kube_client.neuromation_io_v1.disk_naming.get_list(
@@ -123,7 +122,6 @@ async def cleanup_disks(kube_client: KubeClient) -> AsyncIterator[None]:
                         namespace=disk_naming.metadata.namespace,
                     )
                 except ResourceNotFound:
-                    # Already gone; nothing to clean up.
                     pass
 
             if not pvc_list.items and not disk_naming_list.items:

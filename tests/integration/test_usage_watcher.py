@@ -107,13 +107,13 @@ class TestUsageWatcher:
         org_project: tuple[str, str],
     ) -> None:
         org, project = org_project
-        # give more waiting time for vcluster to sync
-        wait_for = 5.33 if org.startswith("vcluster") else 1.33
+        wait_for = 5
+        lifespan = (wait_for * 2) - 1
         namespace_name = generate_namespace_name(org, project)
         disk = await service.create_disk(
             DiskRequest(
                 storage=1000,
-                life_span=timedelta(seconds=2),
+                life_span=timedelta(seconds=lifespan),
                 project_name=project,
                 org_name=org,
             ),
