@@ -156,7 +156,11 @@ async def regular_user_factory(
     token_factory: Callable[[str], str],
     admin_token: str,
     cluster_name: str,
-) -> Callable[[str | None, bool, str | None, str | None], Coroutine[Any, Any, _User]]:
+) -> AsyncIterator[
+    Callable[[str | None, bool, str | None, str | None], Coroutine[Any, Any, _User]]
+]:
+    created_users: list[str] = []
+
     async def _factory(
         name: str | None = None,
         skip_grant: bool = False,
@@ -167,6 +171,7 @@ async def regular_user_factory(
             name = f"user-{random_name()}"
         user = AuthClientUser(name=name)
         await auth_client.add_user(user, token=admin_token)
+        created_users.append(user.name)
         if not skip_grant:
             org_path = f"/{org_name}" if org_name else ""
             project_path = f"/{project_name}" if project_name else ""
@@ -193,4 +198,12 @@ async def regular_user_factory(
 
         return _User(name=user.name, token=token_factory(user.name))
 
-    return _factory
+    try:
+        yield _factory
+    finally:
+        for user_name in created_users:
+            try:
+                await auth_client.delete_user(user_name, token=admin_token)
+            except Exception:
+                # User may already be removed; ignore cleanup errors.
+                pass

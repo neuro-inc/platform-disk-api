@@ -4,20 +4,24 @@ set -o errexit
 # based on
 # https://github.com/kubernetes/minikube#linux-continuous-integration-without-vm-support
 
-function k8s::install_minikube {
+function k8s::install {
     local minikube_version="v1.25.2"
     sudo apt-get update
     sudo apt-get install -y conntrack
     curl -Lo minikube https://storage.googleapis.com/minikube/releases/${minikube_version}/minikube-linux-amd64
     chmod +x minikube
     sudo mv minikube /usr/local/bin/
+
+    curl -L -o vcluster https://github.com/loft-sh/vcluster/releases/download/v0.30.3/vcluster-linux-amd64
+    sudo install -c -m 0755 vcluster /usr/local/bin
+    rm -f vcluster
 }
 
 function k8s::start {
  # ----------------------------------------------------------------------------
     # Bring up a local Minikube cluster with the “none” driver.
     # Preconditions:
-    #   * minikube binary already installed (see k8s::install_minikube)
+    #   * minikube binary already installed (see k8s::install)
     #   * Docker (or containerd) present on the host
     # ----------------------------------------------------------------------------
 
@@ -124,7 +128,7 @@ function wait_job() {
 
 case "${1:-}" in
     install)
-        k8s::install_minikube
+        k8s::install
         ;;
     start)
         k8s::start

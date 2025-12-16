@@ -1,4 +1,3 @@
-import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
@@ -116,13 +115,15 @@ async def grant_project_org_permission(
 
 
 @pytest.fixture
-def project() -> str:
-    return f"test-project-{uuid.uuid4()}"
+def org(org_project: tuple[str, str]) -> str:
+    org, _ = org_project
+    return org
 
 
 @pytest.fixture
-def org() -> str:
-    return f"test-project-{uuid.uuid4()}"
+def project(org_project: tuple[str, str]) -> str:
+    _, project = org_project
+    return project
 
 
 class TestApi:
@@ -347,7 +348,9 @@ class TestApi:
             assert resp.status == HTTPOk.status_code, await resp.text()
             disks: list[Disk] = DiskSchema(many=True).load(await resp.json())
             assert len(disks) == 1
-            assert disks[0] == disk
+            assert disks[0].id == disk.id
+            assert disks[0].storage == disk.storage
+            assert disks[0].name == disk.name
 
     async def test_disk_create_project_unauthorized(
         self,

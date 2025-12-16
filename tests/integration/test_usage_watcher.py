@@ -2,10 +2,9 @@ import asyncio
 from collections.abc import AsyncIterator
 from copy import replace
 from datetime import timedelta
-from uuid import uuid4
 
 import pytest
-from apolo_kube_client import KubeClient, KubeClientSelector, KubeConfig
+from apolo_kube_client import KubeClientProxy, KubeClientSelector, KubeConfig
 from apolo_kube_client.apolo import generate_namespace_name
 
 from platform_disk_api.service import DiskNotFound, DiskRequest, Service
@@ -51,11 +50,11 @@ class TestUsageWatcher:
     async def test_usage_watcher_updates_label(
         self,
         watcher_task: None,
-        kube_client: KubeClient,
+        scoped_kube_client: KubeClientProxy,
         service: Service,
+        org_project: tuple[str, str],
     ) -> None:
-        org, project = uuid4().hex, uuid4().hex
-        namespace_name = generate_namespace_name(org, project)
+        org, project = org_project
 
         async def wait_for_last_usage(disk_id: str) -> None:
             while True:
@@ -74,7 +73,7 @@ class TestUsageWatcher:
                 "user",
             )
             before_start = utc_now()
-            async with run_pod(kube_client, namespace_name, [disk.id]):
+            async with run_pod(scoped_kube_client, [disk.id]):
                 await asyncio.wait_for(wait_for_last_usage(disk.id), timeout=10)
 
             disk = await service.get_disk(disk.org_name, disk.project_name, disk.id)
@@ -85,13 +84,15 @@ class TestUsageWatcher:
         self,
         cleanup_task: None,
         service: Service,
+        org_project: tuple[str, str],
     ) -> None:
+        org, project = org_project
         disk = await service.create_disk(
             DiskRequest(
                 storage=1000,
                 life_span=timedelta(seconds=1),
-                project_name="test-project",
-                org_name="test-org",
+                project_name=project,
+                org_name=org,
             ),
             "user",
         )
@@ -103,8 +104,11 @@ class TestUsageWatcher:
         self,
         cleanup_task: None,
         service: Service,
+        org_project: tuple[str, str],
     ) -> None:
-        org, project = uuid4().hex, uuid4().hex
+        org, project = org_project
+        # give more waiting time for vcluster to sync
+        wait_for = 5.33 if org.startswith("vcluster") else 1.33
         namespace_name = generate_namespace_name(org, project)
         disk = await service.create_disk(
             DiskRequest(
@@ -115,10 +119,11 @@ class TestUsageWatcher:
             ),
             "user",
         )
-        await asyncio.sleep(1.33)
-        await service.mark_disk_usage(namespace_name, disk.id, utc_now())
-        await asyncio.sleep(1.33)
+        await asyncio.sleep(wait_for)
+        real_disk_id = await service.resolve_disk_from_vcluster(disk.id, org, project)
+        await service.mark_disk_usage(namespace_name, real_disk_id, utc_now())
+        await asyncio.sleep(wait_for)
         assert await service.get_disk(disk.org_name, disk.project_name, disk.id)
-        await asyncio.sleep(1.33)
+        await asyncio.sleep(wait_for)
         with pytest.raises(DiskNotFound):
             await service.get_disk(disk.org_name, disk.project_name, disk.id)

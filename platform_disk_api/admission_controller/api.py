@@ -42,6 +42,7 @@ from ..service import (
     DISK_API_ORG_LABEL,
     DISK_API_PROJECT_LABEL,
     USER_LABEL,
+    VCLUSTER_OBJECT_NAME_ANNOTATION,
     DiskAlreadyInUse,
     DiskConflict,
     DiskNameUsed,
@@ -336,19 +337,24 @@ class AdmissionControllerHandler:
 
         # add claims
         for injection_schema in injection_spec:
-            future_volume_name = create_injection_volume_name()
             disk = await self._disk_service.resolve_disk(
                 disk_id_or_name=injection_schema.disk_id_or_name,
                 org_name=injection_schema.org,
                 project_name=injection_schema.project,
             )
+            disk_id = await self._disk_service.resolve_disk_from_vcluster(
+                disk.id,
+                disk.org_name,
+                disk.project_name,
+            )
 
+            future_volume_name = create_injection_volume_name()
             admission_review.add_patch(
                 path="/spec/volumes/-",
                 value={
                     "name": future_volume_name,
                     "persistentVolumeClaim": {
-                        "claimName": disk.id,
+                        "claimName": disk_id,
                     },
                 },
             )
@@ -380,8 +386,14 @@ class AdmissionControllerHandler:
         pvc_metadata = pvc["metadata"]
         pvc_labels = pvc_metadata.get("labels", {}) or {}
         pvc_annotations = pvc_metadata.get("annotations", {}) or {}
-        pvc_name = pvc_metadata["name"]
-
+        pvc_name = pvc_annotations.get(
+            VCLUSTER_OBJECT_NAME_ANNOTATION, pvc_metadata["name"]
+        )
+        LOGGER.info(
+            f"pvc_name: {pvc_name}; "  # noqa: G004
+            f"pvc_labels: {pvc_labels}; "
+            f"pvc_annotations: {pvc_annotations}"
+        )
         now = datetime_dump(utc_now())
 
         for key in ("labels", "annotations"):

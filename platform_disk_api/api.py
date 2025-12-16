@@ -16,6 +16,7 @@ from aiohttp.web import (
     middleware,
 )
 from aiohttp.web_exceptions import (
+    HTTPConflict,
     HTTPCreated,
     HTTPForbidden,
     HTTPNoContent,
@@ -50,10 +51,28 @@ from .config import Config, CORSConfig
 from .config_factory import EnvironConfigFactory
 from .identity import untrusted_user
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
-from .service import Disk, DiskNotFound, DiskRequest, Service
+from .service import (
+    Disk,
+    DiskAlreadyInUse,
+    DiskConflict,
+    DiskNameUsed,
+    DiskNotFound,
+    DiskRequest,
+    DiskServiceError,
+    Service,
+)
 
 
 logger = logging.getLogger(__name__)
+
+
+ERROR_TO_HTTP_CODE = {
+    DiskServiceError: HTTPNotFound.status_code,
+    DiskNotFound: HTTPNotFound.status_code,
+    DiskConflict: HTTPConflict.status_code,
+    DiskNameUsed: HTTPConflict.status_code,
+    DiskAlreadyInUse: HTTPConflict.status_code,
+}
 
 
 class ApiHandler:
@@ -298,6 +317,15 @@ async def handle_exceptions(
 ) -> StreamResponse:
     try:
         return await handler(request)
+    except DiskServiceError as e:
+        status_code = ERROR_TO_HTTP_CODE.get(
+            type(e), HTTPInternalServerError.status_code
+        )
+        payload = {
+            "code": type(e).__name__,
+            "description": str(e),
+        }
+        return json_response(payload, status=status_code)
     except ValueError as e:
         payload = {"error": str(e)}
         return json_response(payload, status=HTTPBadRequest.status_code)
