@@ -195,7 +195,6 @@ class TestService:
         org, project = org_project
 
         pvc = V1PersistentVolumeClaim(
-            kind="PersistentVolumeClaim",
             metadata=V1ObjectMeta(
                 name="outer-pvc",
             ),
@@ -209,16 +208,21 @@ class TestService:
         await kube_client.core_v1.persistent_volume_claim.create(
             namespace="default", model=pvc
         )
-
-        request = DiskRequest(
-            storage=1024 * 1024,
-            project_name=project,
-            org_name=org,
-        )
-        disk_created = await service.create_disk(request, "testuser")
-        all_disks = await service.get_project_disks(org, project)
-        assert len(all_disks) == 1
-        assert all_disks[0].id == disk_created.id
+        assert pvc.metadata.name
+        try:
+            request = DiskRequest(
+                storage=1024 * 1024,
+                project_name=project,
+                org_name=org,
+            )
+            disk_created = await service.create_disk(request, "testuser")
+            all_disks = await service.get_project_disks(org, project)
+            assert len(all_disks) == 1
+            assert all_disks[0].id == disk_created.id
+        finally:
+            await kube_client.core_v1.persistent_volume_claim.delete(
+                name=pvc.metadata.name, namespace="default"
+            )
 
     async def test_get_all_disk_in_project(
         self,
@@ -243,24 +247,30 @@ class TestService:
         await kube_client.core_v1.persistent_volume_claim.create(
             namespace="default", model=pvc
         )
+        assert pvc.metadata.name
 
-        request = DiskRequest(
-            storage=1024 * 1024,
-            project_name="other-test-project",
-            org_name="other-org",
-        )
-        await service.create_disk(request, "testuser")
-        request = DiskRequest(
-            storage=1024 * 1024,
-            project_name=project,
-            org_name=org,
-        )
-        disk_created = await service.create_disk(request, "testuser")
-        project_disks = await service.get_project_disks(
-            org_name=org, project_name=project
-        )
-        assert len(project_disks) == 1
-        assert project_disks[0].id == disk_created.id
+        try:
+            request = DiskRequest(
+                storage=1024 * 1024,
+                project_name="other-test-project",
+                org_name="other-org",
+            )
+            await service.create_disk(request, "testuser")
+            request = DiskRequest(
+                storage=1024 * 1024,
+                project_name=project,
+                org_name=org,
+            )
+            disk_created = await service.create_disk(request, "testuser")
+            project_disks = await service.get_project_disks(
+                org_name=org, project_name=project
+            )
+            assert len(project_disks) == 1
+            assert project_disks[0].id == disk_created.id
+        finally:
+            await kube_client.core_v1.persistent_volume_claim.delete(
+                name=pvc.metadata.name, namespace="default"
+            )
 
     async def test_life_span_stored(
         self, service: Service, org_project: tuple[str, str]
