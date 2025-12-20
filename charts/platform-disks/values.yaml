@@ -23,10 +23,10 @@ docs:
 
 resources:
   requests:
-    cpu: "0.1"
+    cpu: "100m"
     memory: "150Mi"
   limits:
-    cpu: "0.3"
+    cpu: "300m"
     memory: "300Mi"
 
 ingress:
