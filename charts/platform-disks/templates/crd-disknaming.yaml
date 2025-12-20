@@ -29,4 +29,3 @@ spec:
     listKind: DiskNamingsList
     plural: disknamings
     singular: disknaming
-    shortNames: []
