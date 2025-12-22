@@ -12,7 +12,6 @@ securityContext:
   runAsGroup: 1001
   fsGroup: 1001
   runAsNonRoot: true
-  allowPrivilegeEscalation: false
   fsGroupChangePolicy: "OnRootMismatch"
 
 disks:
@@ -33,10 +32,10 @@ docs:
 
 resources:
   requests:
-    cpu: "0.1"
+    cpu: "100m"
     memory: "150Mi"
   limits:
-    cpu: "0.3"
+    cpu: "300m"
     memory: "300Mi"
 
 ingress:
