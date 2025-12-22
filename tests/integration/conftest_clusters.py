@@ -35,12 +35,12 @@ VCLUSTER_SECRET_POLL_INTERVAL_S = 5
         "vcluster",
     ],
 )
-async def org_project(
+async def _org_project(
     request: pytest.FixtureRequest,
     kube_config: KubeConfig,
-) -> AsyncIterator[tuple[str, str]]:
+) -> AsyncIterator[tuple[str, str, bool]]:
     """
-    Returns an org name and a project name.
+    Returns an org name, a project name, and a flag if this is a vcluster or not
     Creates a dedicated namespace.
     This fixture is parametrized with two possible scenarios of running:
     - on a plain minikube:
@@ -62,7 +62,7 @@ async def org_project(
         assert namespace.metadata.name
         try:
             if not is_vcluster:
-                yield org_name, project_name
+                yield org_name, project_name, is_vcluster
                 return
 
             async with _vcluster_environment(
@@ -71,10 +71,22 @@ async def org_project(
                 org_name=org_name,
                 project_name=project_name,
             ) as org_project:
-                yield org_project
+                org_name, project_name = org_project
+                yield org_name, project_name, is_vcluster
 
         finally:
             await _delete_namespace(kube_client, namespace.metadata.name)
+
+
+@pytest.fixture
+async def org_project(
+    _org_project: tuple[str, str, bool],
+) -> AsyncIterator[tuple[str, str]]:
+    org_name, project_name, is_vcluster = _org_project
+    yield org_name, project_name
+    if is_vcluster:
+        # add a small sleep to give a chance for vcluster to sync back and force
+        await asyncio.sleep(1)
 
 
 async def _delete_namespace(
