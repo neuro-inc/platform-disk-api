@@ -6,16 +6,16 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: admission-controller
+      app: disks-admission-controller
   template:
     metadata:
       labels:
-        app: admission-controller
+        app: disks-admission-controller
     spec:
-      serviceAccountName: admission-controller
+      serviceAccountName: disks-admission-controller
       containers:
-      - name: admission-controller
-        image: docker.io/library/admission-controller-tests:latest
+      - name: disks-admission-controller
+        image: docker.io/library/disks-admission-controller-tests:latest
         imagePullPolicy: "IfNotPresent"
         command:
           - platform-disk-admission-controller
@@ -25,9 +25,9 @@ spec:
             protocol: TCP
         env:
           - name: NP_DISK_API_TLS_CERT_PATH
-            value: /var/run/secrets/admission-controller/cert/tls.crt
+            value: /var/run/secrets/disks-admission-controller/cert/tls.crt
           - name: NP_DISK_API_TLS_KEY_PATH
-            value: /var/run/secrets/admission-controller/cert/tls.key
+            value: /var/run/secrets/disks-admission-controller/cert/tls.key
           - name: NP_CLUSTER_NAME
             value: "minikube"
           - name: NP_DISK_API_PLATFORM_AUTH_URL
@@ -51,23 +51,23 @@ spec:
           - name: NP_DISK_API_ENABLE_DOCS
             value: "minikube"
         volumeMounts:
-          - mountPath: /var/run/secrets/admission-controller/cert
+          - mountPath: /var/run/secrets/disks-admission-controller/cert
             readOnly: true
-            name: admission-controller-cert
+            name: disks-admission-controller-cert
       volumes:
-        - name: admission-controller-cert
+        - name: disks-admission-controller-cert
           secret:
-            secretName: admission-controller-cert
+            secretName: disks-admission-controller-cert
 
 ---
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: admission-controller
+  name: disks-admission-controller
 spec:
   selector:
-    app: admission-controller
+    app: disks-admission-controller
   ports:
     - name: https
       port: 443

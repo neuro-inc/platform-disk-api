@@ -12,7 +12,9 @@ import pytest
 from apolo_kube_client import (
     KubeClient,
     KubeClientException,
+    KubeClientProxy,
     ResourceInvalid,
+    ResourceNotFound,
     V1Container,
     V1LabelSelector,
     V1Namespace,
@@ -47,6 +49,7 @@ from platform_disk_api.service import (
     DISK_API_ORG_LABEL,
     DISK_API_PROJECT_LABEL,
     USER_LABEL,
+    VCLUSTER_OBJECT_NAME_ANNOTATION,
     Disk,
     DiskRequest,
     Service,
@@ -55,8 +58,7 @@ from platform_disk_api.service import (
 
 @asynccontextmanager
 async def pod_cm(
-    kube_client: KubeClient,
-    namespace: str,
+    kube_client: KubeClientProxy,
     annotations: dict[str, Any] | None = None,
     labels: dict[str, Any] | None = None,
 ) -> AsyncIterator[V1Pod]:
@@ -67,8 +69,6 @@ async def pod_cm(
     pod_name = str(uuid4())
 
     pod = V1Pod(
-        api_version="v1",
-        kind="Pod",
         metadata=V1ObjectMeta(name=pod_name),
         spec=V1PodSpec(
             containers=[
@@ -87,17 +87,17 @@ async def pod_cm(
     if labels is not None:
         pod.metadata.labels = labels
 
-    pod = await kube_client.core_v1.pod.create(model=pod, namespace=namespace)
+    pod = await kube_client.core_v1.pod.create(model=pod)
 
     # wait until a POD is running
     async with asyncio.timeout(60):
         while pod.status.phase != "Running":
-            pod = await kube_client.core_v1.pod.get(name=pod_name, namespace=namespace)
+            pod = await kube_client.core_v1.pod.get(name=pod_name)
             await asyncio.sleep(0.5)
 
     yield pod
 
-    await kube_client.core_v1.pod.delete(name=pod_name, namespace=namespace)
+    await kube_client.core_v1.pod.delete(name=pod_name)
 
 
 class TestAdmissionController:
@@ -112,9 +112,7 @@ class TestAdmissionController:
             storage_class_name: str = k8s_storage_class,
         ) -> V1StatefulSet:
             return V1StatefulSet(
-                api_version="apps/v1",
-                kind="StatefulSet",
-                metadata=V1ObjectMeta(name="test-statefulset"),
+                metadata=V1ObjectMeta(name=f"test-statefulset-{uuid4().hex}"),
                 spec=V1StatefulSetSpec(
                     service_name="ubuntu-service",
                     replicas=2,
@@ -282,7 +280,8 @@ class TestAdmissionController:
 
         # there should be two PVCs created
         pvcs = await kube_client.core_v1.persistent_volume_claim.get_list(
-            namespace=namespace.metadata.name
+            namespace=namespace.metadata.name,
+            label_selector=f"{DISK_API_MARK_LABEL}=true,release!=vcluster",
         )
         assert len(pvcs.items) == 2
 
@@ -308,6 +307,9 @@ class TestAdmissionController:
             namespace=namespace.metadata.name
         )
         assert not disk_naming_list.items
+        await self._delete_stateful_set(
+            kube_client, statefulset.metadata.name, namespace.metadata.name
+        )
 
     async def test__create_statefulset__with_name(
         self,
@@ -343,7 +345,8 @@ class TestAdmissionController:
 
         # there should be two PVCs created
         pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
-            namespace=namespace.metadata.name
+            namespace=namespace.metadata.name,
+            label_selector=f"{DISK_API_MARK_LABEL}=true,release!=vcluster",
         )
         assert len(pvc_list.items) == 2
 
@@ -381,6 +384,30 @@ class TestAdmissionController:
             sorted(disk_naming_list.items, key=lambda d: str(d.metadata.name))
         ):
             assert disk_naming.metadata.name == f"{disk_name}-{idx}--{org}--{project}"
+
+        await self._delete_stateful_set(
+            kube_client, statefulset.metadata.name, namespace.metadata.name
+        )
+
+    @staticmethod
+    async def _delete_stateful_set(
+        kube_client: KubeClient, name: str, namespace: str
+    ) -> None:
+        await kube_client.apps_v1.statefulset.delete(
+            name=name,
+            namespace=namespace,
+        )
+        async with timeout(30):
+            while True:
+                try:
+                    await kube_client.apps_v1.statefulset.get(
+                        name=name,
+                        namespace=namespace,
+                    )
+                except ResourceNotFound:
+                    break
+                finally:
+                    await asyncio.sleep(1)
 
     async def test__create_statefulset__invalid_storage_class(
         self,
@@ -421,29 +448,31 @@ class TestAdmissionController:
         for pvc in pvc_list.items:
             assert pvc.spec.storage_class_name == k8s_storage_class
 
+        await kube_client.apps_v1.statefulset.delete(
+            name=statefulset.metadata.name,
+            namespace=namespace.metadata.name,
+        )
+
     async def test__pod_without_annotations_will_be_ignored(
         self,
         service: Service,
-        kube_client: KubeClient,
-        scoped_namespace: tuple[V1Namespace, str, str],
+        scoped_kube_client: KubeClientProxy,
     ) -> None:
-        namespace, org, project = scoped_namespace
-        assert namespace.metadata.name is not None
-        async with pod_cm(kube_client, namespace.metadata.name) as pod:
+        async with pod_cm(scoped_kube_client) as pod:
             assert pod.kind == "Pod"
 
     async def test__pod_invalid_annotation_will_prohibit_pod_creation(
         self,
         service: Service,
-        kube_client: KubeClient,
-        scoped_namespace: tuple[V1Namespace, str, str],
+        scoped_kube_client: KubeClientProxy,
+        org_project: tuple[str, str],
     ) -> None:
-        namespace, org, project = scoped_namespace
-        assert namespace.metadata.name is not None
+        org, project = org_project
+        if org.startswith("vcluster-"):
+            pytest.skip("not applicable for vcluster org_project")
         with pytest.raises(ResourceInvalid) as e:
             async with pod_cm(
-                kube_client,
-                namespace.metadata.name,
+                scoped_kube_client,
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
@@ -458,17 +487,17 @@ class TestAdmissionController:
     async def test__pod_with_another_org_name(
         self,
         service: Service,
-        kube_client: KubeClient,
-        scoped_namespace: tuple[V1Namespace, str, str],
+        scoped_kube_client: KubeClientProxy,
+        org_project: tuple[str, str],
     ) -> None:
-        namespace, org, project = scoped_namespace
-        assert namespace.metadata.name is not None
+        org, project = org_project
+        if org.startswith("vcluster-"):
+            pytest.skip("not applicable for vcluster org_project")
         with pytest.raises(KubeClientException) as e:
             async with pod_cm(
-                kube_client,
-                namespace.metadata.name,
+                scoped_kube_client,
                 labels={
-                    LABEL_APOLO_ORG_NAME: "invalid org",
+                    LABEL_APOLO_ORG_NAME: "invalid-org",
                     LABEL_APOLO_PROJECT_NAME: project,
                     ANNOTATION_APOLO_INJECT_DISK: "true",
                 },
@@ -477,7 +506,7 @@ class TestAdmissionController:
                         [
                             {
                                 "mount_path": "/mnt/disk",
-                                "disk_uri": f"disk://default/{org}/{project}/any",
+                                "disk_uri": (f"disk://default/{org}/{project}/any"),
                             }
                         ]
                     )
@@ -490,18 +519,18 @@ class TestAdmissionController:
     async def test__pod_with_another_project_name(
         self,
         service: Service,
-        kube_client: KubeClient,
-        scoped_namespace: tuple[V1Namespace, str, str],
+        scoped_kube_client: KubeClientProxy,
+        org_project: tuple[str, str],
     ) -> None:
-        namespace, org, project = scoped_namespace
-        assert namespace.metadata.name is not None
+        org, project = org_project
+        if org.startswith("vcluster-"):
+            pytest.skip("not applicable for vcluster org_project")
         with pytest.raises(KubeClientException) as e:
             async with pod_cm(
-                kube_client,
-                namespace.metadata.name,
+                scoped_kube_client,
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
-                    LABEL_APOLO_PROJECT_NAME: "invalid project",
+                    LABEL_APOLO_PROJECT_NAME: "invalid-project",
                     ANNOTATION_APOLO_INJECT_DISK: "true",
                 },
                 annotations={
@@ -509,7 +538,7 @@ class TestAdmissionController:
                         [
                             {
                                 "mount_path": "/mnt/disk",
-                                "disk_uri": f"disk://default/{org}/{project}/any",
+                                "disk_uri": (f"disk://default/{org}/{project}/any"),
                             }
                         ]
                     )
@@ -522,15 +551,15 @@ class TestAdmissionController:
     async def test__pod_with_another_org_name_in_disk_annotation(
         self,
         service: Service,
-        kube_client: KubeClient,
-        scoped_namespace: tuple[V1Namespace, str, str],
+        scoped_kube_client: KubeClientProxy,
+        org_project: tuple[str, str],
     ) -> None:
-        namespace, org, project = scoped_namespace
-        assert namespace.metadata.name is not None
+        org, project = org_project
+        if org.startswith("vcluster-"):
+            pytest.skip("not applicable for vcluster org_project")
         with pytest.raises(KubeClientException) as e:
             async with pod_cm(
-                kube_client,
-                namespace.metadata.name,
+                scoped_kube_client,
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
@@ -541,7 +570,9 @@ class TestAdmissionController:
                         [
                             {
                                 "mount_path": "/mnt/disk",
-                                "disk_uri": f"disk://default/invalid-org/{project}/any",
+                                "disk_uri": (
+                                    f"disk://default/invalid-org/{project}/any"
+                                ),
                             }
                         ]
                     )
@@ -554,15 +585,15 @@ class TestAdmissionController:
     async def test__pod_with_another_project_name_in_disk_annotation(
         self,
         service: Service,
-        kube_client: KubeClient,
-        scoped_namespace: tuple[V1Namespace, str, str],
+        scoped_kube_client: KubeClientProxy,
+        org_project: tuple[str, str],
     ) -> None:
-        namespace, org, project = scoped_namespace
-        assert namespace.metadata.name
+        org, project = org_project
+        if org.startswith("vcluster-"):
+            pytest.skip("not applicable for vcluster org_project")
         with pytest.raises(KubeClientException) as e:
             async with pod_cm(
-                kube_client,
-                namespace.metadata.name,
+                scoped_kube_client,
                 labels={
                     LABEL_APOLO_ORG_NAME: org,
                     LABEL_APOLO_PROJECT_NAME: project,
@@ -573,7 +604,9 @@ class TestAdmissionController:
                         [
                             {
                                 "mount_path": "/mnt/disk",
-                                "disk_uri": f"disk://default/{org}/invalid-project/any",
+                                "disk_uri": (
+                                    f"disk://default/{org}/invalid-project/any"
+                                ),
                             }
                         ]
                     )
@@ -586,17 +619,18 @@ class TestAdmissionController:
     async def test__inject_single_disk(
         self,
         service: Service,
+        scoped_kube_client: KubeClientProxy,
         kube_client: KubeClient,
         scoped_namespace: tuple[V1Namespace, str, str],
         disk_no_name: Disk,
     ) -> None:
         namespace, org, project = scoped_namespace
         assert namespace.metadata.name is not None
+        test_id = uuid4().hex
 
         # now let's create a POD with the proper annotation
         async with pod_cm(
-            kube_client,
-            namespace=namespace.metadata.name,
+            scoped_kube_client,
             annotations={
                 ANNOTATION_APOLO_INJECT_DISK: json.dumps(
                     [
@@ -611,16 +645,38 @@ class TestAdmissionController:
                 LABEL_APOLO_ORG_NAME: org,
                 LABEL_APOLO_PROJECT_NAME: project,
                 ANNOTATION_APOLO_INJECT_DISK: "true",
+                "disk-api-test-id": test_id,
             },
-        ) as pod:
+        ):
+            pods = await kube_client.core_v1.pod.get_list(
+                namespace=namespace.metadata.name,
+                label_selector=(
+                    f"{ANNOTATION_APOLO_INJECT_DISK}=true,disk-api-test-id={test_id}"
+                ),
+            )
+            assert len(pods.items) == 1
+            pod = pods.items[0]
             assert pod.spec is not None
             container = pod.spec.containers[0]
 
+            # those volumes may have different names in a host cluster,
+            # in a case of vcluster scope test
             volumes = [v for v in pod.spec.volumes if v.persistent_volume_claim]
             assert len(volumes) == 1
             assert volumes[0].name.startswith(INJECTED_VOLUME_NAME_PREFIX)
             assert volumes[0].persistent_volume_claim is not None
-            assert volumes[0].persistent_volume_claim.claim_name == disk_no_name.id
+
+            # get host cluster PVCs
+            pvc = await kube_client.core_v1.persistent_volume_claim.get(
+                name=volumes[0].persistent_volume_claim.claim_name,
+                namespace=namespace.metadata.name,
+            )
+            pvc_annotations = pvc.metadata.annotations or {}
+            disk_id = pvc_annotations.get(
+                VCLUSTER_OBJECT_NAME_ANNOTATION,
+                pvc.metadata.name,
+            )
+            assert disk_id == disk_no_name.id
 
             mounts_by_path = {v.mount_path: v for v in container.volume_mounts}
             assert mounts_by_path["/mnt/disk"].name.startswith(
@@ -630,11 +686,13 @@ class TestAdmissionController:
     async def test_inject_multiple_disks(
         self,
         service: Service,
+        scoped_kube_client: KubeClientProxy,
         kube_client: KubeClient,
         scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
         assert namespace.metadata.name is not None
+        test_id = uuid4().hex
 
         # create two disks
         request = DiskRequest(
@@ -653,18 +711,17 @@ class TestAdmissionController:
 
         mount_path_1, mount_path_2 = "/mnt/disk1", "/mnt/disk2"
         async with pod_cm(
-            kube_client,
-            namespace.metadata.name,
+            scoped_kube_client,
             annotations={
                 ANNOTATION_APOLO_INJECT_DISK: json.dumps(
                     [
                         {
                             "mount_path": mount_path_1,
-                            "disk_uri": f"disk://default/{org}/{project}/{disk_1.id}",
+                            "disk_uri": (f"disk://default/{org}/{project}/{disk_1.id}"),
                         },
                         {
                             "mount_path": mount_path_2,
-                            "disk_uri": f"disk://default/{org}/{project}/{disk_2.id}",
+                            "disk_uri": (f"disk://default/{org}/{project}/{disk_2.id}"),
                         },
                     ]
                 ),
@@ -673,21 +730,46 @@ class TestAdmissionController:
                 LABEL_APOLO_ORG_NAME: org,
                 LABEL_APOLO_PROJECT_NAME: project,
                 ANNOTATION_APOLO_INJECT_DISK: "true",
+                "disk-api-test-id": test_id,
             },
-        ) as pod:
+        ):
+            pods = await kube_client.core_v1.pod.get_list(
+                namespace=namespace.metadata.name,
+                label_selector=(
+                    f"{ANNOTATION_APOLO_INJECT_DISK}=true,disk-api-test-id={test_id}"
+                ),
+            )
+            assert len(pods.items) == 1
+            pod = pods.items[0]
             assert pod.spec is not None
             container = pod.spec.containers[0]
 
             volumes = [v for v in pod.spec.volumes if v.persistent_volume_claim]
             assert len(volumes) == 2
 
-            for volume in volumes:
-                assert volume.name.startswith(INJECTED_VOLUME_NAME_PREFIX)
-                assert volume.persistent_volume_claim is not None
-                assert volume.persistent_volume_claim.claim_name in {
-                    disk_1.id,
-                    disk_2.id,
-                }
+            pvc_names = {
+                v.persistent_volume_claim.claim_name
+                for v in volumes
+                if v.persistent_volume_claim is not None
+            }
+            assert len(pvc_names) == 2
+
+            expected_ids = {disk_1.id, disk_2.id}
+            resolved_ids = set()
+            for pvc_name in pvc_names:
+                pvc = await kube_client.core_v1.persistent_volume_claim.get(
+                    # noqa: E501
+                    name=pvc_name,
+                    namespace=namespace.metadata.name,
+                )
+                pvc_annotations = pvc.metadata.annotations or {}
+                disk_id = pvc_annotations.get(
+                    VCLUSTER_OBJECT_NAME_ANNOTATION,
+                    pvc.metadata.name,
+                )
+                resolved_ids.add(disk_id)
+
+            assert resolved_ids == expected_ids
 
             mounts_by_path = {v.mount_path: v for v in container.volume_mounts}
             assert mounts_by_path[mount_path_1].name.startswith(
@@ -700,6 +782,7 @@ class TestAdmissionController:
     async def test__inject_disk_by_name(
         self,
         service: Service,
+        scoped_kube_client: KubeClientProxy,
         kube_client: KubeClient,
         scoped_namespace: tuple[V1Namespace, str, str],
         disk_with_name: Disk,
@@ -707,17 +790,16 @@ class TestAdmissionController:
     ) -> None:
         namespace, org, project = scoped_namespace
         assert namespace.metadata.name is not None
+        test_id = uuid4().hex
 
-        # now let's create a POD with the proper annotation
         async with pod_cm(
-            kube_client,
-            namespace=namespace.metadata.name,
+            scoped_kube_client,
             annotations={
                 ANNOTATION_APOLO_INJECT_DISK: json.dumps(
                     [
                         {
                             "mount_path": "/mnt/disk",
-                            "disk_uri": f"disk://default/{org}/{project}/{disk_name}",
+                            "disk_uri": (f"disk://default/{org}/{project}/{disk_name}"),
                         }
                     ]
                 )
@@ -726,17 +808,37 @@ class TestAdmissionController:
                 LABEL_APOLO_ORG_NAME: org,
                 LABEL_APOLO_PROJECT_NAME: project,
                 ANNOTATION_APOLO_INJECT_DISK: "true",
+                "disk-api-test-id": test_id,
             },
-        ) as pod:
+        ):
+            pods = await kube_client.core_v1.pod.get_list(
+                namespace=namespace.metadata.name,
+                label_selector=(
+                    f"{ANNOTATION_APOLO_INJECT_DISK}=true,disk-api-test-id={test_id}"
+                ),
+            )
+            assert len(pods.items) == 1
+            pod = pods.items[0]
             assert pod.spec is not None
             container = pod.spec.containers[0]
 
             volumes = [v for v in pod.spec.volumes if v.persistent_volume_claim]
             assert len(volumes) == 1
-            assert volumes[0].name.startswith(INJECTED_VOLUME_NAME_PREFIX)
-            # ensure claim name uses a disk ID (e.g. PVC name)
-            assert volumes[0].persistent_volume_claim is not None
-            assert volumes[0].persistent_volume_claim.claim_name == disk_with_name.id
+            volume = volumes[0]
+            assert volume.name.startswith(INJECTED_VOLUME_NAME_PREFIX)
+            assert volume.persistent_volume_claim is not None
+
+            pvc = await kube_client.core_v1.persistent_volume_claim.get(
+                # noqa: E501
+                name=volume.persistent_volume_claim.claim_name,
+                namespace=namespace.metadata.name,
+            )
+            pvc_annotations = pvc.metadata.annotations or {}
+            disk_id = pvc_annotations.get(
+                VCLUSTER_OBJECT_NAME_ANNOTATION,
+                pvc.metadata.name,
+            )
+            assert disk_id == disk_with_name.id
 
             mounts_by_path = {v.mount_path: v for v in container.volume_mounts}
 
@@ -747,11 +849,13 @@ class TestAdmissionController:
     async def test_inject_multiple_disks__one_by_id_another_by_name(
         self,
         service: Service,
+        scoped_kube_client: KubeClientProxy,
         kube_client: KubeClient,
         scoped_namespace: tuple[V1Namespace, str, str],
     ) -> None:
         namespace, org, project = scoped_namespace
         assert namespace.metadata.name is not None
+        test_id = uuid4().hex
 
         # create two disks
         request = DiskRequest(
@@ -772,19 +876,21 @@ class TestAdmissionController:
 
         mount_path_1, mount_path_2 = "/mnt/disk1", "/mnt/disk2"
         assert namespace.metadata.name is not None
+
         async with pod_cm(
-            kube_client,
-            namespace.metadata.name,
+            scoped_kube_client,
             annotations={
                 ANNOTATION_APOLO_INJECT_DISK: json.dumps(
                     [
                         {
                             "mount_path": mount_path_1,
-                            "disk_uri": f"disk://default/{org}/{project}/{disk_1.id}",
+                            "disk_uri": (f"disk://default/{org}/{project}/{disk_1.id}"),
                         },
                         {
                             "mount_path": mount_path_2,
-                            "disk_uri": f"disk://default/{org}/{project}/{disk_2_name}",
+                            "disk_uri": (
+                                f"disk://default/{org}/{project}/{disk_2_name}"
+                            ),
                         },
                     ]
                 ),
@@ -793,21 +899,45 @@ class TestAdmissionController:
                 LABEL_APOLO_ORG_NAME: org,
                 LABEL_APOLO_PROJECT_NAME: project,
                 ANNOTATION_APOLO_INJECT_DISK: "true",
+                "disk-api-test-id": test_id,
             },
-        ) as pod:
+        ):
+            pods = await kube_client.core_v1.pod.get_list(
+                namespace=namespace.metadata.name,
+                label_selector=(
+                    f"{ANNOTATION_APOLO_INJECT_DISK}=true,disk-api-test-id={test_id}"
+                ),
+            )
+            assert len(pods.items) == 1
+            pod = pods.items[0]
             assert pod.spec is not None
             container = pod.spec.containers[0]
 
             volumes = [v for v in pod.spec.volumes if v.persistent_volume_claim]
             assert len(volumes) == 2
 
-            for volume in volumes:
-                assert volume.name.startswith(INJECTED_VOLUME_NAME_PREFIX)
-                assert volume.persistent_volume_claim is not None
-                assert volume.persistent_volume_claim.claim_name in {
-                    disk_1.id,
-                    disk_2.id,
-                }
+            pvc_names = {
+                v.persistent_volume_claim.claim_name
+                for v in volumes
+                if v.persistent_volume_claim is not None
+            }
+            assert len(pvc_names) == 2
+
+            expected_ids = {disk_1.id, disk_2.id}
+            resolved_ids = set()
+            for pvc_name in pvc_names:
+                pvc = await kube_client.core_v1.persistent_volume_claim.get(
+                    name=pvc_name,
+                    namespace=namespace.metadata.name,
+                )
+                pvc_annotations = pvc.metadata.annotations or {}
+                disk_id = pvc_annotations.get(
+                    VCLUSTER_OBJECT_NAME_ANNOTATION,
+                    pvc.metadata.name,
+                )
+                resolved_ids.add(disk_id)
+
+            assert resolved_ids == expected_ids
 
             mounts_by_path = {v.mount_path: v for v in container.volume_mounts}
             assert mounts_by_path[mount_path_1].name.startswith(

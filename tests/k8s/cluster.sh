@@ -4,20 +4,28 @@ set -o errexit
 # based on
 # https://github.com/kubernetes/minikube#linux-continuous-integration-without-vm-support
 
-function k8s::install_minikube {
+function k8s::install {
+    echo "installing minikube..."
     local minikube_version="v1.25.2"
     sudo apt-get update
     sudo apt-get install -y conntrack
     curl -Lo minikube https://storage.googleapis.com/minikube/releases/${minikube_version}/minikube-linux-amd64
     chmod +x minikube
     sudo mv minikube /usr/local/bin/
+    echo "minikube installed."
+
+    echo "installing vcluster..."
+    curl -L -o vcluster https://github.com/loft-sh/vcluster/releases/download/v0.30.0/vcluster-linux-amd64
+    sudo install -c -m 0755 vcluster /usr/local/bin
+    rm -f vcluster
+    echo "vcluster installed."
 }
 
 function k8s::start {
  # ----------------------------------------------------------------------------
     # Bring up a local Minikube cluster with the “none” driver.
     # Preconditions:
-    #   * minikube binary already installed (see k8s::install_minikube)
+    #   * minikube binary already installed (see k8s::install)
     #   * Docker (or containerd) present on the host
     # ----------------------------------------------------------------------------
 
@@ -67,15 +75,15 @@ function k8s::apply_all_configurations {
     kubectl apply -f tests/k8s/storageclass.yml
     kubectl apply -f charts/platform-disks/templates/crd-disknaming.yaml
     make dist
-    docker build -t admission-controller-tests:latest .
-    docker image save -o ac.tar admission-controller-tests:latest
+    docker build -t disks-admission-controller-tests:latest .
+    docker image save -o ac.tar disks-admission-controller-tests:latest
     minikube image load ac.tar
     kubectl apply -f tests/k8s/rbac.yaml
     kubectl apply -f tests/k8s/preinstall-job.yaml
-    wait_job admission-controller-lib-preinstall
+    wait_job disks-admission-controller-lib-preinstall
     kubectl apply -f tests/k8s/admission-controller-deployment.yaml
     kubectl apply -f tests/k8s/postinstall-job.yaml
-    wait_job admission-controller-lib-postinstall
+    wait_job disks-admission-controller-lib-postinstall
 }
 
 
@@ -119,12 +127,12 @@ function wait_job() {
   fi
 
   echo "job/$JOB_NAME succeeded"
-  kubectl logs -l app=admission-controller
+  kubectl logs -l app=disks-admission-controller
 }
 
 case "${1:-}" in
     install)
-        k8s::install_minikube
+        k8s::install
         ;;
     start)
         k8s::start

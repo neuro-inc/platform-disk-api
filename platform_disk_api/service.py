@@ -1,21 +1,26 @@
+# ruff: noqa E501
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import TypeVar
+from typing import TypeVar, cast
 from uuid import uuid4
 
 from apolo_kube_client import (
     KubeClientException,
     KubeClientSelector,
     PatchAdd,
+    ResourceExists,
     ResourceNotFound,
+    V1DiskNamingCRD,
+    V1DiskNamingCRDSpec,
     V1ObjectMeta,
     V1PersistentVolumeClaim,
     V1PersistentVolumeClaimSpec,
     V1VolumeResourceRequirements,
     escape_json_pointer,
+    V1Secret,
 )
 from apolo_kube_client.apolo import (
     generate_namespace_name,
@@ -119,6 +124,7 @@ class Service:
         self, kube_client_selector: KubeClientSelector, storage_class_name: str
     ) -> None:
         self._kube_client_selector = kube_client_selector
+        self._host_client = kube_client_selector.host_client
         self._storage_class_name = storage_class_name
 
     @staticmethod
@@ -159,8 +165,6 @@ class Service:
         }
 
         return V1PersistentVolumeClaim(
-            kind="PersistentVolumeClaim",
-            api_version="v1",
             metadata=V1ObjectMeta(
                 name=f"disk-{uuid4()}", labels=labels, annotations=annotations
             ),
@@ -189,6 +193,34 @@ class Service:
                 org_name=org_name,
                 project_name=project_name,
             )
+
+    async def resolve_disk_from_vcluster(
+        self,
+        disk_id: str,
+        org_name: str,
+        project_name: str,
+    ) -> str:
+        """
+        Resolves to a real disk ID in case of a vcluster,
+        otherwise returns a same disk ID.
+        """
+        async with self._kube_client_selector.get_client(
+            org_name=org_name, project_name=project_name
+        ) as kube_client:
+            if not kube_client.is_vcluster:
+                return disk_id
+            logger.info("going to resolve a real disk ID from vcluster disk ID")
+            namespace = generate_namespace_name(org_name, project_name)
+            pvcs = await self._host_client.core_v1.persistent_volume_claim.get_list(
+                namespace=namespace
+            )
+            for pvc in pvcs.items:
+                vcluster_disk_name = pvc.metadata.annotations.get(
+                    VCLUSTER_OBJECT_NAME_ANNOTATION, ""
+                )
+                if vcluster_disk_name == disk_id:
+                    return cast(str, pvc.metadata.name)
+            raise DiskNotFound()
 
     async def _pvc_to_disk(self, pvc: V1PersistentVolumeClaim) -> Disk:
         status_map = {
@@ -286,11 +318,53 @@ class Service:
         username: str,
     ) -> Disk:
         async with self._kube_client_selector.get_client(
-            org_name=request.org_name, project_name=request.project_name
+            org_name=request.org_name,
+            project_name=request.project_name,
         ) as kube_client:
-            pvc = await kube_client.core_v1.persistent_volume_claim.create(
-                model=self._request_to_pvc(request, username),
+            pvc_model = self._request_to_pvc(request, username)
+            namespace = generate_namespace_name(
+                request.org_name,
+                request.project_name,
             )
+            disk_naming_name = None
+            if request.name:
+                assert pvc_model.metadata.name is not None
+                disk_naming_name = self.get_disk_naming_name(
+                    request.name,
+                    org_name=request.org_name,
+                    project_name=request.project_name,
+                )
+                disk_naming = V1DiskNamingCRD(
+                    metadata=V1ObjectMeta(
+                        name=disk_naming_name,
+                    ),
+                    spec=V1DiskNamingCRDSpec(
+                        disk_id=pvc_model.metadata.name,
+                    ),
+                )
+                try:
+                    await self._host_client.neuromation_io_v1.disk_naming.create(
+                        model=disk_naming,
+                        namespace=namespace,
+                    )
+                except ResourceExists:
+                    exc_txt = (
+                        f"Disk with name {request.name} already exists "
+                        f"for project {request.project_name}"
+                    )
+                    raise DiskNameUsed(exc_txt) from None
+
+            try:
+                pvc = await kube_client.core_v1.persistent_volume_claim.create(
+                    model=pvc_model,
+                )
+            except Exception:
+                if disk_naming_name:
+                    await self._host_client.neuromation_io_v1.disk_naming.delete(
+                        disk_naming_name,
+                        namespace=namespace,
+                    )
+                raise
 
         return await self._pvc_to_disk(pvc=pvc)
 
@@ -309,18 +383,17 @@ class Service:
     async def get_disk_by_name(
         self, name: str, org_name: str, project_name: str
     ) -> Disk:
+        namespace = generate_namespace_name(org_name, project_name)
         try:
             disk_naming_name = self.get_disk_naming_name(
                 name,
                 org_name=org_name,
                 project_name=project_name,
             )
-            async with self._kube_client_selector.get_client(
-                org_name=org_name, project_name=project_name
-            ) as kube_client:
-                disk_naming = await kube_client.neuromation_io_v1.disk_naming.get(
-                    name=disk_naming_name,
-                )
+            disk_naming = await self._host_client.neuromation_io_v1.disk_naming.get(
+                name=disk_naming_name,
+                namespace=namespace,
+            )
             return await self.get_disk(org_name, project_name, disk_naming.spec.disk_id)
         except ResourceNotFound:
             logger.exception("get_disk_by_name: unhandled error")
@@ -358,8 +431,7 @@ class Service:
             f"{DISK_API_MARK_LABEL}=true",  # is apolo disk
             f"!{DISK_API_DELETED_LABEL}",  # not deleted
         ]
-        kube_client = self._kube_client_selector.host_client
-        pvc_list = await kube_client.core_v1.persistent_volume_claim.get_list(
+        pvc_list = await self._host_client.core_v1.persistent_volume_claim.get_list(
             label_selector=",".join(label_selectors), all_namespaces=True
         )
         return [await self._pvc_to_disk(pvc) for pvc in pvc_list.items]
@@ -377,9 +449,13 @@ class Service:
                         org_name=disk.org_name,
                         project_name=disk.project_name,
                     )
+                    namespace = generate_namespace_name(
+                        org_name=disk.org_name, project_name=disk.project_name
+                    )
                     try:
-                        await kube_client.neuromation_io_v1.disk_naming.delete(
+                        await self._host_client.neuromation_io_v1.disk_naming.delete(
                             name=disk_naming_name,
+                            namespace=namespace,
                         )
                     except ResourceNotFound:
                         pass  # already removed
@@ -425,8 +501,7 @@ class Service:
             ),
         ]
         try:
-            kube_client = self._kube_client_selector.host_client
-            await kube_client.core_v1.persistent_volume_claim.patch_json(
+            await self._host_client.core_v1.persistent_volume_claim.patch_json(
                 name=disk_id,
                 patch_json_list=patch_json_list,
                 namespace=namespace,
@@ -452,8 +527,7 @@ class Service:
             ),
         ]
         try:
-            kube_client = self._kube_client_selector.host_client
-            await kube_client.core_v1.persistent_volume_claim.patch_json(
+            await self._host_client.core_v1.persistent_volume_claim.patch_json(
                 name=disk_id,
                 patch_json_list=patch_json_list,
                 namespace=namespace,
