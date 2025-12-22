@@ -1,11 +1,11 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: "admission-controller-lib-postinstall"
+  name: "disks-admission-controller-lib-postinstall"
 spec:
   template:
     spec:
-      serviceAccountName: admission-controller
+      serviceAccountName: disks-admission-controller
       restartPolicy: Never
       containers:
         - name: postinstall
@@ -24,7 +24,7 @@ spec:
             - name: K8S_NS
               value: "default"
             - name: SERVICE_NAME
-              value: "admission-controller"
+              value: "disks-admission-controller"
             - name: WEBHOOK_PATH
               value: "/mutate"
             - name: RULES
@@ -36,6 +36,6 @@ spec:
             - name: FAILURE_POLICY
               value: "Fail"
             - name: CERT_SECRET_NAME
-              value: "admission-controller-cert"
+              value: "disks-admission-controller-cert"
             - name: REINVOCATION_POLICY
               value: "Never"

@@ -75,15 +75,15 @@ function k8s::apply_all_configurations {
     kubectl apply -f tests/k8s/storageclass.yml
     kubectl apply -f charts/platform-disks/templates/crd-disknaming.yaml
     make dist
-    docker build -t admission-controller-tests:latest .
-    docker image save -o ac.tar admission-controller-tests:latest
+    docker build -t disks-admission-controller-tests:latest .
+    docker image save -o ac.tar disks-admission-controller-tests:latest
     minikube image load ac.tar
     kubectl apply -f tests/k8s/rbac.yaml
     kubectl apply -f tests/k8s/preinstall-job.yaml
-    wait_job admission-controller-lib-preinstall
+    wait_job disks-admission-controller-lib-preinstall
     kubectl apply -f tests/k8s/admission-controller-deployment.yaml
     kubectl apply -f tests/k8s/postinstall-job.yaml
-    wait_job admission-controller-lib-postinstall
+    wait_job disks-admission-controller-lib-postinstall
 }
 
 
@@ -127,7 +127,7 @@ function wait_job() {
   fi
 
   echo "job/$JOB_NAME succeeded"
-  kubectl logs -l app=admission-controller
+  kubectl logs -l app=disks-admission-controller
 }
 
 case "${1:-}" in

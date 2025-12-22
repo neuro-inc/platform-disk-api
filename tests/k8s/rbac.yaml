@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: admission-controller
+  name: disks-admission-controller
 
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: admission-controller
+  name: disks-admission-controller
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -19,22 +19,22 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: admission-controller
+  name: disks-admission-controller
 subjects:
   - kind: ServiceAccount
-    name: admission-controller
+    name: disks-admission-controller
     namespace: default
 roleRef:
   kind: Role
   apiGroup: rbac.authorization.k8s.io
-  name: admission-controller
+  name: disks-admission-controller
 
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: admission-controller
+  name: disks-admission-controller
 rules:
   - apiGroups: [ "" ]
     resources: [ "namespaces", "secrets", "persistentvolumeclaims", "persistentvolumes"]
@@ -57,13 +57,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: admission-controller
+  name: disks-admission-controller
 
 subjects:
   - kind: ServiceAccount
-    name: admission-controller
+    name: disks-admission-controller
     namespace: default
 roleRef:
   kind: ClusterRole
-  name: admission-controller
+  name: disks-admission-controller
   apiGroup: rbac.authorization.k8s.io

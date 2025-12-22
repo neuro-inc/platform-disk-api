@@ -153,13 +153,37 @@ async def _create_vcluster(namespace_name: str) -> None:
     Create a vcluster in the given namespace using a temporary config file.
     """
     in_kube_host = f"{VCLUSTER_NAME}.{namespace_name}.svc.cluster.local"
-
     config = {
         # ensure in-kube services can connect to a vcluster from within a host cluster
         "controlPlane": {"proxy": {"extraSANs": [in_kube_host]}},
         "exportKubeConfig": {
             "server": f"https://{in_kube_host}:443",
             "secret": {"name": VCLUSTER_SECRET_NAME},
+        },
+        "sync": {
+            "fromHost": {
+                "ingressClasses": {
+                    "enabled": True,
+                    "selector": {
+                        "matchExpressions": [
+                            {
+                                "key": "app.kubernetes.io/name",
+                                "operator": "In",
+                                "values": ["traefik"],
+                            }
+                        ]
+                    },
+                }
+            },
+            "toHost": {
+                "secrets": {
+                    "enabled": True,
+                    "all": True,
+                },
+                "ingresses": {
+                    "enabled": True,
+                },
+            },
         },
     }
 
