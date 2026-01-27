@@ -73,7 +73,7 @@ function k8s::apply_all_configurations {
     kubectl create secret docker-registry ghcr \
         --docker-server ghcr.io \
         --docker-username x-access-token \
-        --docker-password $GHCR_TOKEN \
+        --docker-password "$GHCR_TOKEN" \
         --docker-email dev@apolo.us \
         --dry-run=client \
         --output yaml \
