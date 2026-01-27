@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import secrets
 import subprocess
 import time
@@ -36,8 +37,7 @@ logger = logging.getLogger(__name__)
 
 pytest_plugins = [
     "tests.integration.conftest_clusters",
-    "tests.integration.docker",
-    "tests.integration.auth",
+    "tests.integration.conftest_admin",
     "tests.integration.kube",
 ]
 
@@ -202,27 +202,30 @@ def get_service_url(service_name: str, namespace: str = "default") -> str:
     timeout_s = 60
     interval_s = 10
 
+    process = subprocess.Popen(
+        ("minikube", "service", "-n", namespace, service_name, "--url"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        preexec_fn=os.setpgrp,
+    )
+    stdout = process.stdout
+    assert stdout
     while timeout_s:
-        process = subprocess.run(
-            ("minikube", "service", "-n", namespace, service_name, "--url"),
-            stdout=subprocess.PIPE,
-        )
-        output = process.stdout
-        if output:
-            url = output.decode().strip()
-            # Sometimes `minikube service ... --url` returns a prefixed
-            # string such as: "* https://127.0.0.1:8081/"
-            start_idx = url.find("http")
-            if start_idx > 0:
-                url = url[start_idx:]
-            return url
+        output = stdout.readline()
+        url = output.decode().strip()
+        # Sometimes `minikube service ... --url` returns a prefixed
+        # string such as: "* https://127.0.0.1:8081/"
+        start_idx = url.find("http")
+        if start_idx >= 0:
+            return url[start_idx:]
+
         time.sleep(interval_s)
         timeout_s -= interval_s
 
     pytest.fail(f"Service {service_name} is unavailable.")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cluster_name() -> str:
     return "test-cluster"
 

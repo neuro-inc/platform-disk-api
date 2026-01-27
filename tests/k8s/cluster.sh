@@ -70,6 +70,14 @@ function k8s::start {
 function k8s::apply_all_configurations {
     echo "Applying configurations..."
     kubectl config use-context minikube
+    kubectl create secret docker-registry ghcr \
+        --docker-server ghcr.io \
+        --docker-username x-access-token \
+        --docker-password $GHCR_TOKEN \
+        --docker-email dev@apolo.us \
+        --dry-run=client \
+        --output yaml \
+        | kubectl apply -f -
     kubectl apply -f tests/k8s/rb.default.gke.yml
     kubectl apply -f tests/k8s/platformapi.yml
     kubectl apply -f tests/k8s/storageclass.yml

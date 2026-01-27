@@ -34,14 +34,8 @@ from aiohttp_apispec import (
 from aiohttp_security import check_authorized
 from apolo_kube_client import KubeClientSelector
 from marshmallow import Schema, fields
-from neuro_auth_client import (
-    AuthClient,
-    ClientSubTreeViewRoot,
-    Permission,
-    User,
-    check_permissions,
-)
-from neuro_auth_client.security import AuthScheme, setup_security
+from neuro_admin_client.auth_client import AuthClient, Permission
+from neuro_admin_client.security import AuthScheme, check_permissions, setup_security
 from neuro_logging import init_logging, setup_sentry
 
 from platform_disk_api import __version__
@@ -49,7 +43,6 @@ from platform_disk_api.platform_deleter import ProjectDeleter
 
 from .config import Config, CORSConfig
 from .config_factory import EnvironConfigFactory
-from .identity import untrusted_user
 from .schema import ClientErrorSchema, DiskRequestSchema, DiskSchema
 from .service import (
     Disk,
@@ -124,10 +117,6 @@ class DiskApiHandler:
     def _auth_client(self) -> AuthClient:
         return self._app["auth_client"]
 
-    async def _get_untrusted_user(self, request: Request) -> User:
-        identity = await untrusted_user(request)
-        return User(name=identity.name)
-
     @property
     def _disk_cluster_uri(self) -> str:
         return f"disk://{self._config.cluster_name}"
@@ -136,11 +125,11 @@ class DiskApiHandler:
         return f"{self._disk_cluster_uri}/{org_name}"
 
     def _get_user_disk_or_project_uri(
-        self, user: User, org_name: str, project_name: str
+        self, username: str, org_name: str, project_name: str
     ) -> str:
         base = self._get_org_disks_uri(org_name)
-        if user.name == project_name:
-            return f"{base}/{user.name}"
+        if username == project_name:
+            return f"{base}/{username}"
         return f"{base}/{project_name}"
 
     def _get_disk_or_project_uri(self, disk: Disk) -> str:
@@ -156,12 +145,16 @@ class DiskApiHandler:
         return Permission(self._get_disk_or_project_uri(disk), "write")
 
     def _get_disks_write_perm(
-        self, user: User, org_name: str, project_name: str
+        self, username: str, org_name: str, project_name: str
     ) -> Permission:
         return Permission(
-            self._get_user_disk_or_project_uri(user, org_name, project_name),
+            self._get_user_disk_or_project_uri(username, org_name, project_name),
             "write",
         )
+
+    def _get_disks_read_perm(self, org_name: str, project_name: str) -> Permission:
+        """Permission to read all disks in a project."""
+        return Permission(f"{self._get_org_disks_uri(org_name)}/{project_name}", "read")
 
     async def _get_project_used_storage(
         self,
@@ -206,7 +199,7 @@ class DiskApiHandler:
     )
     @request_schema(DiskRequestSchema())
     async def handle_create_disk(self, request: Request) -> Response:
-        user = await self._get_untrusted_user(request)
+        username = await check_authorized(request)
         payload = await request.json()
 
         disk_request = DiskRequestSchema().load(payload)
@@ -214,7 +207,7 @@ class DiskApiHandler:
             request,
             [
                 self._get_disks_write_perm(
-                    user, disk_request.org_name, disk_request.project_name
+                    username, disk_request.org_name, disk_request.project_name
                 )
             ],
         )
@@ -232,12 +225,9 @@ class DiskApiHandler:
                 },
                 status=HTTPForbidden.status_code,
             )
-        disk = await self._service.create_disk(disk_request, user.name)
+        disk = await self._service.create_disk(disk_request, username)
         resp_payload = DiskSchema().dump(disk)
         return json_response(resp_payload, status=HTTPCreated.status_code)
-
-    def _check_disk_read_perm(self, disk: Disk, tree: ClientSubTreeViewRoot) -> bool:
-        return tree.allows(self._get_disk_read_perm(disk))
 
     @docs(
         tags=["disks"],
@@ -268,20 +258,17 @@ class DiskApiHandler:
     @docs(tags=["disks"], summary="List all users Disk objects")
     @response_schema(DiskSchema(many=True), 200)
     async def handle_list_disks(self, request: Request) -> Response:
-        username = await check_authorized(request)
-        tree = await self._auth_client.get_permissions_tree(
-            username, self._disk_cluster_uri
-        )
+        await check_authorized(request)
         org_name = request.query["org_name"]
         project_name = request.query["project_name"]
-        disks = [
-            disk
-            for disk in await self._service.get_project_disks(
-                org_name=org_name,
-                project_name=project_name,
-            )
-            if self._check_disk_read_perm(disk, tree)
-        ]
+        await check_permissions(
+            request,
+            [self._get_disks_read_perm(org_name, project_name)],
+        )
+        disks = await self._service.get_project_disks(
+            org_name=org_name,
+            project_name=project_name,
+        )
         resp_payload = DiskSchema(many=True).dump(disks)
         return json_response(resp_payload, status=HTTPOk.status_code)
 
@@ -329,6 +316,13 @@ async def handle_exceptions(
     except ValueError as e:
         payload = {"error": str(e)}
         return json_response(payload, status=HTTPBadRequest.status_code)
+    except RuntimeError as e:
+        # check_permissions raises RuntimeError when user lacks permissions
+        # (wraps 403 Forbidden from platform-admin)
+        error_str = str(e)
+        if "403" in error_str or "Forbidden" in error_str:
+            raise aiohttp.web.HTTPForbidden() from None
+        raise
     except aiohttp.web.HTTPException:
         raise
     except Exception as e:

@@ -19,7 +19,7 @@ classifiers = [
 python = ">=3.13,<4.0"
 aiohttp = {version = "3.13.3", extras = ["speedups"]}
 yarl = "<2"
-neuro-auth-client = "25.8.2"
+neuro-admin-client = "^25.12.0"
 marshmallow = "4.2.1"
 aiohttp-apispec = "3.0.0b2"
 markupsafe = "3.0.3"
@@ -113,7 +113,7 @@ module = "jose"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "neuro_auth_client.*"
+module = "neuro_admin_client.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
