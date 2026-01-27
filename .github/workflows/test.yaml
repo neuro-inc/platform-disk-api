@@ -114,6 +114,8 @@ jobs:
     - name: Pull test images
       run: make docker_pull_test_images
     - name: Setup services in minikube
+      env:
+        GHCR_TOKEN: ${{ github.token }}
       run: |
         make apply_configuration_k8s
         make test_k8s
