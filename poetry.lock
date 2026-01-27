@@ -1521,21 +1521,24 @@ files = [
 ]
 
 [[package]]
-name = "neuro-auth-client"
-version = "25.8.2"
-description = "Internal client for Neu.ro auth service"
+name = "neuro-admin-client"
+version = "25.12.0"
+description = "Internal client for Neu.ro admin service"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "neuro_auth_client-25.8.2-py3-none-any.whl", hash = "sha256:bff3a5359301071718f42a034d48dbca6c4b8361f5fbd06a6cadce48b8f20567"},
-    {file = "neuro_auth_client-25.8.2.tar.gz", hash = "sha256:30ca1710e9e393d2b5fe4cad17889a939e654a26302c307752139c88fb8363b5"},
+    {file = "neuro_admin_client-25.12.0-py3-none-any.whl", hash = "sha256:9b23dc96a0279a994ec8e30518fd859d504be241aa4209f90c1c498c561186ce"},
+    {file = "neuro_admin_client-25.12.0.tar.gz", hash = "sha256:0142f412d7a5a708ea9861ce81eabe377c50b02b3d694ff0a5bc5f0461cf1a67"},
 ]
 
 [package.dependencies]
-aiohttp = ">=3.8"
+aiohttp = {version = ">=3.11.3", extras = ["speedups"]}
 aiohttp-security = ">=0.4.0"
+multidict = ">=6"
 python-jose = ">=3.0.1"
+typing-extensions = ">=4.15.0"
+yarl = ">=1.22"
 
 [[package]]
 name = "neuro-logging"
@@ -2781,4 +2784,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13,<4.0"
-content-hash = "eb2da911896b2bd68ebe4f98d0f6a30512cf3dbc5d701400d781655e14233001"
+content-hash = "c9bd1f7145eb08c47237d857e2d37224fdfe82f3aa8c23662c6169938b231860"
