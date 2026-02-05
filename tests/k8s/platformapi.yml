@@ -43,11 +43,12 @@ spec:
     spec:
       containers:
       - name: platformauthapi
-        image: platformauthapi:latest
-        imagePullPolicy: Never
+        image: ghcr.io/neuro-inc/platformauthapi:latest
         env:
         - name: NP_JWT_SECRET
           value: secret
+      imagePullSecrets:
+        - name: ghcr
 ---
 apiVersion: v1
 kind: Service
@@ -60,3 +61,156 @@ spec:
     targetPort: 8080
   selector:
     service: platformauthapi
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: platformadmindb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: platformadmindb
+  template:
+    metadata:
+      labels:
+        service: platformadmindb
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        env:
+        - name: POSTGRES_USER
+          value: admin
+        - name: POSTGRES_PASSWORD
+          value: admin
+        - name: POSTGRES_DB
+          value: platformadmin
+        ports:
+        - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformadmindb
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    service: platformadmindb
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: platformadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: platformadmin
+  template:
+    metadata:
+      labels:
+        service: platformadmin
+    spec:
+      initContainers:
+      - name: migrations
+        image: ghcr.io/neuro-inc/platformadmin:latest
+        command: ["alembic", "upgrade", "head"]
+        env:
+        - name: NP_ADMIN_POSTGRES_DSN
+          value: "postgresql://admin:admin@platformadmindb:5432/platformadmin"
+      containers:
+      - name: platformadmin
+        image: ghcr.io/neuro-inc/platformadmin:latest
+        env:
+        - name: NP_JWT_SECRET
+          value: secret
+        - name: NP_ADMIN_POSTGRES_DSN
+          value: "postgresql://admin:admin@platformadmindb:5432/platformadmin"
+        - name: NP_ADMIN_AUTH_URL
+          value: "http://platformauthapi:8080"
+        - name: NP_ADMIN_AUTH_TOKEN
+          value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6ImFkbWluIn0.WDzJ3g8qa23kqkNUJilYnGIAfLvHD6nc-4R6DMZZzcc"
+        - name: NP_ADMIN_CONFIG_URL
+          value: "http://localhost:8080"
+        - name: NP_ADMIN_CONFIG_TOKEN
+          value: "dummy"
+        - name: NP_ADMIN_NOTIFICATIONS_URL
+          value: "http://mocknotifications:8080"
+        - name: NP_ADMIN_NOTIFICATIONS_TOKEN
+          value: "dummy"
+        ports:
+        - containerPort: 8080
+      imagePullSecrets:
+      - name: ghcr
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformadmin
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    service: platformadmin
+---
+# Mock notifications service that accepts all requests with 201 Created
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mocknotifications-config
+data:
+  nginx.conf: |
+    events {}
+    http {
+      server {
+        listen 8080;
+        location / {
+          return 201 '{}';
+          add_header Content-Type application/json;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: mocknotifications
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: mocknotifications
+  template:
+    metadata:
+      labels:
+        service: mocknotifications
+    spec:
+      containers:
+      - name: mocknotifications
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: mocknotifications-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mocknotifications
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    service: mocknotifications
