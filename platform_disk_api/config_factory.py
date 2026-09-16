@@ -49,14 +49,16 @@ class EnvironConfigFactory:
             cors=self.create_cors(),
             disk=self.create_disk(),
             enable_docs=enable_docs,
-            events=self.create_events(),
+            events=self.create_events(cluster_name),
         )
 
-    def create_events(self) -> EventsClientConfig | None:
+    def create_events(self, cluster_name: str) -> EventsClientConfig | None:
         if "NP_REGISTRY_EVENTS_URL" in self._environ:
             url = URL(self._environ["NP_REGISTRY_EVENTS_URL"])
             token = self._environ["NP_REGISTRY_EVENTS_TOKEN"]
-            return EventsClientConfig(url=url, token=token, name="platform-disk")
+            return EventsClientConfig(
+                url=url, token=token, name=f"platform-disk-{cluster_name}"
+            )
         return None
 
     def create_disk_usage_watcher(self) -> DiskUsageWatcherConfig:

@@ -396,7 +396,7 @@ async def create_app(config: Config) -> aiohttp.web.Application:
             app["disk_app"]["service"] = disk_service
 
             await exit_stack.enter_async_context(
-                ProjectDeleter(disk_service, config.events)
+                ProjectDeleter(disk_service, config.events, config.cluster_name)
             )
 
             yield
