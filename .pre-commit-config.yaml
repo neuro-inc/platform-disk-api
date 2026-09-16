@@ -28,12 +28,6 @@ repos:
     files: |
       docs/spelling_wordlist.txt|
       .gitignore
-- repo: https://github.com/sondrelg/pep585-upgrade
-  rev: v1.0
-  hooks:
-  - id: upgrade-type-hints
-    args:
-    - --futures=true
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.16.6
   hooks:
