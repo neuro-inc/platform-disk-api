@@ -123,3 +123,18 @@ def test_create_disk_usage_watcher() -> None:
         ),
         kube=KubeConfig(endpoint_url="https://localhost:8443"),
     )
+
+
+def test_create_events_group_is_cluster_scoped() -> None:
+    environ: dict[str, Any] = {
+        "NP_DISK_API_PLATFORM_AUTH_URL": "-",
+        "NP_DISK_API_PLATFORM_AUTH_TOKEN": "platform-auth-token",
+        "NP_DISK_API_K8S_API_URL": "https://localhost:8443",
+        "NP_DISK_API_STORAGE_LIMIT_PER_PROJECT": "444",
+        "NP_CLUSTER_NAME": "apolo-main",
+        "NP_REGISTRY_EVENTS_URL": "http://platform-events/apis/events",
+        "NP_REGISTRY_EVENTS_TOKEN": "events-token",
+    }
+    config = EnvironConfigFactory(environ).create()
+    assert config.events is not None
+    assert config.events.name == "platform-disk-apolo-main"

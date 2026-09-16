@@ -20,10 +20,14 @@ class ProjectDeleter:
     PROJECT_REMOVE = EventType("project-remove")
 
     def __init__(
-        self, disk_service: Service, config: EventsClientConfig | None
+        self,
+        disk_service: Service,
+        config: EventsClientConfig | None,
+        cluster_name: str,
     ) -> None:
         self._disk_service = disk_service
         self._client = from_config(config)
+        self._cluster_name = cluster_name
 
     async def __aenter__(self) -> Self:
         logger.info("Subscribe for %r", self.ADMIN_STREAM)
@@ -41,6 +45,14 @@ class ProjectDeleter:
 
     async def _on_admin_event(self, ev: RecvEvent) -> None:
         if ev.event_type == self.PROJECT_REMOVE:
+            if ev.cluster != self._cluster_name:
+                logger.warning(
+                    "Skip %s for cluster %r, this is %r",
+                    ev.event_type,
+                    ev.cluster,
+                    self._cluster_name,
+                )
+                return
             assert ev.org
             assert ev.project
 

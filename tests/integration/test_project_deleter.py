@@ -69,7 +69,7 @@ async def test_deleter(
                         stream=StreamType("platform-admin"),
                         event_type=EventType("project-remove"),
                         org=org,
-                        cluster="cluster",
+                        cluster=config.cluster_name,
                         project=project,
                         user="testuser",
                     ),
@@ -83,3 +83,43 @@ async def test_deleter(
 
         disks = await service.get_project_disks(org, project, ensure_namespace=False)
         assert disks == []
+
+
+async def test_deleter_ignores_other_cluster(
+    config: Config,
+    events_queues: EventsQueues,
+    service: Service,
+    disk_factory: Callable[[str], Coroutine[Any, Any, Disk]],
+    org_project: tuple[str, str],
+) -> None:
+    app = await create_app(config)
+    async with create_local_app_server(app, port=8080):
+        org, project = org_project
+
+        await disk_factory("disk1")
+
+        await events_queues.outcome.put(
+            RecvEvents(
+                subscr_id=uuid4(),
+                events=[
+                    RecvEvent(
+                        tag=Tag("456"),
+                        timestamp=datetime.now(tz=UTC),
+                        sender="platform-admin",
+                        stream=StreamType("platform-admin"),
+                        event_type=EventType("project-remove"),
+                        org=org,
+                        cluster="other-cluster",
+                        project=project,
+                        user="testuser",
+                    ),
+                ],
+            )
+        )
+
+        ev = await events_queues.income.get()
+        assert isinstance(ev, Ack)
+        assert ev.events[StreamType("platform-admin")] == ["456"]
+
+        disks = await service.get_project_disks(org, project, ensure_namespace=False)
+        assert len(disks) == 1
