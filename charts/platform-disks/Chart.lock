@@ -4,6 +4,6 @@ dependencies:
   version: 1.0.1
 - name: admission-controller-lib
   repository: https://neuro-inc.github.io/helm-charts
-  version: 0.1.17
-digest: sha256:0f5a56a7086ef7fb3a4d04a9c51ad3e11adb000947c8701c37ae9ca7b830e90c
-generated: "2025-12-19T11:19:21.306985189+01:00"
+  version: 0.2.0
+digest: sha256:9aee291fac0cbcf1b99eed01f33152ca284d985a1f91ba204645c6a661853d15
+generated: "2026-09-25T12:37:05.24146+02:00"
