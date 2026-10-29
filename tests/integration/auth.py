@@ -130,7 +130,7 @@ async def wait_for_auth_server(
                 async with create_auth_client(config) as auth_client:
                     await auth_client.ping()
                     break
-            except (AssertionError, ClientError):  # fmt: skip
+            except AssertionError, ClientError:
                 pass
             await asyncio.sleep(interval_s)
 
