@@ -40,7 +40,7 @@ IMAGE_NAME = platformdiskapi
 
 .PHONY: docker_build
 docker_build: dist
-	docker build \
+	docker build --pull --no-cache \
 		--build-arg PY_VERSION=$$(cat .python-version) \
 		-t $(IMAGE_NAME):latest .
 
