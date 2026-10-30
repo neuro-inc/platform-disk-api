@@ -48,13 +48,8 @@ def random_name(length: int = 8) -> str:
 
 @pytest.fixture(scope="session")
 def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
-    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    loop = asyncio.new_event_loop()
     loop.set_debug(True)
-
-    watcher = asyncio.SafeChildWatcher()
-    watcher.attach_loop(loop)
-    asyncio.get_event_loop_policy().set_child_watcher(watcher)
 
     yield loop
     loop.close()

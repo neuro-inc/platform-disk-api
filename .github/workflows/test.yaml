@@ -118,8 +118,7 @@ jobs:
         make apply_configuration_k8s
         make test_k8s
     - name: Run integration tests
-      run: |
-        make test_integration
+      run: make test_integration
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v7
       with:
