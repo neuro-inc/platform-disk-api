@@ -14,7 +14,6 @@ RUN pip install --user --no-cache-dir --find-links /tmp/dist platform-disk-api \
     && rm -rf /tmp/dist
 
 FROM python:${PY_VERSION}-slim-bookworm AS runtime
-
 LABEL org.opencontainers.image.source="https://github.com/neuro-inc/platform-disk-api"
 
 WORKDIR /app
@@ -41,6 +40,5 @@ WORKDIR /app
 
 ENV NP_DISK_API_PORT=8080
 EXPOSE $NP_DISK_API_PORT
-
 
 CMD ["platform-disk-api"]
