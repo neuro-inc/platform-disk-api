@@ -31,13 +31,13 @@ repos:
       docs/spelling_wordlist.txt|
       .gitignore
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.15.22
+  rev: v0.17.3
   hooks:
   - id: ruff-check
     args: [--fix, --exit-non-zero-on-fix]
   - id: ruff-format
 - repo: https://github.com/sirosen/check-jsonschema
-  rev: 0.38.2
+  rev: 0.39.0
   hooks:
   - id: check-github-actions
   - id: check-github-workflows
