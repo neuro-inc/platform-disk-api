@@ -61,7 +61,7 @@ function k8s::start {
 
     # ----- Start Minikube -------------------------------------------------------
     echo "• Starting Minikube (driver=none) …"
-    sudo -E minikube start \
+    sudo env KUBECONFIG="$KUBECONFIG" MINIKUBE_HOME="$MINIKUBE_HOME" MINIKUBE_DISABLE_PROMPT=1 MINIKUBE_DISABLE_WARNING=1 CHANGE_MINIKUBE_NONE_USER=true minikube start \
         --driver=none \
         --wait=all \
         --wait-timeout=5m
