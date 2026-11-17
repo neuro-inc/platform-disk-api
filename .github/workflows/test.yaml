@@ -107,6 +107,10 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ github.token }}
+    - name: Install Helm 3
+      uses: azure/setup-helm@v5.0.1
+      with:
+        version: '3.22.1'
     - name: Setup minikube
       run: |
         make install_k8s
